@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.http-checks",
+  "version": "1.0.0",
+  "title": { "ru": "Проверки сайтов", "en": "Site checks" },
+  "description": {
+    "ru": "Отвечают ли адреса сервера и как быстро: проверка с самого сервера (curl) или с этого Mac, история времени ответа, сообщение о падении.",
+    "en": "Whether the server's URLs answer and how fast: checked from the server itself (curl) or from this Mac, response time history, a notification when one goes down."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "globe", "color": "teal" },
+  "runtime": { "kind": "process", "command": ["node", "module.ts"] },
+  "permissions": ["exec", "store", "notify", "network"],
+  "settings": [
+    {
+      "key": "urls", "type": "list", "default": [],
+      "title": { "ru": "Адреса", "en": "URLs" },
+      "placeholder": "https://shop.example.com/health",
+      "help": { "ru": "По одному на строку; http:// или https://.", "en": "One per line; http:// or https://." }
+    },
+    {
+      "key": "from", "type": "choice", "default": "server",
+      "title": { "ru": "Откуда проверять", "en": "Check from" },
+      "choices": [
+        { "value": "server", "title": { "ru": "С сервера (curl)", "en": "The server (curl)" } },
+        { "value": "mac", "title": { "ru": "С этого Mac", "en": "This Mac" } }
+      ]
+    },
+    { "key": "slow_ms", "type": "number", "default": 800, "title": { "ru": "Медленно — дольше, мс", "en": "Slow above, ms" } },
+    { "key": "notify", "type": "bool", "default": true, "title": { "ru": "Сообщать, когда адрес перестал отвечать", "en": "Notify when a URL stops answering" } }
+  ],
+  "service": { "detect": "detect", "summary": "summary", "page": "main" },
+  "pages": [
+    { "id": "main", "title": { "ru": "Проверки сайтов", "en": "Site checks" }, "render": "render", "refresh": 30 },
+    { "id": "url", "title": { "ru": "Адрес", "en": "URL" }, "render": "render_url", "refresh": 30 }
+  ],
+  "handlers": {
+    "detect": { "timeout": 5 },
+    "summary": { "timeout": 60 },
+    "render": { "timeout": 60 },
+    "render_url": { "timeout": 30 },
+    "check": { "timeout": 60 },
+    "clear": { "timeout": 5 },
+    "check_url": { "timeout": 20 }
+  },
+  "actions": [
+    { "id": "check", "title": { "ru": "Проверить сейчас", "en": "Check now" }, "symbol": "arrow.clockwise", "handler": "check", "risk": "read" },
+    {
+      "id": "clear", "title": { "ru": "Очистить историю…", "en": "Clear history…" }, "symbol": "trash", "handler": "clear", "risk": "change",
+      "confirm": { "ru": "Удалить историю проверок «{{ server.name }}»?", "en": "Delete the check history of “{{ server.name }}”?" }
+    }
+  ],
+  "tools": [
+    {
+      "name": "http_check",
+      "description": "Checks one URL the way this module does (from the server with curl, or from this Mac): HTTP code, time in ms, error. Use it to see whether a site answers.",
+      "handler": "check_url", "risk": "read",
+      "params": [{ "key": "url", "title": "URL", "type": "text", "required": true, "pattern": "https?://[^\\s'\"\\\\]+" }]
+    }
+  ]
+}

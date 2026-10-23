@@ -49,6 +49,8 @@ export interface Transport {
   write(line: string): void;
   onLine(cb: (line: string) => void): void;
   onClose(cb: () => void): void;
+  /** Ends the program after shutdown or a closed stdin (tests pass a no-op). */
+  exit?: () => void;
 }
 
 export function stdioTransport(): Transport {
@@ -77,6 +79,7 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
   const pending = new Map<number, Pending>();
   const running = new Map<string, AbortController>();
   let initialized = false;
+  const exit = transport.exit ?? (() => process.exit(0));
 
   const send = (msg: Record<string, unknown>) => transport.write(JSON.stringify({ jsonrpc: "2.0", ...msg }));
 
@@ -157,17 +160,28 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
         return;
       case "shutdown":
         send({ id: msg.id, result: null });
-        setTimeout(() => process.exit(0), 10);
+        setTimeout(() => exit(), 10);
         return;
       default:
         if (msg.id !== undefined) send({ id: msg.id, error: { code: Codes.methodNotFound, message: `no method ${msg.method}` } });
     }
   });
-  transport.onClose(() => process.exit(0));
+  transport.onClose(() => exit());
   return { request, running };
 }
 
 /** Defines and serves a module in one line: `defineModule({ handlers: { … } })`. */
 export function defineModule(def: ModuleDefinition) {
   return serve(def);
+}
+
+/** A single-quoted word for a shell command of `host.exec`: `quote("it's")` → `'it'\''s'`. */
+export function quote(s: string): string {
+  return "'" + s.replaceAll("'", "'\\''") + "'";
+}
+
+/** The text for the call's language: `tr(ctx, { ru: "Готово", en: "Done" })` (English when there's no such). */
+export function tr(ctx: { locale: string }, t: Record<string, string>): string {
+  const base = ctx.locale.split(/[-_]/)[0];
+  return t[ctx.locale] ?? t[base] ?? t.en ?? Object.values(t)[0] ?? "";
 }
