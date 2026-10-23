@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/view.schema.json",
+  "status": [
+    { "text": "{{ data.overview.procs }} процессов, нагрузка {{ data.overview.load1 }} на {{ data.overview.cpus }} ядер." },
+    { "if": "data.overview.load_status == 'warn'", "block": { "text": " Сервер перегружен.", "tone": "attention" } }
+  ],
+  "state": { "q": "" },
+  "blocks": [
+    { "type": "grid", "columns": 4, "children": [
+      { "use": "kpi", "props": { "title": "Нагрузка, 1 мин", "value": "{{ data.overview.load1 }}", "status": "{{ data.overview.load_status }}" } },
+      { "use": "kpi", "props": { "title": "За 15 мин", "value": "{{ data.overview.load15 }}" } },
+      { "type": "gauge", "title": "Память", "value": "{{ data.overview.mem_pct }}", "max": 100, "unit": "%",
+        "subtitle": "{{ data.overview.mem_used | bytes }} из {{ data.overview.mem_total | bytes }}" },
+      { "use": "kpi", "props": { "title": "Ядер", "value": "{{ data.overview.cpus }}" } }
+    ] },
+    { "type": "search", "bind": "q", "subtitle": "Имя, пользователь или команда" },
+    { "type": "rows", "title": "Больше всего CPU", "bind": "q", "text": "Процессов нет", "items": [
+      { "each": "data.procs.processes", "as": "p", "block": {
+        "id": "{{ p.id }}", "title": "{{ p.name }}", "detail": "{{ p.command }}", "status": "{{ p.status }}",
+        "trailing": "{{ p.cpu }}% · {{ p.rss | bytes }}", "badge": "{{ p.user }}",
+        "actions": ["stop", "reload", "kill"], "action": { "page": "process" }, "data": "{{ p }}"
+      } }
+    ] }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/view.schema.json",
+  "status": [
+    { "text": "{{ data.proc.name }} · PID {{ data.proc.pid }} · {{ data.proc.state }}" },
+    { "text": " · работает {{ data.proc.uptime | duration }}", "tone": "secondary" }
+  ],
+  "blocks": [
+    { "type": "grid", "columns": 3, "children": [
+      { "type": "metric", "title": "Память", "value": "{{ data.proc.rss | bytes }}" },
+      { "type": "metric", "title": "Потоков", "value": "{{ data.proc.threads }}" },
+      { "type": "metric", "title": "Открытых файлов", "value": "{{ data.proc.fds }}" }
+    ] },
+    { "type": "keyvalue", "title": "Сведения", "items": [
+      { "title": "Пользователь", "detail": "{{ data.proc.user }}" },
+      { "title": "Папка", "detail": "{{ data.proc.cwd }}" },
+      { "title": "Команда", "detail": "{{ data.proc.command }}" }
+    ] },
+    { "type": "stack", "axis": "horizontal", "children": [
+      { "type": "button", "title": "Остановить (TERM)", "symbol": "stop.circle.fill", "action": { "run": "stop" } },
+      { "type": "button", "title": "Убить (KILL)", "symbol": "xmark.octagon.fill", "status": "bad", "action": { "run": "kill" } }
+    ] }
+  ]
+}
