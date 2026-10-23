@@ -203,4 +203,38 @@ Limits: 400 blocks after expansion, 12 levels, 2 MB of JSON.
   file; a changed file disables the module until it is approved again. A module linked from a folder (development)
   is reloaded when its files change and is marked «из папки».
 - Files a package may hold: the manifest, `views/*.json`, `scripts/**`, `assets/**`, the program and its files.
-  At most 2 000 files and 64 MB.
+  At most 2 000 files and 64 MB. Every file is hashed (`node_modules` too); only `.git` folders and `.DS_Store`
+  files are left out, and an install doesn't copy them.
+
+## 8. Automation blocks
+
+An `automation` entry is a block of the automations library («Из установленных модулей»). In SDK 1 only server
+modules have them; a process module's blocks are listed with a warning and not offered.
+
+- The block has one input, a **server**, and the parameters of its `params` (set on the card).
+- The app makes one script of the handler: the card's values become `SK_INPUT_<KEY>` (checked as on a page:
+  `required`, numbers, `choices`, `pattern` — here as a POSIX ERE, so keep patterns to what both ERE and ICU read the
+  same), the request comes on stdin with `context.automation: true` and no server, the handler runs as on a page.
+- Settings take their **defaults**: a card has no connection settings of its own. Secret settings don't reach
+  automations; pass what varies as block parameters.
+- `sudo: required` runs the block through `sudo -n` (the server must allow it); `auto` runs it as the user.
+- `returns` says what goes to the next block: `text`, `number` and `list` are read from stdout as the automations'
+  «Что вернуть» does; `json` (default) also becomes the block's summary — `{"status": "ok" | "warn" | "error",
+  "summary" (or "message"), "value", "unit", "items": [{"label", "status", "value", "detail"}], …}`; other keys
+  become values the next blocks read as `{{ in.<key> }}`.
+- The block's id in graphs is derived from the module id and the block id, so an automation shared with someone who
+  has the module installed finds the block.
+
+## 9. AI tools
+
+A `tools` entry is offered to the app's agent through two fixed tools, `module_tools` (what the modules of a server
+offer, with parameters) and `module_call` (call one). The list the model sees doesn't grow with modules, so the
+prompt cache holds.
+
+- The model gives `server` (an open session), `module`, `tool` and `input`; the input is checked against `params`
+  (types, `required`, `choices`, `pattern` as a full match) and unknown keys are dropped.
+- `risk` goes through the server's AI mode like any command: `read` — as a check, `change` — as a service action,
+  `danger` — as a disruptive one; the user confirms what the mode asks for.
+- The answer is the handler's JSON (or text), with secrets masked, cut to what a model reads.
+- `description` is what the model reads to choose the tool: say what it does, what it returns and when to use it.
+

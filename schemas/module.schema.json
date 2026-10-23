@@ -51,7 +51,7 @@
     "permissions": {
       "type": "array", "uniqueItems": true,
       "items": { "enum": ["exec", "sudo", "secrets", "network", "store", "notify"] },
-      "description": "What the module uses, shown on install. exec — commands on servers; sudo — through sudo -n where the server allows it; secrets — secret settings and node credentials; network — its own connections from this Mac; store — its own storage; notify — notifications."
+      "description": "What the module uses, shown on install. exec — commands on servers; sudo — through sudo -n where the server allows it; secrets — its secret settings; network — its own connections from this Mac; store — its own storage; notify — notifications."
     },
     "settings": {
       "type": "array", "maxItems": 40,

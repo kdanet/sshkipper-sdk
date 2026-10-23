@@ -5,11 +5,16 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
-  "bin": { "sshkipper-module": "packages/cli/sshkipper-module.ts" },
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "sshkipper-module": "packages/cli/sshkipper-module.ts"
+  },
   "scripts": {
     "test": "node --test tests/*.test.ts",
     "validate": "node packages/cli/sshkipper-module.ts validate examples/processes && node packages/cli/sshkipper-module.ts validate examples/http-checks",
-    "mcp": "node packages/cli/sshkipper-module.ts mcp"
+    "mcp": "node packages/cli/sshkipper-module.ts mcp",
+    "docs": "node scripts/gen-docs.ts"
   }
 }

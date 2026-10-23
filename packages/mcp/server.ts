@@ -21,7 +21,8 @@ const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const GUIDES: Record<string, string> = {
   overview: "README.md", "getting-started": "getting-started.md", manifest: "manifest.md", "ui-kit": "ui-kit.md",
   server: "server-modules.md", process: "process-modules.md", "ai-and-automation": "ai-and-automation.md",
-  publishing: "publishing.md", security: "security.md", protocol: "../../spec/protocol.md",
+  publishing: "publishing.md", security: "security.md", agents: "agents.md", "ui-kit-reference": "ui-kit-reference.md",
+  protocol: "../../spec/protocol.md",
 };
 
 const guide = (topic: string) => {
