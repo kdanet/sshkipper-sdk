@@ -1,0 +1,66 @@
+[
+  {
+    "name": "a placeholder alone keeps its type",
+    "vars": { "data": { "total": 3, "ok": true, "units": ["a", "b"] } },
+    "view": { "a": "{{ data.total }}", "b": "{{ data.ok }}", "c": "{{ data.units }}", "d": "{{data.units.count}}" },
+    "expected": { "a": 3, "b": true, "c": ["a", "b"], "d": 2 }
+  },
+  {
+    "name": "placeholders inside text are printed",
+    "vars": { "data": { "n": 2, "name": "web-1", "obj": { "b": 1, "a": 2 } } },
+    "view": { "t": "{{ data.n }} на {{ data.name }}: {{ data.obj }}" },
+    "expected": { "t": "2 на web-1: {\"a\":2,\"b\":1}" }
+  },
+  {
+    "name": "formulas over state are left for the view",
+    "vars": { "data": {} },
+    "view": { "t": "Итого {{ rate * 2 }} ({{ data.missing }})" },
+    "expected": { "t": "Итого {{ rate * 2 }} ()" }
+  },
+  {
+    "name": "each with as, where, limit and index",
+    "vars": { "data": { "units": [ { "n": "a", "s": "failed" }, { "n": "b", "s": "running" }, { "n": "c", "s": "failed" }, { "n": "d", "s": "failed" } ] } },
+    "view": { "items": [ { "each": "data.units", "as": "u", "where": "u.s == 'failed'", "limit": 2, "block": { "title": "{{ u.n }}", "i": "{{ index }}" } } ] },
+    "expected": { "items": [ { "title": "a", "i": 0 }, { "title": "c", "i": 2 } ] }
+  },
+  {
+    "name": "if and else",
+    "vars": { "data": { "count": 0 }, "settings": { "mode": "all" } },
+    "view": { "blocks": [ { "if": "data.count > 0 || settings.mode != 'all'", "block": { "type": "text", "text": "yes" }, "else": { "type": "text", "text": "no" } },
+                          { "if": "!(data.count == 0)", "block": { "type": "divider" } } ] },
+    "expected": { "blocks": [ { "type": "text", "text": "no" } ] }
+  },
+  {
+    "name": "components get props filled in the caller's scope",
+    "components": { "badge": { "type": "chips", "items": [ { "title": "{{ props.label }}", "status": "{{ props.status }}" } ] } },
+    "vars": { "item": { "name": "nginx", "failed": true } },
+    "view": { "blocks": [ { "use": "badge", "props": { "label": "{{ item.name | upper }}", "status": "bad" } } ] },
+    "expected": { "blocks": [ { "type": "chips", "items": [ { "title": "NGINX", "status": "bad" } ] } ] }
+  },
+  {
+    "name": "filters: default, lower, json, count, duration",
+    "vars": { "data": { "e": "", "x": "AbC", "list": [1, 2, 3], "secs": 3700 } },
+    "view": { "a": "{{ data.e | default:'—' }}", "b": "{{ data.x | lower }}", "c": "{{ data.list | json }}", "d": "{{ data.list | count }}", "e": "{{ data.secs | duration }}" },
+    "expected": { "a": "—", "b": "abc", "c": "[1,2,3]", "d": 3, "e": "1 ч 1 мин" }
+  },
+  {
+    "name": "comparisons: numbers as numbers, strings as strings",
+    "vars": { "data": { "v": "10", "w": 9, "s": "b" } },
+    "view": { "items": [
+      { "if": "data.v > data.w", "block": "num" },
+      { "if": "data.s > 'a'", "block": "str" },
+      { "if": "data.missing == null", "block": "null" }
+    ] },
+    "expected": { "items": ["num", "str", "null"] }
+  },
+  {
+    "name": "paths with indexes",
+    "vars": { "data": { "rows": [ { "ports": [80, 443] } ] } },
+    "view": { "p": "{{ data.rows[0].ports[1] }}", "q": "{{ data.rows[5].ports }}" },
+    "expected": { "p": 443, "q": null }
+  },
+  { "name": "each over a non-array fails", "vars": { "data": { "n": 1 } }, "view": { "x": [ { "each": "data.n", "block": 1 } ] }, "error": true },
+  { "name": "an unknown component fails", "vars": {}, "view": { "x": [ { "use": "nope" } ] }, "error": true },
+  { "name": "an unknown filter fails", "vars": { "data": { "n": 1 } }, "view": { "x": "{{ data.n | nope }}" }, "error": true },
+  { "name": "a broken condition fails", "vars": { "data": {} }, "view": { "x": [ { "if": "data.a ==", "block": 1 } ] }, "error": true }
+]

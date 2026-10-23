@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sshkipper.dev/schemas/module-1.json",
+  "title": "SSHKipper module manifest (sshkipper-module.json), SDK 1",
+  "type": "object",
+  "required": ["sdk", "id", "version", "title", "runtime"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "sdk": { "const": 1, "description": "SDK version the module is written for." },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$",
+      "minLength": 3, "maxLength": 64,
+      "description": "Reverse-DNS id, unique among modules: dev.acme.queue."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$",
+      "description": "Semantic version: 1.4.0, 2.0.0-beta.1."
+    },
+    "title": { "$ref": "#/$defs/text", "description": "Name shown everywhere: section bar, tree, settings." },
+    "description": { "$ref": "#/$defs/text" },
+    "author": {
+      "type": "object", "additionalProperties": false, "required": ["name"],
+      "properties": { "name": { "type": "string", "maxLength": 80 }, "url": { "type": "string", "maxLength": 300 } }
+    },
+    "license": { "type": "string", "maxLength": 40 },
+    "homepage": { "type": "string", "maxLength": 300 },
+    "icon": { "$ref": "#/$defs/icon" },
+    "runtime": {
+      "description": "Where the module's handlers run.",
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind"],
+          "properties": { "kind": { "const": "server", "description": "Handlers are shell scripts the app runs on the server over its SSH session." } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "command"],
+          "properties": {
+            "kind": { "const": "process", "description": "A program on this Mac speaking JSON-RPC 2.0 over stdio." },
+            "command": {
+              "type": "array", "minItems": 1, "maxItems": 16, "items": { "type": "string", "maxLength": 400 },
+              "description": "Program and arguments, relative to the module folder: [\"node\", \"main.ts\"] or [\"bin/queue\"]."
+            },
+            "env": { "type": "object", "additionalProperties": { "type": "string", "maxLength": 1000 }, "maxProperties": 32 }
+          }
+        }
+      ]
+    },
+    "permissions": {
+      "type": "array", "uniqueItems": true,
+      "items": { "enum": ["exec", "sudo", "secrets", "network", "store", "notify"] },
+      "description": "What the module uses, shown on install. exec — commands on servers; sudo — through sudo -n where the server allows it; secrets — secret settings and node credentials; network — its own connections from this Mac; store — its own storage; notify — notifications."
+    },
+    "settings": {
+      "type": "array", "maxItems": 40,
+      "items": { "$ref": "#/$defs/setting" },
+      "description": "Per-connection settings, edited in the connection card («Службы») and inherited from folders."
+    },
+    "service": { "$ref": "#/$defs/service" },
+    "pages": {
+      "type": "array", "maxItems": 20,
+      "items": { "$ref": "#/$defs/page" }
+    },
+    "handlers": {
+      "type": "object", "maxProperties": 100,
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/handler" },
+      "description": "Named units of work. Server runtime: scripts. Process runtime: names the program answers to (the entry may be {} or carry a timeout)."
+    },
+    "actions": {
+      "type": "array", "maxItems": 60,
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "tools": {
+      "type": "array", "maxItems": 40,
+      "items": { "$ref": "#/$defs/tool" },
+      "description": "Tools for the AI agent; they obey the server's AI mode and confirmations like the built-in ones."
+    },
+    "automation": {
+      "type": "array", "maxItems": 40,
+      "items": { "$ref": "#/$defs/automationBlock" },
+      "description": "Blocks for the automations canvas."
+    },
+    "components": {
+      "type": "object", "maxProperties": 60,
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "type": "object", "description": "A block (UI-Kit, view.schema.json) with {{ props.* }} placeholders, used as {\"use\": \"name\", \"props\": {…}}." }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+    "text": {
+      "description": "A string, or a string per language: {\"ru\": \"Очереди\", \"en\": \"Queues\"}. The first language present is the fallback.",
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 400 },
+        {
+          "type": "object", "minProperties": 1, "maxProperties": 12,
+          "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z]{2,4})?$" },
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 400 }
+        }
+      ]
+    },
+    "color": {
+      "description": "A palette name (follows light and dark themes) or #RRGGBB.",
+      "type": "string",
+      "pattern": "^(blue|green|orange|red|yellow|purple|pink|teal|indigo|cyan|mint|brown|gray|#[0-9A-Fa-f]{6})$"
+    },
+    "icon": {
+      "type": "object", "additionalProperties": false, "required": ["symbol"],
+      "properties": {
+        "symbol": { "type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$", "maxLength": 60, "description": "SF Symbols name: tray.full, gearshape.2." },
+        "color": { "$ref": "#/$defs/color" }
+      }
+    },
+    "risk": {
+      "enum": ["read", "change", "danger"],
+      "description": "read — looks only; change — changes something, asks first; danger — can break or lose data, asks with a red button."
+    },
+    "setting": {
+      "type": "object", "additionalProperties": false, "required": ["key", "title", "type"],
+      "properties": {
+        "key": { "$ref": "#/$defs/name" },
+        "title": { "$ref": "#/$defs/text" },
+        "help": { "$ref": "#/$defs/text" },
+        "type": { "enum": ["text", "number", "bool", "choice", "secret", "path", "list"] },
+        "default": {},
+        "choices": {
+          "type": "array", "maxItems": 40,
+          "items": { "type": "object", "additionalProperties": false, "required": ["value", "title"],
+                     "properties": { "value": { "type": "string" }, "title": { "$ref": "#/$defs/text" } } }
+        },
+        "placeholder": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "service": {
+      "type": "object", "additionalProperties": false,
+      "description": "A service of a server, like nginx or cron: an entry in the connection's «Службы», a node in the tree, a section of the server's services tab.",
+      "properties": {
+        "detect": { "$ref": "#/$defs/name", "description": "Handler that answers whether the service is there: {\"found\": true}. Without it the service shows only when switched on." },
+        "summary": { "$ref": "#/$defs/name", "description": "Handler for the status line and the dot: {\"text\": \"3 из 4 работают\", \"status\": \"warn\"}." },
+        "page": { "type": "string", "description": "Page shown in the section; the first page by default." },
+        "tree": {
+          "type": "object", "additionalProperties": false, "required": ["handler"],
+          "description": "Children of the service's node in the tree.",
+          "properties": {
+            "handler": { "$ref": "#/$defs/name", "description": "Returns {\"items\": [{\"id\", \"title\", \"subtitle\", \"status\", \"symbol\"}]}." },
+            "page": { "type": "string", "description": "Page opened for an item; it gets the item as `item`." }
+          }
+        },
+        "containers": { "type": "boolean", "description": "May run inside a Docker container of the server («Где работает»): handlers then run through docker exec." }
+      }
+    },
+    "page": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/name" },
+        "title": { "$ref": "#/$defs/text" },
+        "view": { "type": "string", "description": "A view template file (view.schema.json) filled with `data`." },
+        "data": {
+          "type": "object", "maxProperties": 12,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "Template variables from handlers: {\"units\": \"list_units\"} makes `data.units`."
+        },
+        "render": { "$ref": "#/$defs/name", "description": "Handler that returns the whole view (process modules); instead of view + data." },
+        "refresh": { "type": "number", "minimum": 2, "maximum": 3600, "description": "Seconds between reloads while the page is on screen." }
+      }
+    },
+    "handler": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "script": { "type": "string", "maxLength": 300, "description": "Server runtime: a file of the module (scripts/units.sh) run with sh on the server." },
+        "timeout": { "type": "number", "minimum": 1, "maximum": 3600, "description": "Seconds; 30 by default." },
+        "sudo": { "enum": ["never", "auto", "required"], "description": "auto — through sudo -n where the server's «Использовать sudo -n» is on (default for server scripts)." },
+        "output": { "enum": ["json", "text", "lines"], "description": "How stdout is read: JSON (default), text, or an array of lines." }
+      }
+    },
+    "param": {
+      "type": "object", "additionalProperties": false, "required": ["key", "title", "type"],
+      "properties": {
+        "key": { "$ref": "#/$defs/name" },
+        "title": { "$ref": "#/$defs/text" },
+        "type": { "enum": ["text", "number", "bool", "choice"] },
+        "default": {},
+        "required": { "type": "boolean" },
+        "choices": { "type": "array", "items": { "type": "string" }, "maxItems": 40 },
+        "pattern": { "type": "string", "maxLength": 200, "description": "A regular expression the value must match (a must for values that reach shell scripts)." }
+      }
+    },
+    "action": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "handler", "risk"],
+      "properties": {
+        "id": { "$ref": "#/$defs/name" },
+        "title": { "$ref": "#/$defs/text" },
+        "symbol": { "type": "string", "maxLength": 60 },
+        "handler": { "$ref": "#/$defs/name" },
+        "risk": { "$ref": "#/$defs/risk" },
+        "on": { "enum": ["service", "item"], "description": "service — in the page's «⋯» menu; item — on a row (the row's item goes as `item`)." },
+        "confirm": { "$ref": "#/$defs/text", "description": "The question asked first; {{ item.* }} and {{ params.* }} work. Change and danger actions always ask." },
+        "params": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/param" } }
+      }
+    },
+    "tool": {
+      "type": "object", "additionalProperties": false, "required": ["name", "description", "handler", "risk"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "description": { "type": "string", "minLength": 10, "maxLength": 1000 },
+        "handler": { "$ref": "#/$defs/name" },
+        "risk": { "$ref": "#/$defs/risk" },
+        "params": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/param" } }
+      }
+    },
+    "automationBlock": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "handler", "risk"],
+      "properties": {
+        "id": { "$ref": "#/$defs/name" },
+        "title": { "$ref": "#/$defs/text" },
+        "description": { "$ref": "#/$defs/text" },
+        "symbol": { "type": "string", "maxLength": 60 },
+        "handler": { "$ref": "#/$defs/name" },
+        "risk": { "$ref": "#/$defs/risk" },
+        "params": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/param" } },
+        "returns": { "enum": ["none", "text", "number", "list", "json"], "description": "What goes to the next block." }
+      }
+    }
+  }
+}

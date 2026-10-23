@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sshkipper.dev/schemas/view-1.json",
+  "title": "SSHKipper view (UI-Kit), SDK 1",
+  "description": "A page of a module: blocks the app draws natively (AppKit/SwiftUI), in the look of its own service pages. The same format as the app's canvas_view, plus module blocks, styles, templates and module actions.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "title": { "type": "string", "maxLength": 200 },
+    "status": {
+      "type": "array", "maxItems": 6,
+      "description": "The sentence under the page title, in parts: [{\"text\": \"3 из 4 работают.\"}, {\"text\": \"nginx упал\", \"tone\": \"bad\"}].",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["text"],
+        "properties": { "text": { "type": "string", "maxLength": 300 }, "tone": { "$ref": "#/$defs/tone" } }
+      }
+    },
+    "state": {
+      "type": "object", "maxProperties": 100,
+      "additionalProperties": { "type": ["string", "number", "boolean"] },
+      "description": "Variables inputs change and formulas read: {\"filter\": \"\", \"failedOnly\": false}."
+    },
+    "blocks": { "type": "array", "maxItems": 400, "items": { "$ref": "#/$defs/node" } }
+  },
+  "$defs": {
+    "tone": { "enum": ["plain", "secondary", "good", "warning", "attention", "bad", "accent", "info"] },
+    "status": { "enum": ["ok", "warn", "bad", "off", "info"] },
+    "color": { "type": "string", "pattern": "^(blue|green|orange|red|yellow|purple|pink|teal|indigo|cyan|mint|brown|gray|#[0-9A-Fa-f]{6})$" },
+    "style": {
+      "type": "object", "additionalProperties": false,
+      "description": "How a block looks beyond its kind. Tones and palette names follow the light and dark themes; #RRGGBB is taken as is.",
+      "properties": {
+        "tone": { "$ref": "#/$defs/tone" },
+        "color": { "$ref": "#/$defs/color" },
+        "background": { "oneOf": [{ "$ref": "#/$defs/color" }, { "enum": ["card", "well", "none"] }] },
+        "font": { "enum": ["title", "headline", "body", "callout", "caption", "mono"] },
+        "weight": { "enum": ["regular", "medium", "semibold", "bold"] },
+        "padding": { "type": "number", "minimum": 0, "maximum": 48 },
+        "radius": { "type": "number", "minimum": 0, "maximum": 32 },
+        "align": { "enum": ["leading", "center", "trailing"] },
+        "width": { "type": "number", "minimum": 20, "maximum": 2000, "description": "Fixed width in points (a column in a row)." },
+        "grow": { "type": "boolean", "description": "Takes the free width of its row." }
+      }
+    },
+    "action": {
+      "type": "object", "additionalProperties": false,
+      "description": "What a button or a row does. One of: run (a module action), refresh, page (open a module page), set (state), open (an app link: node:<id>, docker:<server>…), ask (a question to the AI panel).",
+      "properties": {
+        "run": { "type": "string", "description": "A module action id; the row's item and `params` go with it." },
+        "params": { "type": "object", "additionalProperties": true },
+        "refresh": { "type": "boolean" },
+        "page": { "type": "string", "description": "A page id of the module; the row's item goes as `item`." },
+        "set": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] }, "description": "State changes; \"= expr\" — a formula." },
+        "open": { "type": "string" },
+        "ask": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "item": {
+      "type": "object", "additionalProperties": false,
+      "description": "A row of rows / list / keyvalue / timeline / checklist.",
+      "properties": {
+        "id": { "type": "string", "maxLength": 200 },
+        "title": { "type": "string", "maxLength": 500 },
+        "detail": { "type": "string", "maxLength": 2000 },
+        "status": { "$ref": "#/$defs/status" },
+        "symbol": { "type": "string", "maxLength": 60 },
+        "badge": { "type": "string", "maxLength": 60, "description": "A short label on the right (rows): «failed», «5 мин»." },
+        "badgeTone": { "$ref": "#/$defs/tone" },
+        "trailing": { "type": "string", "maxLength": 120, "description": "Secondary text on the right (rows)." },
+        "actions": { "type": "array", "maxItems": 12, "items": { "type": "string" }, "description": "Module action ids in the row's menu (on: item)." },
+        "action": { "$ref": "#/$defs/action", "description": "A click on the row." },
+        "data": { "type": "object", "additionalProperties": true, "description": "The item the actions get (defaults to the row itself)." },
+        "time": { "type": "string", "maxLength": 60 },
+        "done": { "type": "boolean" },
+        "ref": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "series": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "maxLength": 80 },
+        "values": { "type": "array", "maxItems": 1000, "items": { "type": "number" } },
+        "formula": { "type": "string", "maxLength": 400 },
+        "points": { "type": "integer", "minimum": 2, "maximum": 1000 }
+      }
+    },
+    "node": {
+      "description": "A block, or a template node: {\"each\": \"data.units\", \"as\": \"unit\", \"block\": {…}}, {\"if\": \"item.failed\", \"block\": {…}, \"else\": {…}}, {\"use\": \"unitRow\", \"props\": {…}}.",
+      "oneOf": [
+        { "$ref": "#/$defs/block" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["each", "block"],
+          "properties": {
+            "each": { "type": "string", "description": "A path to an array: data.units, item.ports." },
+            "as": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9_]{0,30}$", "description": "The name of each element; `item` by default." },
+            "where": { "type": "string", "maxLength": 400, "description": "Keep elements for which this is true: item.state == 'failed'." },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "block": { "$ref": "#/$defs/node" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["if", "block"],
+          "properties": { "if": { "type": "string", "maxLength": 400 }, "block": { "$ref": "#/$defs/node" }, "else": { "$ref": "#/$defs/node" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["use"],
+          "properties": { "use": { "type": "string" }, "props": { "type": "object", "additionalProperties": true } }
+        }
+      ]
+    },
+    "block": {
+      "type": "object", "required": ["type"], "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "text", "stack", "grid", "tabs", "card", "divider",
+            "metric", "gauge", "chart", "table", "list", "keyvalue", "timeline", "checklist", "code", "diff", "callout",
+            "rows", "logs", "chips", "message", "search",
+            "slider", "field", "toggle", "picker", "button"
+          ]
+        },
+        "id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 500 },
+        "subtitle": { "type": "string", "maxLength": 500 },
+        "text": { "type": "string", "maxLength": 12000 },
+        "symbol": { "type": "string", "maxLength": 60 },
+        "status": { "$ref": "#/$defs/status" },
+        "axis": { "enum": ["vertical", "horizontal"] },
+        "columns": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "children": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/node" } },
+        "value": { "type": ["number", "string"] },
+        "max": { "type": ["number", "string"] },
+        "unit": { "type": "string", "maxLength": 20 },
+        "delta": { "type": "string", "maxLength": 60 },
+        "chart": { "enum": ["line", "bar", "area", "pie"] },
+        "series": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/series" } },
+        "labels": { "type": "array", "maxItems": 1000, "items": { "type": "string" } },
+        "headers": { "type": "array", "maxItems": 12, "items": { "type": "string" } },
+        "rows": { "type": "array", "maxItems": 300, "items": { "type": "array", "maxItems": 12, "items": { "type": ["string", "number", "boolean", "null"] } } },
+        "items": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/item" } },
+        "lines": { "type": "array", "maxItems": 2000, "items": { "type": "string" }, "description": "logs: the lines, newest last." },
+        "language": { "type": "string", "maxLength": 30 },
+        "before": { "type": "string" },
+        "after": { "type": "string" },
+        "bind": { "type": "string", "maxLength": 60 },
+        "min": { "type": "number" },
+        "step": { "type": "number" },
+        "options": {
+          "type": "array", "maxItems": 40,
+          "items": { "type": "object", "additionalProperties": false, "required": ["title", "value"],
+                     "properties": { "title": { "type": "string" }, "value": { "type": ["string", "number", "boolean"] } } }
+        },
+        "action": { "$ref": "#/$defs/action" },
+        "visible": { "type": "string", "maxLength": 400 },
+        "height": { "type": "number", "minimum": 40, "maximum": 2000 },
+        "style": { "$ref": "#/$defs/style" }
+      }
+    }
+  }
+}

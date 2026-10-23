@@ -1,0 +1,206 @@
+# Module protocol, SDK 1
+
+Normative. Words MUST / SHOULD as in RFC 2119. The guides in `docs/` explain the same with examples.
+
+## 1. Model
+
+A module is a folder (or a `.sshkmod` archive of it) with `sshkipper-module.json` at its root
+(`schemas/module.schema.json`). It describes **one** integration — a service of a server (systemd, a queue, a
+self-written backend) or an outside system — and contributes to the app:
+
+| Contribution | Manifest | Where the user sees it |
+|---|---|---|
+| Service of a server | `service` | «Службы» of a connection, a node in the tree, a section of the server's services tab |
+| Pages | `pages` | The section (or a tab), drawn natively from UI-Kit blocks |
+| Actions | `actions` | The page's «⋯» menu and row menus; change/danger ask first |
+| AI tools | `tools` | The agent, under the server's AI mode and confirmations |
+| Automation blocks | `automation` | The automations library |
+| Settings | `settings` | The connection card, inherited from folders |
+
+All work is done by **handlers**: named units the app calls with an input and gets JSON back. Where a handler runs
+is the module's **runtime**:
+
+- `server` — each handler is a shell script of the module. The app runs it on the server over its SSH session
+  (bastions, 2FA and ControlMaster as for everything else), through `docker exec` when the service lives in a
+  container, through `sudo -n` when allowed. Nothing runs on the Mac.
+- `process` — a program of the module on this Mac (any language) speaking JSON-RPC 2.0 over stdio. It may ask the
+  app to run commands on servers (`host/exec`) instead of logging in itself.
+
+The app never loads module code into its own process and never shows HTML: pages are JSON the app draws with its
+own components (`schemas/view.schema.json`).
+
+## 2. Calling a handler
+
+Every call carries the same **request**:
+
+```json
+{
+  "handler": "list_units",
+  "input": { "unit": "nginx.service" },
+  "context": {
+    "server": { "id": "6F1C…", "name": "web-1", "host": "10.0.0.5", "user": "deploy" },
+    "container": "app-1",
+    "settings": { "scope": "system", "show_inactive": false },
+    "item": { "id": "nginx.service", "state": "failed" },
+    "locale": "ru",
+    "sdk": 1, "app": "1.0.1704"
+  }
+}
+```
+
+- `input` — parameters of an action, tool or automation block, already checked against their `params`.
+- `context.item` — the row an `on: item` action or a tree item page works on.
+- `context.settings` — the connection's settings of this module, inherited from folders. Settings of type
+  `secret` are NOT in it (see §3.3, §4.3).
+- `context.container` — present when the service runs in a container.
+
+The **response** is the handler's JSON value (any JSON). By convention:
+
+| Handler used as | Returns |
+|---|---|
+| `service.detect` | `{"found": true}` (optionally `"version": "252"`) |
+| `service.summary` | `{"text": "3 из 4 работают", "status": "ok" \| "warn" \| "bad" \| "off"}` |
+| `service.tree.handler` | `{"items": [{"id", "title", "subtitle"?, "status"?, "symbol"?}]}` |
+| `pages[].data` | Anything; the template reads it as `data.<name>` |
+| `pages[].render` | A view (`view.schema.json`) |
+| action / tool / automation | `{"message": "Перезапущен", "status": "ok"}`, or any JSON — tools give it to the model, automations to the next block |
+
+An error is a failed call (§3.4, §4.4); its message is shown to the user, given to the model or fails the block.
+
+## 3. Server runtime
+
+### 3.1 How a script runs
+
+The app runs `sh` on the server (through `docker exec <container> sh` when in a container, through `sudo -n sh`
+when the handler's `sudo` and the server's settings allow it). The script gets:
+
+- **stdin** — the request (§2) as one JSON line, then EOF.
+- **environment**:
+  - `SK_HANDLER`, `SK_MODULE`, `SK_SDK=1`, `SK_LOCALE`;
+  - `SK_INPUT_<KEY>` for each top-level input value (strings; numbers as text; booleans `1`/`0`);
+  - `SK_SETTING_<KEY>` for each non-secret setting;
+  - `SK_ITEM_ID` when there is an item;
+  - `SK_TMP` — a private temporary directory (0700), removed after the run;
+  - `SK_SECRET_<KEY>` — the **path** of a 0600 file holding a secret setting (never its value).
+  Keys are upper-cased. Values are passed through the session, not on the command line: other users of the server
+  can't see them in `ps`.
+- **The SDK prelude** (§3.5) is defined before the script.
+- **Its own folder is not on the server.** Scripts run from the module package each time; nothing is installed.
+  A module MAY ship more files under `scripts/` and read them with `sk_file <path>` (they travel with the call).
+
+### 3.2 Output
+
+- `output: json` (default) — stdout MUST be one JSON value. Trailing whitespace is ignored.
+- `output: text` — stdout as one string.
+- `output: lines` — stdout as an array of lines without the trailing newline.
+- stderr is the handler's log: shown in the module log (and under a failed action), never parsed.
+- At most 8 MB of stdout is read; past it the call fails.
+
+### 3.3 Sudo
+
+`sudo: auto` (the default) runs the script through `sudo -n` when the server's «Использовать sudo -n» is on and the
+module declares the `sudo` permission; otherwise as the user. `required` fails with a clear message when sudo isn't
+allowed; `never` never uses it. A script MUST NOT call `sudo` itself (it would hang waiting for a password).
+
+### 3.4 Errors and limits
+
+- A non-zero exit code is an error; its message is the last non-empty stderr line (or `exit N`).
+- `timeout` (30 s by default) stops the whole process group on the server.
+- Closing the page, the tab or the app stops what runs for it the same way.
+
+### 3.5 The SDK prelude
+
+Defined before each script (POSIX sh, no dependencies — `jq` is not assumed):
+
+| Function | Does |
+|---|---|
+| `sk_json_string <text>` | Prints `<text>` as a JSON string (quotes, escapes, control characters). |
+| `sk_json_kv <key> <value> [<key> <value>…]` | Prints a JSON object of strings. |
+| `sk_fail <message>` | Prints the message to stderr and exits 1. |
+| `sk_has <command>` | True when the command is on `PATH`. |
+| `sk_file <relative path>` | Prints a file of the module's `scripts/` folder (shipped with the call). |
+| `sk_secret <key>` | Prints a secret setting (reads `$SK_SECRET_<KEY>`). |
+
+## 4. Process runtime
+
+### 4.1 Transport
+
+`runtime.command` starts in the module folder with a clean environment (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`
+plus the user's Homebrew and Node paths found at start, `HOME`, `TMPDIR`, `LANG`, `SK_SDK=1`, `SK_MODULE`,
+`SK_DATA` — a private folder for the module's files, plus `runtime.env`). Messages are JSON-RPC 2.0 objects, **one per line**
+(UTF-8, `\n`-terminated, no embedded newlines) on stdin (app → module) and stdout (module → app). stderr is the
+module's log. Both sides MAY send requests; ids are unique per sender. A line longer than 16 MB ends the process.
+
+The app starts the program on first use and keeps it while the module is used; it stops it (stdin closed, then
+SIGTERM after 3 s) when the module is disabled, updated, the last user goes, all documents lock, or the app quits.
+A program that exits is started again on the next call.
+
+### 4.2 App → module
+
+| Method | Params | Result |
+|---|---|---|
+| `initialize` | `{"sdk": 1, "app": "1.0.1704", "module": {"id", "version"}, "locale": "ru"}` | `{"handlers": ["list_units", …]}` — the names it answers |
+| `handler/call` | the request of §2 | the handler's JSON value |
+| `cancel` (notification) | `{"id": <id of a handler/call>}` | — the call should end (the app no longer waits) |
+| `shutdown` | `{}` | `null`; then the module SHOULD exit |
+
+### 4.3 Module → app
+
+| Method | Params | Result | Permission |
+|---|---|---|---|
+| `host/exec` | `{"server": "<context.server.id>", "command": "…", "stdin"?: "…", "timeout"?: 30, "sudo"?: false, "container"?: "…"}` | `{"exitCode", "stdout", "stderr"}` | `exec` (`sudo` for sudo) |
+| `host/secret` | `{"server": "<id>", "key": "<secret setting key>"}` | `{"value": "…"}` | `secrets` |
+| `host/store/get` | `{"key": "…"}` | `{"value": <json> \| null}` | `store` |
+| `host/store/set` | `{"key": "…", "value": <json> \| null}` | `null` | `store` |
+| `host/notify` | `{"title": "…", "text": "…"}` | `null` | `notify` |
+| `host/log` (notification) | `{"level": "debug"\|"info"\|"warn"\|"error", "message": "…"}` | — | — |
+
+`host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
+containers); only servers present in a call's `context` (or the module's own settings) may be named. A method the
+module may not use returns error `-32001` ("permission").
+
+### 4.4 Errors
+
+JSON-RPC errors. Codes: `-32700` parse, `-32600` invalid request, `-32601` method not found, `-32602` invalid
+params, `-32000` handler failed (its `message` is shown), `-32001` permission, `-32002` cancelled, `-32003` timeout.
+
+## 5. Pages
+
+A page is either a **template** (`view` + `data`) or **rendered** by a handler (`render`). The app:
+
+1. calls the `data` handlers (in parallel) or the `render` handler;
+2. expands the template (§6) with `data`, `item`, `settings`, `server`;
+3. draws the view natively: the page header (title, the `status` sentence, refresh, the «⋯» menu of
+   `on: service` actions), then the blocks.
+
+`refresh` reloads while the page is on screen. Actions with `refresh: true` buttons, `run` buttons and finished
+actions reload the page.
+
+## 6. Templates
+
+Template expansion is done by the app on the JSON of a view before drawing:
+
+- `"{{ path }}"` — a value from `data.*`, `item.*`, `settings.*`, `server.*`, `props.*`, `index`. A string that is
+  only a placeholder keeps the value's type (number, array…); inside text it is printed (`"{{ item.name }} — up"`).
+  A missing path prints nothing. Filters: `| default:"—"`, `| upper`, `| lower`, `| bytes` (1.2 МБ),
+  `| duration` (seconds → «3 ч 5 мин»), `| ago` (a Unix time → «5 мин назад»), `| json`, `| count`.
+- `{"each": "data.units", "as": "unit", "where": "unit.state == 'failed'", "limit": 50, "block": {…}}` — the block
+  once per element (`index` is its number from 0).
+- `{"if": "item.failed", "block": {…}, "else": {…}}` — one or the other.
+- `{"use": "unit_row", "props": {…}}` — a component of the manifest's `components`, with `props.*`.
+- Conditions: paths, literals (`'text'`, numbers, `true`, `false`, `null`), `== != < <= > >=`, `&& || !`,
+  parentheses.
+- Anything else in `{{ }}` (a formula over `state`, e.g. `{{ rate * 2 }}`) is left for the view's own formulas,
+  evaluated live as the user changes inputs.
+
+Limits: 400 blocks after expansion, 12 levels, 2 MB of JSON.
+
+## 7. Packages and versions
+
+- `sdk` in the manifest is the major version of this protocol. The app runs modules of the SDK versions it knows and
+  refuses others with a clear message.
+- A `.sshkmod` is a ZIP of the module folder (the manifest at its root). Installing records the SHA-256 of every
+  file; a changed file disables the module until it is approved again. A module linked from a folder (development)
+  is reloaded when its files change and is marked «из папки».
+- Files a package may hold: the manifest, `views/*.json`, `scripts/**`, `assets/**`, the program and its files.
+  At most 2 000 files and 64 MB.
