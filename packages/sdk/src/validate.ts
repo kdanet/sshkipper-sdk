@@ -1,0 +1,314 @@
+// Checks a module the way the app does before it installs one (the app's ModuleValidation): the JSON Schemas of
+// schemas/, then what a schema can't say — handlers that exist, files that are there, pages a service can show.
+// Used by the CLI (`sshkipper-module validate`) and the MCP server (`module_validate`).
+
+import { readFileSync, readdirSync, statSync, lstatSync, realpathSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { Json, Manifest, Param } from "./types.ts";
+import { expand, TemplateError } from "./template.ts";
+
+export type Issue = { severity: "error" | "warning"; path: string; message: string };
+
+const schemaDir = fileURLToPath(new URL("../../../schemas/", import.meta.url));
+const cache = new Map<string, any>();
+
+/** A schema of schemas/: "module", "view"; or "symbols" — the symbol names the app draws. */
+export function schema(name: "module" | "view" | "symbols"): any {
+  if (!cache.has(name)) cache.set(name, JSON.parse(readFileSync(join(schemaDir, name === "symbols" ? "symbols.json" : `${name}.schema.json`), "utf8")));
+  return cache.get(name);
+}
+
+export const symbols = (): Set<string> => new Set(schema("symbols") as string[]);
+
+// MARK: JSON Schema (the subset the SDK's schemas use)
+
+function typeOf(v: unknown): string {
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  if (typeof v === "number") return Number.isInteger(v) ? "integer" : "number";
+  return typeof v;
+}
+
+function typeMatches(t: string, v: unknown): boolean {
+  const actual = typeOf(v);
+  return t === actual || (t === "number" && actual === "integer");
+}
+
+/** Errors of `value` against `s`; `$ref`s resolve in `root`. `templates` — a view template: a string that is one
+ * placeholder ("{{ p.status }}") stands for any value, and text with placeholders isn't held to enums and patterns. */
+export function checkSchema(value: unknown, s: any, root: any = s, path = "", out: Issue[] = [], templates = false): Issue[] {
+  const err = (message: string) => out.push({ severity: "error", path: path || "(root)", message });
+  if (s === true || s === undefined) return out;
+  if (templates && typeof value === "string" && value.includes("{{")) {
+    if (/^\{\{[^{}]*\}\}$/.test(value.trim())) return out;
+    if (s.$ref || s.oneOf || s.anyOf || s.enum || s.pattern) return out;
+  }
+  const sub = (v: unknown, x: any, at: string) => checkSchema(v, x, root, at, out, templates);
+  if (s === false) { err("not allowed here"); return out; }
+  if (s.$ref) {
+    const target = (s.$ref as string).replace(/^#\//, "").split("/").reduce((o: any, k: string) => o?.[k], root);
+    if (!target) { err(`schema reference ${s.$ref} is missing`); return out; }
+    return checkSchema(value, target, root, path, out, templates);
+  }
+  if (s.oneOf || s.anyOf) {
+    const options: any[] = s.oneOf ?? s.anyOf;
+    const results = options.map((o) => checkSchema(value, o, root, path, [], templates));
+    const passing = results.filter((r) => r.length === 0).length;
+    // Overlapping forms are fine for this SDK's schemas (the first that fits is taken); none fitting — the closest
+    // option, the one with the fewest errors, says the most.
+    if (passing === 0) {
+      const best = results.sort((a, b) => a.length - b.length)[0];
+      if (best.length <= 2) out.push(...best); else err("matches none of the allowed forms");
+    }
+    return out;
+  }
+  if (s.const !== undefined && JSON.stringify(value) !== JSON.stringify(s.const)) err(`must be ${JSON.stringify(s.const)}`);
+  if (s.enum && !s.enum.some((e: unknown) => JSON.stringify(e) === JSON.stringify(value))) {
+    err(`must be one of ${s.enum.map((e: unknown) => JSON.stringify(e)).join(", ")}`);
+  }
+  if (s.type) {
+    const types: string[] = Array.isArray(s.type) ? s.type : [s.type];
+    if (!types.some((t) => typeMatches(t, value))) { err(`must be ${types.join(" or ")}, not ${typeOf(value)}`); return out; }
+  }
+  if (typeof value === "string") {
+    if (s.minLength !== undefined && [...value].length < s.minLength) err(`at least ${s.minLength} characters`);
+    if (s.maxLength !== undefined && [...value].length > s.maxLength) err(`at most ${s.maxLength} characters`);
+    if (s.pattern && !new RegExp(s.pattern, "u").test(value)) err(`«${value.slice(0, 60)}» doesn't match ${s.pattern}`);
+  }
+  if (typeof value === "number") {
+    if (s.minimum !== undefined && value < s.minimum) err(`at least ${s.minimum}`);
+    if (s.maximum !== undefined && value > s.maximum) err(`at most ${s.maximum}`);
+  }
+  if (Array.isArray(value)) {
+    if (s.minItems !== undefined && value.length < s.minItems) err(`at least ${s.minItems} items`);
+    if (s.maxItems !== undefined && value.length > s.maxItems) err(`at most ${s.maxItems} items`);
+    if (s.uniqueItems && new Set(value.map((v) => JSON.stringify(v))).size !== value.length) err("items repeat");
+    if (s.items) value.forEach((v, i) => sub(v, s.items, `${path}[${i}]`));
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const o = value as Record<string, unknown>;
+    const keys = Object.keys(o);
+    if (s.minProperties !== undefined && keys.length < s.minProperties) err(`at least ${s.minProperties} keys`);
+    if (s.maxProperties !== undefined && keys.length > s.maxProperties) err(`at most ${s.maxProperties} keys`);
+    for (const r of s.required ?? []) if (!(r in o)) err(`«${r}» is required`);
+    const props = s.properties ?? {};
+    for (const k of keys) {
+      const at = path ? `${path}.${k}` : k;
+      if (s.propertyNames) sub(k, s.propertyNames, `${at} (name)`);
+      if (k in props) sub(o[k], props[k], at);
+      else if (s.additionalProperties === false) {
+        if (k !== "$schema") out.push({ severity: "error", path: at, message: "unknown key" });
+      } else if (typeof s.additionalProperties === "object") sub(o[k], s.additionalProperties, at);
+    }
+  }
+  return out;
+}
+
+// MARK: The manifest
+
+const NAME = /^[a-z][a-z0-9_]{0,39}$/;
+const isInside = (p: string) => !p.startsWith("/") && !p.split("/").includes("..") && !p.includes("\0");
+const norm = (p: string) => p.replace(/^(\.\/)+/, "");
+
+/** What's wrong with a manifest: the schema, then the checks the app makes. `files` — relative paths of the folder. */
+export function validateManifest(m: Manifest, files?: Set<string>): Issue[] {
+  const out = checkSchema(m, schema("module"));
+  // The app's checks too, as far as the shape lets them run: a wrong type the schema named may stop them.
+  try { semantic(m, files, out); } catch { /* the schema's errors say it */ }
+  const seen = new Set<string>();
+  return out.filter((i) => { const k = `${i.path}|${i.message}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
+  const err = (path: string, message: string) => out.push({ severity: "error", path, message });
+  const warn = (path: string, message: string) => out.push({ severity: "warning", path, message });
+  const perms = new Set(m.permissions ?? []);
+  const handlers = m.handlers ?? {};
+  const server = m.runtime.kind === "server";
+  const sym = symbols();
+  const symbol = (path: string, s?: string) => { if (s && !sym.has(s)) warn(path, `symbol «${s}» isn't one the app draws (schemas/symbols.json): a puzzle piece shows instead`); };
+  const handler = (path: string, n?: string) => { if (n !== undefined && !(n in handlers)) err(path, `no handler «${n}» in handlers`); };
+
+  symbol("icon.symbol", m.icon?.symbol);
+  for (const [n, h] of Object.entries(handlers)) {
+    if (server) {
+      if (!h.script) { err(`handlers.${n}`, "a server module's handler is a script: set «script»"); continue; }
+      if (!isInside(h.script)) err(`handlers.${n}.script`, `«${h.script}» leaves the module folder`);
+      else if (files && !files.has(norm(h.script))) err(`handlers.${n}.script`, `no file «${h.script}» in the module`);
+      if (h.sudo === "required" && !perms.has("sudo")) err(`handlers.${n}.sudo`, "sudo: required — add «sudo» to permissions");
+    } else {
+      if (h.script) warn(`handlers.${n}.script`, "a process module doesn't use scripts: the handler is a name its program answers");
+      if (h.sudo) warn(`handlers.${n}.sudo`, "in a process module sudo is asked by host/exec, not the handler");
+    }
+  }
+  if (m.runtime.kind === "process") {
+    const cmd = m.runtime.command;
+    if (!cmd.length) err("runtime.command", "empty command");
+    else if (cmd[0].includes("/") && files && !files.has(norm(cmd[0]))) err("runtime.command", `no program «${cmd[0]}» in the module`);
+    const program = cmd.slice(1).find((a) => /\.(ts|js|mjs|py|rb)$/.test(a));
+    if (program && files && !files.has(norm(program))) err("runtime.command", `no file «${program}» in the module`);
+  }
+
+  const settingKeys = new Set<string>();
+  (m.settings ?? []).forEach((s, i) => {
+    if (settingKeys.has(s.key)) err(`settings[${i}].key`, `«${s.key}» repeats`);
+    settingKeys.add(s.key);
+    if (s.type === "choice" && !(s.choices ?? []).length) err(`settings[${i}].choices`, "a choice without choices");
+    if (s.type === "secret" && !perms.has("secrets")) err(`settings[${i}]`, "a secret setting — add «secrets» to permissions");
+  });
+
+  const pageIDs = new Set<string>();
+  (m.pages ?? []).forEach((p, i) => {
+    const at = `pages[${i}]`;
+    if (pageIDs.has(p.id)) err(`${at}.id`, `page «${p.id}» repeats`);
+    pageIDs.add(p.id);
+    if (!p.view && !p.render) err(at, "needs «view» (a template) or «render» (a handler building the view)");
+    if (p.view && p.render) err(at, "«view» and «render» together — pick one");
+    if (p.view) {
+      if (!isInside(p.view)) err(`${at}.view`, `«${p.view}» leaves the module folder`);
+      else if (files && !files.has(norm(p.view))) err(`${at}.view`, `no file «${p.view}» in the module`);
+    }
+    handler(`${at}.render`, p.render);
+    for (const [k, h] of Object.entries(p.data ?? {})) {
+      if (!NAME.test(k)) err(`${at}.data.${k}`, "a name: lowercase latin, digits and _");
+      handler(`${at}.data.${k}`, h);
+    }
+    if (p.render && Object.keys(p.data ?? {}).length) warn(`${at}.data`, "a page with «render» doesn't use data");
+    if (p.refresh !== undefined && p.refresh < 2) err(`${at}.refresh`, "no more often than every 2 s");
+  });
+
+  if (m.service) {
+    const s = m.service;
+    handler("service.detect", s.detect);
+    handler("service.summary", s.summary);
+    if (s.tree) {
+      handler("service.tree.handler", s.tree.handler);
+      if (s.tree.page && !pageIDs.has(s.tree.page)) err("service.tree.page", `no page «${s.tree.page}»`);
+    }
+    if (s.page && !pageIDs.has(s.page)) err("service.page", `no page «${s.page}»`);
+    if (!pageIDs.size) err("service", "a service without pages: its section would be empty");
+    if (s.containers && !server) warn("service.containers", "«runs in a container» applies to server scripts and host/exec");
+  }
+  if (pageIDs.size && !m.service) warn("pages", "pages show in the service's section: without «service» they have nowhere to go");
+
+  const params = (at: string, ps?: Param[]) => {
+    const keys = new Set<string>();
+    (ps ?? []).forEach((p, j) => {
+      if (keys.has(p.key)) err(`${at}.params[${j}].key`, `«${p.key}» repeats`);
+      keys.add(p.key);
+      if (p.type === "choice" && !(p.choices ?? []).length) err(`${at}.params[${j}].choices`, "a choice without choices");
+      if (p.pattern) { try { new RegExp(p.pattern); } catch { err(`${at}.params[${j}].pattern`, "not a regular expression"); } }
+      if (server && p.type === "text" && !p.pattern) warn(`${at}.params[${j}]`, "text reaches a script: set «pattern» so nothing more gets in");
+    });
+  };
+  const ids = new Set<string>();
+  (m.actions ?? []).forEach((a, i) => {
+    const at = `actions[${i}]`;
+    if (ids.has(a.id)) err(`${at}.id`, `action «${a.id}» repeats`);
+    ids.add(a.id);
+    handler(`${at}.handler`, a.handler);
+    params(at, a.params);
+    symbol(`${at}.symbol`, a.symbol);
+    if (a.risk !== "read" && !a.confirm) warn(`${at}.confirm`, "a changing action asks in general words — better your own question");
+  });
+  const tools = new Set<string>();
+  (m.tools ?? []).forEach((t, i) => {
+    const at = `tools[${i}]`;
+    if (tools.has(t.name)) err(`${at}.name`, `tool «${t.name}» repeats`);
+    tools.add(t.name);
+    handler(`${at}.handler`, t.handler);
+    params(at, t.params);
+  });
+  const blocks = new Set<string>();
+  (m.automation ?? []).forEach((b, i) => {
+    const at = `automation[${i}]`;
+    if (blocks.has(b.id)) err(`${at}.id`, `block «${b.id}» repeats`);
+    blocks.add(b.id);
+    handler(`${at}.handler`, b.handler);
+    params(at, b.params);
+    symbol(`${at}.symbol`, b.symbol);
+    if (!server) warn(at, "automation blocks run only for server modules so far");
+    for (const p of b.params ?? []) if (p.pattern?.includes("{{")) warn(`${at}.params`, "«{{» in a pattern is left out in automations");
+  });
+}
+
+// MARK: Views
+
+/** What's wrong with a view: the schema, block symbols, the template (with `vars`, when given). */
+export function validateView(v: Json, opts: { components?: Record<string, Json>; vars?: Record<string, Json> } = {}): Issue[] {
+  const out = checkSchema(v, schema("view"), schema("view"), "", [], true);
+  const sym = symbols();
+  const walk = (n: any, path: string) => {
+    if (!n || typeof n !== "object") return;
+    if (Array.isArray(n)) { n.forEach((x, i) => walk(x, `${path}[${i}]`)); return; }
+    if (typeof n.symbol === "string" && !n.symbol.includes("{{") && !sym.has(n.symbol)) {
+      out.push({ severity: "warning", path: `${path}.symbol`, message: `symbol «${n.symbol}» isn't one the app draws` });
+    }
+    if (typeof n.use === "string" && opts.components && !(n.use in opts.components)) {
+      out.push({ severity: "error", path: `${path}.use`, message: `no component «${n.use}» in the manifest` });
+    }
+    for (const [k, x] of Object.entries(n)) if (typeof x === "object") walk(x, path ? `${path}.${k}` : k);
+  };
+  walk(v, "");
+  if (opts.vars) {
+    try { expand(v, opts.vars, opts.components ?? {}); } catch (e) {
+      out.push({ severity: "error", path: "(template)", message: e instanceof TemplateError ? e.message : String(e) });
+    }
+  }
+  return out;
+}
+
+// MARK: A folder
+
+/** Every file of a module folder as the app reads it (`.git` and `.DS_Store` left out), relative paths. */
+export function listFiles(dir: string): string[] {
+  const out: string[] = [];
+  const base = realpathSync(dir);
+  const walk = (d: string) => {
+    for (const name of readdirSync(d)) {
+      if (name === ".git" || name === ".DS_Store") continue;
+      const p = join(d, name);
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) {
+        const target = realpathSync(p);
+        if (!target.startsWith(base + sep)) throw new Error(`the link «${relative(base, p)}» leads out of the module folder`);
+        continue;
+      }
+      if (st.isDirectory()) walk(p);
+      else if (st.isFile()) out.push(relative(base, p).split(sep).join("/"));
+      else throw new Error(`«${relative(base, p)}» isn't a regular file`);
+    }
+  };
+  walk(base);
+  return out.sort();
+}
+
+/** The manifest, its issues and those of every view of a module folder; limits of the app (2000 files, 64 MB). */
+export function validateFolder(dir: string): { manifest?: Manifest; files: string[]; issues: Issue[] } {
+  const issues: Issue[] = [];
+  let files: string[] = [];
+  try { files = listFiles(dir); } catch (e) { return { files, issues: [{ severity: "error", path: "(folder)", message: (e as Error).message }] }; }
+  const size = files.reduce((a, f) => a + statSync(join(dir, f)).size, 0);
+  if (files.length > 2000 || size > 64 << 20) issues.push({ severity: "error", path: "(folder)", message: "more than 2000 files or 64 MB" });
+  if (!files.includes("sshkipper-module.json")) return { files, issues: [...issues, { severity: "error", path: "(folder)", message: "no sshkipper-module.json" }] };
+  let manifest: Manifest;
+  try { manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8")); } catch (e) {
+    return { files, issues: [...issues, { severity: "error", path: "sshkipper-module.json", message: `not JSON: ${(e as Error).message}` }] };
+  }
+  issues.push(...validateManifest(manifest, new Set(files)));
+  for (const [i, p] of (manifest.pages ?? []).entries()) {
+    if (!p.view || !files.includes(norm(p.view))) continue;
+    let v: Json;
+    try { v = JSON.parse(readFileSync(join(dir, p.view), "utf8")); } catch (e) {
+      issues.push({ severity: "error", path: `pages[${i}].view`, message: `${p.view} isn't JSON: ${(e as Error).message}` });
+      continue;
+    }
+    for (const x of validateView(v, { components: (manifest.components ?? {}) as Record<string, Json> })) {
+      issues.push({ ...x, path: `${p.view}: ${x.path}` });
+    }
+  }
+  return { manifest, files, issues };
+}
+
+export const formatIssue = (i: Issue) => `${i.severity === "error" ? "✗" : "⚠"} ${i.path}: ${i.message}`;
