@@ -19,7 +19,7 @@ sshkipper-module validate
 ```
 
 `new` writes a server module that already works: a **service** that appears where `df` answers, a **page** with
-gauges and rows, a **refresh action**, an **AI tool** (`disk_usage`) and an **automation block** («Disk usage» of one
+gauges and rows, a **refresh action**, an **AI tool** (`disk_usage`) and an **automation block** (“Disk usage” of one
 mount point). `--process` writes the same as a TypeScript program instead.
 
 ```
@@ -45,11 +45,11 @@ files of `scripts/` for `sk_file`. `--input '{"mount": "/var"}'`, `--settings '{
 
 ## 4. In SSHKipper
 
-1. Settings → Extensions → Modules → **Connect a Folder for Development…** → pick `disks/`. A linked folder is
+1. Settings → Extensions → Modules → **Connect folder for development…** → pick `disks/`. A linked folder is
    reloaded as you save files.
-2. Open a connection: its **Services** now list «Disks» (automatic: on where `detect` finds it), with the module's
+2. Open a connection: its **Services** now list “Disks” (automatic: on where `detect` finds it), with the module's
    settings under it. The sidebar shows the service under the server; the server's services tab has its section.
-3. The section is your page, drawn with the app's own parts. Its «⋯» menu has your actions and «Module Log…» —
+3. The section is your page, drawn with the app's own parts. Its “⋯” menu has your actions and “Module log…” —
    what each handler printed to stderr, how long it took, what failed.
 
 ## 5. Make it yours
@@ -67,5 +67,5 @@ files of `scripts/` for `sk_file`. `--input '{"mount": "/var"}'`, `--settings '{
 sshkipper-module pack            # → dev.acme.disks-0.1.0.sshkmod
 ```
 
-Settings → Extensions → Modules → **Install Module…** takes the file; the app shows what the module asks for
+Settings → Extensions → Modules → **Install module…** takes the file; the app shows what the module asks for
 (permissions, commands on servers, AI tools) before installing. See [Publishing](publishing.md).

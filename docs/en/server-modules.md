@@ -29,7 +29,7 @@ sk_json_kv state active pid 1234       # {"state":"active","pid":"1234"}
 sk_fail "no such queue: $q"            # to stderr, exit 1 — the user sees this line
 sk_has supervisorctl || sk_fail "supervisor isn't installed"
 sk_file scripts/lib.awk > "$SK_TMP/lib.awk"   # another file of the module's scripts/
-sk_secret token                        # the secret setting «token»
+sk_secret token                        # the secret setting “token”
 ```
 
 ## Output
@@ -56,7 +56,7 @@ sk_secret token                        # the secret setting «token»
 
 Don't call `sudo` in a script (it would wait for a password). Say what the handler needs:
 
-- `"sudo": "auto"` (default) — through `sudo -n` when the server's «Use sudo -n» is on and the module has the `sudo`
+- `"sudo": "auto"` (default) — through `sudo -n` when the server's “Use sudo -n” is on and the module has the `sudo`
   permission; when sudo asks for a password anyway, the app runs it as the user and remembers that for the session;
 - `"required"` — fails with a clear message where sudo isn't allowed;
 - `"never"`.
@@ -64,7 +64,7 @@ Don't call `sudo` in a script (it would wait for a password). Say what the handl
 ## Containers
 
 `"service": {"containers": true}` lets the user say the service runs in a Docker container of the server
-(«Where it runs»). The handler then runs in `docker exec -i <container> sh` (the server's docker path and sudo), with
+(“Where it runs”). The handler then runs in `docker exec -i <container> sh` (the server's docker path and sudo), with
 `SK_CONTAINER` set. In a container, secrets aren't passed (a container's command line is readable on the server);
 a handler that needs one fails with a message.
 

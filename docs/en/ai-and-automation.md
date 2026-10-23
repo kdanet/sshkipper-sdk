@@ -33,7 +33,7 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
 ]
 ```
 
-A block shows in the automations library under «From installed modules», with one input — the **server** — and its
+A block shows in the automations library under “From installed modules”, with one input — the **server** — and its
 parameters on the card. It runs on the server like any automation step: on schedule, without the user, its log and
 result in the run's history.
 
@@ -48,7 +48,7 @@ What the handler gets is what a page's handler gets, with three differences:
 | | |
 |---|---|
 | `json` (default) | the JSON; its summary keys make the block's line in the run: `{"status": "ok" \| "warn" \| "error", "summary": "3 failed", "value": 3, "unit": "jobs", "items": [{"label", "status", "value", "detail"}]}` (`message` works as `summary`). Other keys are values the next blocks read as `{{ in.<key> }}`. |
-| `text`, `number`, `list` | read from stdout the way the automations' «What to return» reads a command's output |
+| `text`, `number`, `list` | read from stdout the way the automations' “What to return” reads a command's output |
 | `none` | only whether it worked |
 
 ```sh

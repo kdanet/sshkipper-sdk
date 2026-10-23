@@ -28,7 +28,7 @@ gives agents the same).
 ```
 
 - `title` — the page header (the module's page title by default); `status` — the sentence under it, in parts with
-  tones; the header also has the refresh button and the «⋯» menu of `on: service` actions.
+  tones; the header also has the refresh button and the “⋯” menu of `on: service` actions.
 - `state` — variables of the page: `search`, `field`, `toggle`, `picker`, `slider` change them; `rows` with the
   same `bind` filter by a search; `visible: "failedOnly == false"` hides a block; formulas `{{ rate * 2 }}` read them.
 - `blocks` — top to bottom. Width adapts: grids wrap, rows truncate the middle of long details.

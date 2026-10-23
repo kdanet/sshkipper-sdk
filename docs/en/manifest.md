@@ -52,7 +52,7 @@ places and the user's login shell `PATH`; a path (`bin/agent`) must be a file of
 | | |
 |---|---|
 | `exec` | Commands on servers (server handlers; `host.exec` of process modules) |
-| `sudo` | Through `sudo -n`, where the server's «Use sudo -n» is on |
+| `sudo` | Through `sudo -n`, where the server's “Use sudo -n” is on |
 | `secrets` | Secret settings (`type: "secret"`) — handed to handlers as files or through `host.secret` |
 | `network` | The program makes its own connections from this Mac (process modules) |
 | `store` | `host.store` — the module's JSON storage on this Mac |
@@ -84,7 +84,7 @@ never in `context.settings`). Handlers read them as `SK_SETTING_<KEY>` (server) 
   "summary": "summary",        // {"text": "3 of 4 run", "status": "ok|warn|bad|off"} — the tree's line and dot
   "page": "main",              // the page of the section (the first by default)
   "tree": { "handler": "queues", "page": "queue" },   // children of its tree node; a click opens that page
-  "containers": true           // may run in a Docker container of the server («Where it runs»)
+  "containers": true           // may run in a Docker container of the server (“Where it runs”)
 }
 ```
 
@@ -102,7 +102,7 @@ On each connection the module is **Automatic** (on where `detect` finds it), **O
 
 A page is a **template** (`view` + `data`: handlers run in parallel, the template reads `data.<name>`) or **rendered**
 (`render`: a handler returns the whole view). `refresh` — seconds between reloads while it's on screen (2+).
-A row's `action: {"page": "queue"}` opens a page with that row as `item`; «Back» returns.
+A row's `action: {"page": "queue"}` opens a page with that row as `item`; “Back” returns.
 
 ## Handlers
 
@@ -133,7 +133,7 @@ A row's `action: {"page": "queue"}` opens a page with that row as `item`; «Back
 ]
 ```
 
-- `on: "service"` (default) — in the page's «⋯» menu; `on: "item"` — in rows that list its id in `actions`.
+- `on: "service"` (default) — in the page's “⋯” menu; `on: "item"` — in rows that list its id in `actions`.
 - `risk`: `read` runs at once; `change` asks; `danger` asks with a red button. `confirm` is the question
   (`{{ item.* }}`, `{{ params.* }}`, `{{ server.* }}`, `{{ settings.* }}`).
 - `params` — a small form before it runs: `text` (always give a `pattern` when it reaches a script), `number`,

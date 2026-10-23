@@ -12,13 +12,13 @@ A `.sshkmod` is a ZIP of the module folder with the manifest at its root: exactl
 
 ## Installing
 
-Settings → Extensions → Modules → **Install Module…** takes a `.sshkmod` or a folder. Before installing, the app
+Settings → Extensions → Modules → **Install module…** takes a `.sshkmod` or a folder. Before installing, the app
 shows what the module asks for: permissions, what runs on servers, its AI tools and automation blocks. It copies the
 module into its own folder and records the SHA-256 of every file.
 
-- A changed file of an installed module turns the module off until the user approves it again («Allow as is»).
-- **Connect a Folder for Development…** links a folder instead of copying it: the app reloads it as files change
-  and marks it «from a folder». Use it while writing.
+- A changed file of an installed module turns the module off until the user approves it again (“Allow as is”).
+- **Connect folder for development…** links a folder instead of copying it: the app reloads it as files change
+  and marks it “from a folder”. Use it while writing.
 - A module can be turned off, removed, or its log opened from the same list.
 
 ## Versions

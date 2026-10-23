@@ -38,8 +38,8 @@ Resources: `sshkipper-sdk://guide/<topic>`, `sshkipper-sdk://schema/module|view`
 3. Change one thing: a handler's script, a view, an action.
 4. `module_validate` — fix every error; read the warnings.
 5. `module_call` the handler; `view_preview` the page with what it returned.
-6. Ask the user to link the folder in SSHKipper (Settings → Extensions → Modules → Connect a Folder for
-   Development…) and look at it on a real server.
+6. Ask the user to link the folder in SSHKipper (Settings → Extensions → Modules → Connect folder for
+   development…) and look at it on a real server.
 
 Agents can't install modules into the app or run them on the user's servers through this server: installing stays
 with the user, and the app's own agent reaches servers only through the tools the user's AI modes allow.
