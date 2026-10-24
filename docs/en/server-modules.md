@@ -14,6 +14,7 @@ lives in one, through `sudo -n` when allowed. Nothing is installed on the server
 | `SK_SECRET_<KEY>` | the **path** of a 0600 file with a secret setting (needs `secrets`); `sk_secret key` prints it |
 | `SK_ITEM_ID` | the row's id, for `on: item` actions and item pages |
 | `SK_CONTAINER` | the container's name when it runs in one |
+| `SK_AUTOMATION` | `1` when it runs as an automation block |
 | `SK_TMP` | a private 0700 folder, removed after the run (also the working directory) |
 | `SK_HANDLER`, `SK_MODULE`, `SK_SDK`, `SK_LOCALE` | which handler, which module, `1`, `ru`/`en`/… |
 

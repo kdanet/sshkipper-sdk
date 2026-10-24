@@ -4,8 +4,9 @@
 // `sk_file`, the variables, the request on stdin.
 
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Json, Manifest, Request } from "./types.ts";
 import { quote } from "./module.ts";
@@ -71,7 +72,8 @@ export function serverScript(dir: string, m: Manifest, handler: string, o: CallO
   for (const [k, v] of vars) s += `${k}=${quote(v)}; export ${k}\n`;
   s += "SK_TMP=$(mktemp -d 2>/dev/null || echo /tmp/sk.$$); mkdir -p \"$SK_TMP\"; chmod 700 \"$SK_TMP\"; export SK_TMP\n";
   s += "trap 'rm -rf \"$SK_TMP\"' EXIT\n";
-  for (const [k, v] of Object.entries(o.secrets ?? {})) {
+  // As in the app: a container's command line is readable on the server, so no secrets go into one.
+  for (const [k, v] of Object.entries(o.container ? {} : o.secrets ?? {})) {
     const name = "secret_" + envKey(k).toLowerCase();
     s += `(umask 077; printf '%s' ${quote(v)} > "$SK_TMP/${name}")\nSK_SECRET_${envKey(k)}="$SK_TMP/${name}"; export SK_SECRET_${envKey(k)}\n`;
   }
@@ -131,9 +133,12 @@ export async function call(dir: string, handler: string, o: CallOptions = {}): P
   const timeout = o.timeout ?? h.timeout ?? 30;
   if (m.runtime.kind === "server") {
     const script = serverScript(dir, m, handler, o);
+    // sudo: required runs as root as in the app (where the server allows it); auto runs as you here.
+    const sh = h.sudo === "required" ? "sudo -n sh -s" : "sh -s";
     const r = o.container
-      ? await shell("sh -s", { ssh: o.ssh, stdin: script, timeout, container: o.container })
-      : o.ssh ? await run("ssh", ["-T", "-o", "BatchMode=yes", o.ssh, "sh -s"], script, timeout) : await run("/bin/sh", ["-s"], script, timeout);
+      ? await shell(sh, { ssh: o.ssh, stdin: script, timeout, container: o.container })
+      : o.ssh ? await run("ssh", ["-T", "-o", "BatchMode=yes", o.ssh, sh], script, timeout)
+        : h.sudo === "required" ? await run("sudo", ["-n", "sh", "-s"], script, timeout) : await run("/bin/sh", ["-s"], script, timeout);
     if (r.code !== 0) {
       const last = r.stderr.trim().split("\n").pop() || `exit code ${r.code}`;
       return { ok: false, error: last, stdout: r.stdout, stderr: r.stderr, log: [] };
@@ -154,7 +159,17 @@ function processCall(dir: string, m: Manifest, handler: string, o: CallOptions, 
   const storeFile = o.storeFile ?? join(dir, ".sshkipper-dev-store.json");
   const store: Record<string, Json> = existsSync(storeFile) ? JSON.parse(readFileSync(storeFile, "utf8")) : {};
   return new Promise((resolve) => {
-    const p = spawn(cmd, args, { cwd: dir, env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: process.env.HOME ?? "", SK_SDK: "1", SK_MODULE: m.id, ...(m.runtime.kind === "process" ? m.runtime.env : {}) }, stdio: ["pipe", "pipe", "pipe"] });
+    // The environment the app gives a program: a clean one (no SSH agent, nothing of yours), SK_DATA its own folder.
+    const data = join(tmpdir(), "sshkipper-dev", m.id);
+    mkdirSync(data, { recursive: true, mode: 0o700 });
+    const own = Object.fromEntries(Object.entries(m.runtime.kind === "process" ? m.runtime.env ?? {} : {}).filter(([k]) => !k.startsWith("SK_") && k !== "PATH"));
+    const found = cmd.includes("/") ? dirname(join(dir, cmd)) : (process.env.PATH ?? "").split(":").find((d) => existsSync(join(d, cmd))) ?? "";
+    const env = {
+      PATH: [found, "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin", "/usr/local/bin"].filter(Boolean).join(":"),
+      HOME: process.env.HOME ?? "", TMPDIR: process.env.TMPDIR ?? "/tmp", LANG: "en_US.UTF-8",
+      SK_SDK: "1", SK_MODULE: m.id, SK_DATA: data, ...own,
+    };
+    const p = spawn(cmd, args, { cwd: dir, env, stdio: ["pipe", "pipe", "pipe"] });
     let buf = "", stderr = "", done = false;
     const finish = (r: Omit<CallResult, "stderr" | "log" | "stdout">) => {
       if (done) return;
@@ -178,7 +193,8 @@ function processCall(dir: string, m: Manifest, handler: string, o: CallOptions, 
         const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
         if (!line.trim()) continue;
         let msg: any;
-        try { msg = JSON.parse(line); } catch { finish({ ok: false, error: `not JSON-RPC: ${line.slice(0, 120)}` }); return; }
+        // As the app: a stray line (a console.log) is logged, the conversation goes on.
+        try { msg = JSON.parse(line); } catch { log.push(`not JSON-RPC (stdout is the protocol — log to stderr): ${line.slice(0, 120)}`); continue; }
         if (msg.method === undefined) {
           if (msg.id === 1) send({ id: 2, method: "handler/call", params: request(m, handler, o) });
           else if (msg.id === 2) finish(msg.error ? { ok: false, error: msg.error.message } : { ok: true, value: msg.result ?? null });

@@ -77,7 +77,7 @@ export const TEMPLATES = `Templates are expanded by the app before drawing (spec
 - {"if": "item.failed", "block": {...}, "else": {...}}.
 - {"use": "component", "props": {...}} — a component of the manifest's "components".
 - Anything else in {{ }} is a live formula over state (e.g. {{ rate * 2 }}).
-Limits: 400 blocks, 12 levels, 2 MB.`;
+Limits: 400 blocks, 32 levels of JSON (8 levels of blocks are drawn), 2 MB.`;
 
 /** The catalog as text for a model. */
 export function catalogText(symbols: string[]): string {

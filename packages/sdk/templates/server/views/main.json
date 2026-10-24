@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/view.schema.json",
+  "status": [
+    {
+      "text": "{{ data.list.disks | count }} file systems."
+    }
+  ],
+  "blocks": [
+    {
+      "type": "grid",
+      "columns": 3,
+      "children": [
+        {
+          "each": "data.list.disks",
+          "as": "d",
+          "limit": 6,
+          "block": {
+            "type": "gauge",
+            "title": "{{ d.mount }}",
+            "value": "{{ d.pct }}",
+            "max": 100,
+            "unit": "%",
+            "subtitle": "{{ d.used | bytes }} of {{ d.size | bytes }}"
+          }
+        }
+      ]
+    },
+    {
+      "type": "rows",
+      "title": "File systems",
+      "items": [
+        {
+          "each": "data.list.disks",
+          "as": "d",
+          "block": {
+            "id": "{{ d.id }}",
+            "title": "{{ d.mount }}",
+            "detail": "{{ d.device }}",
+            "status": "{{ d.status }}",
+            "trailing": "{{ d.pct }}%"
+          }
+        }
+      ],
+      "text": "No file systems"
+    }
+  ]
+}

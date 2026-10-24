@@ -1,8 +1,11 @@
 sk_json_string() {
-  printf '%s' "$1" | awk 'BEGIN { ORS = ""; printf "\"" }
-    { if (NR > 1) printf "\\n"; s = $0; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, "\\t", s); gsub(/\r/, "\\r", s)
-      gsub(/[\001-\010\013\014\016-\037]/, "", s); printf "%s", s }
-    END { printf "\"" }'
+  printf '%s' "$1" | awk 'BEGIN { ORS = ""; printf "%s", "\"" }
+    { if (NR > 1) printf "%s", "\\n"; n = length($0)
+      for (i = 1; i <= n; i++) { c = substr($0, i, 1)
+        if (c == "\\") printf "%s", "\\\\"; else if (c == "\"") printf "%s", "\\\""
+        else if (c == "\t") printf "%s", "\\t"; else if (c == "\r") printf "%s", "\\r"
+        else if (c !~ /[\001-\010\013\014\016-\037]/) printf "%s", c } }
+    END { printf "%s", "\"" }'
 }
 sk_json_kv() {
   printf '{'; sk_first=1

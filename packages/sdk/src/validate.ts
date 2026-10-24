@@ -45,6 +45,15 @@ export function checkSchema(value: unknown, s: any, root: any = s, path = "", ou
     if (s.$ref || s.oneOf || s.anyOf || s.enum || s.pattern) return out;
   }
   const sub = (v: unknown, x: any, at: string) => checkSchema(v, x, root, at, out, templates);
+  // A template node goes wherever an element of a list goes (both engines expand each/if in any array): its block is
+  // held to what an element is.
+  if (templates && value && typeof value === "object" && !Array.isArray(value) && "block" in (value as object)
+      && ("each" in (value as object) || "if" in (value as object)) && path.endsWith("]")) {
+    const t = value as Record<string, unknown>;
+    sub(t.block, s, `${path}.block`);
+    if (t.else !== undefined) sub(t.else, s, `${path}.else`);
+    return out;
+  }
   if (s === false) { err("not allowed here"); return out; }
   if (s.$ref) {
     const target = (s.$ref as string).replace(/^#\//, "").split("/").reduce((o: any, k: string) => o?.[k], root);
@@ -54,13 +63,29 @@ export function checkSchema(value: unknown, s: any, root: any = s, path = "", ou
   if (s.oneOf || s.anyOf) {
     const options: any[] = s.oneOf ?? s.anyOf;
     const results = options.map((o) => checkSchema(value, o, root, path, [], templates));
-    const passing = results.filter((r) => r.length === 0).length;
-    // Overlapping forms are fine for this SDK's schemas (the first that fits is taken); none fitting — the closest
-    // option, the one with the fewest errors, says the most.
-    if (passing === 0) {
-      const best = results.sort((a, b) => a.length - b.length)[0];
-      if (best.length <= 2) out.push(...best); else err("matches none of the allowed forms");
-    }
+    // Overlapping forms are fine for this SDK's schemas (the first that fits is taken).
+    if (results.some((r) => r.length === 0)) return out;
+    // None fits: say what's wrong with the form the value means — the one whose const / enum key it carries
+    // ({"kind": "process"}, {"type": "metric"}) or whose required keys it has ({"each": …}) — with all its errors.
+    const resolve = (o: any): any => (o?.$ref ? resolve((o.$ref as string).replace(/^#\//, "").split("/").reduce((x: any, k: string) => x?.[k], root)) : o);
+    const meant = (o: any): number => {
+      const r = resolve(o);
+      if (!value || typeof value !== "object" || Array.isArray(value) || !r?.properties) return 0;
+      const v = value as Record<string, unknown>;
+      for (const [k, p] of Object.entries<any>(r.properties)) {
+        if (!(k in v)) continue;
+        if (p.const !== undefined && JSON.stringify(p.const) === JSON.stringify(v[k])) return 3;
+        if (p.enum && p.enum.some((e: unknown) => JSON.stringify(e) === JSON.stringify(v[k])) && (r.required ?? []).includes(k)) return 2;
+      }
+      return (r.required ?? []).length && (r.required as string[]).every((k) => k in v) ? 1 : 0;
+    };
+    // Of the forms nothing names, the one of the value's own JSON type («title»: {} is meant as an object).
+    const sameType = (o: any) => { const t = resolve(o)?.type; return t !== undefined && [t].flat().some((x: string) => typeMatches(x, value)) ? 0.5 : 0; };
+    const ranked = options.map((o, i) => ({ score: meant(o) || sameType(o), errors: results[i] }))
+      .sort((a, b) => b.score - a.score || a.errors.length - b.errors.length);
+    const best = ranked[0];
+    if (best.score > 0 || best.errors.length <= 3) out.push(...best.errors.slice(0, 12));
+    else err("matches none of the allowed forms");
     return out;
   }
   if (s.const !== undefined && JSON.stringify(value) !== JSON.stringify(s.const)) err(`must be ${JSON.stringify(s.const)}`);
@@ -198,7 +223,8 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
       if (keys.has(p.key)) err(`${at}.params[${j}].key`, `«${p.key}» repeats`);
       keys.add(p.key);
       if (p.type === "choice" && !(p.choices ?? []).length) err(`${at}.params[${j}].choices`, "a choice without choices");
-      if (p.pattern) { try { new RegExp(p.pattern); } catch { err(`${at}.params[${j}].pattern`, "not a regular expression"); } }
+      // The app checks with ICU (NSRegularExpression); JavaScript reads nearly the same — what it can't is a warning.
+      if (p.pattern) { try { new RegExp(p.pattern); } catch { warn(`${at}.params[${j}].pattern`, "JavaScript can't read this pattern — make sure the app (ICU regular expressions) can"); } }
       if (server && p.type === "text" && !p.pattern) warn(`${at}.params[${j}]`, "text reaches a script: set «pattern» so nothing more gets in");
     });
   };
@@ -229,7 +255,13 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     params(at, b.params);
     symbol(`${at}.symbol`, b.symbol);
     if (!server) warn(at, "automation blocks run only for server modules so far");
-    for (const p of b.params ?? []) if (p.pattern?.includes("{{")) warn(`${at}.params`, "«{{» in a pattern is left out in automations");
+    for (const [j, p] of (b.params ?? []).entries()) {
+      if (p.pattern?.includes("{{") || (p.choices ?? []).some((c) => c.includes("{{"))) err(`${at}.params[${j}]`, "«{{» isn't allowed in patterns and choices");
+      // In automations the pattern is checked by grep -E on the server: POSIX ERE.
+      if (p.pattern && /\\[dDwWsSbB]|\(\?|\\[pP]\{/.test(p.pattern)) {
+        warn(`${at}.params[${j}].pattern`, "automation blocks check patterns with grep -E (POSIX ERE): use [0-9], [A-Za-z0-9_], ( ) instead of \\d, \\w, (?: )");
+      }
+    }
   });
 }
 
@@ -304,7 +336,9 @@ export function validateFolder(dir: string): { manifest?: Manifest; files: strin
       issues.push({ severity: "error", path: `pages[${i}].view`, message: `${p.view} isn't JSON: ${(e as Error).message}` });
       continue;
     }
-    for (const x of validateView(v, { components: (manifest.components ?? {}) as Record<string, Json> })) {
+    // Expanded too (with no data), as the app will: nesting, components, conditions that don't read.
+    const vars: Record<string, Json> = { data: {}, item: null, settings: {}, server: null, context: { locale: "en", sdk: 1, app: "" } };
+    for (const x of validateView(v, { components: (manifest.components ?? {}) as Record<string, Json>, vars })) {
       issues.push({ ...x, path: `${p.view}: ${x.path}` });
     }
   }

@@ -54,6 +54,9 @@ export interface Transport {
 }
 
 export function stdioTransport(): Transport {
+  // stdout is the protocol: a console.log in a handler goes to stderr (the module's log in the app) instead.
+  console.log = (...a: unknown[]) => console.error(...a);
+  console.info = console.log;
   let buffer = "";
   const lineCbs: ((l: string) => void)[] = [];
   process.stdin.setEncoding("utf8");

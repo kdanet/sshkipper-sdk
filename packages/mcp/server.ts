@@ -94,13 +94,14 @@ const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
-    name: "module_call",
-    description: "Runs one handler of a module folder ON THIS MACHINE (server scripts with sh, process modules with their program; host.exec runs here too). For checking what a handler returns while writing it — not for touching servers.",
+    name: "module_run_local",
+    description: "Runs one handler of a module folder ON THIS MACHINE (server scripts with sh, process modules with their program; host.exec runs here too), to see what it returns while writing it — never on servers. Handlers of change/danger actions, tools or blocks (they stop, delete, restart) run only with allow_changes: true — ask the user first.",
     inputSchema: obj({
       folder: { type: "string" }, handler: { type: "string" },
       input: { type: "object" }, settings: { type: "object" }, item: {}, locale: { type: "string" },
+      allow_changes: { type: "boolean", description: "Run a handler that changes things (on this machine). Only after the user agreed." },
     }, ["folder", "handler"]),
-    annotations: { destructiveHint: false, openWorldHint: false },
+    annotations: { destructiveHint: true, openWorldHint: false },
   },
 ];
 
@@ -137,8 +138,16 @@ async function tool(name: string, a: Record<string, any>) {
     }
     case "template_expand":
       return text(JSON.stringify(expand(a.view, a.vars ?? {}, a.components ?? {}), null, 2));
-    case "module_call": {
-      const r = await call(resolve(a.folder), a.handler, { input: a.input, settings: a.settings, item: a.item, locale: a.locale ?? "en" });
+    case "module_run_local": {
+      const dir = resolve(a.folder);
+      const m: Manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8"));
+      // What changes things isn't run on the agent's machine by default (a kill handler would kill a local PID).
+      const changes = [...(m.actions ?? []), ...(m.tools ?? []), ...(m.automation ?? [])].filter((x) => x.handler === a.handler && x.risk !== "read");
+      if (changes.length && a.allow_changes !== true) {
+        return text(`«${a.handler}» is the handler of ${changes.map((x) => ("id" in x ? x.id : (x as { name: string }).name) + ` (${x.risk})`).join(", ")}: it changes things. ` +
+          "It would run on this machine — ask the user, then call again with allow_changes: true.", true);
+      }
+      const r = await call(dir, a.handler, { input: a.input, settings: a.settings, item: a.item, locale: a.locale ?? "en" });
       const log = r.log.length ? `\n\nlog:\n${r.log.join("\n")}` : "";
       return r.ok ? text(JSON.stringify(r.value, null, 2) + log) : text(`${r.error}${r.stderr ? `\n\nstderr:\n${r.stderr.slice(-4000)}` : ""}${log}`, true);
     }
@@ -161,7 +170,7 @@ function readResource(uri: string) {
 
 const INSTRUCTIONS = `Tools for writing SSHKipper modules (SDK 1): native pages, actions, AI tools and automation blocks for a macOS SSH manager.
 A module is a folder with sshkipper-module.json. Read sdk_guide «overview» and ui_kit first; module_scaffold gives a working start;
-check every change with module_validate and view_preview; module_call runs a handler on this machine. Views are JSON the app draws natively — no HTML.`;
+check every change with module_validate and view_preview; module_run_local runs a handler on this machine. Views are JSON the app draws natively — no HTML.`;
 
 async function handle(msg: any): Promise<unknown> {
   const p = msg.params ?? {};

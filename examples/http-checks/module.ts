@@ -19,12 +19,13 @@ function urls(ctx: HandlerContext): string[] {
 
 const slowMs = (ctx: HandlerContext) => (typeof ctx.settings.slow_ms === "number" ? ctx.settings.slow_ms : 800);
 const where = (ctx: HandlerContext) => (ctx.settings.from === "mac" || !ctx.server ? "mac" : "server");
-const key = (ctx: HandlerContext) => `history:${where(ctx) === "mac" ? "mac" : ctx.server!.id}`;
+// One history per server, also when checked from this Mac: each server has its own list of URLs.
+const key = (ctx: HandlerContext) => `history:${where(ctx)}:${ctx.server?.id ?? "-"}`;
 
 /** One URL: from this Mac with fetch, or from the server with curl through the app's session. */
-async function probe(url: string, ctx: HandlerContext): Promise<Check> {
+async function probe(url: string, ctx: HandlerContext, from = where(ctx)): Promise<Check> {
   const at = Math.floor(Date.now() / 1000);
-  if (where(ctx) === "mac") {
+  if (from === "mac") {
     const started = performance.now();
     try {
       const res = await fetch(url, { redirect: "follow", signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(10_000)]) });
@@ -42,8 +43,20 @@ async function probe(url: string, ctx: HandlerContext): Promise<Check> {
   return { url, ok: r.exitCode === 0 && n > 0 && n < 400, code: n, ms: Math.round(Number(secs) * 1000) || 0, ...(error ? { error } : {}), at };
 }
 
+// The summary and the page may check at once: their read-modify-write of the history goes one after another.
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(f: () => Promise<T>): Promise<T> {
+  const next = queue.then(f, f);
+  queue = next.catch(() => undefined);
+  return next;
+}
+
 /** Checks every URL, keeps the history, notifies about the ones that just went down. */
-async function checkAll(ctx: HandlerContext): Promise<{ checks: Check[]; history: History }> {
+function checkAll(ctx: HandlerContext): Promise<{ checks: Check[]; history: History }> {
+  return serial(() => checkAllNow(ctx));
+}
+
+async function checkAllNow(ctx: HandlerContext): Promise<{ checks: Check[]; history: History }> {
   const list = urls(ctx);
   const checks = await Promise.all(list.map((u) => probe(u, ctx)));
   const history = ((await ctx.host.store.get(key(ctx))) ?? {}) as History;
@@ -100,8 +113,10 @@ defineModule({
     async check_url(input, ctx) {
       const url = String(input.url ?? "");
       if (!/^https?:\/\//.test(url)) throw new ModuleError("url must start with http:// or https://", -32602);
-      const c = await probe(url, ctx);
-      return { url, ok: c.ok, http_code: c.code, ms: c.ms, from: where(ctx), ...(c.error ? { error: c.error } : {}) };
+      // The model picks the URL: it is fetched from the server, never from this Mac's network (localhost, the LAN).
+      if (!ctx.server) throw new ModuleError("http_check needs a server", -32602);
+      const c = await probe(url, ctx, "server");
+      return { url, ok: c.ok, http_code: c.code, ms: c.ms, from: "server", ...(c.error ? { error: c.error } : {}) };
     },
 
     async render(_input, ctx) {

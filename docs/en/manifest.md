@@ -34,7 +34,7 @@
 | `sdk` | `1` — the protocol version. The app refuses versions it doesn't know. |
 | `id` | Reverse-DNS, lowercase: `dev.acme.queues`. Unique; settings, the store and automation blocks are keyed by it. |
 | `version` | Semantic version. An installed module that changes asks to be approved again. |
-| `title`, `description` | A string, or one per language: `{"en": "Queues", "ru": "Очереди"}` — the app takes the user's language, then English, then the first. |
+| `title`, `description` | A string, or one per language: `{"en": "Queues", "ru": "Очереди"}` — the app takes the user's language, then its base language, then English, then any other. |
 | `icon` | `symbol` — one of [schemas/symbols.json](../../schemas/symbols.json) (others show a puzzle piece); `color` — a palette name (`blue green orange red yellow purple pink teal indigo cyan mint brown gray`, they follow the dark theme) or `#RRGGBB`. |
 
 ## Runtime and permissions

@@ -27,7 +27,7 @@ Claude Code: `claude mcp add sshkipper-sdk -- node /path/to/sshkipper-sdk/packag
 | `module_validate {folder}` or `{manifest, files?}` | the app's checks before installing |
 | `view_preview {view, data?, item?, settings?, components?}` | the page as text after templates, with its problems |
 | `template_expand {view, vars, components?}` | the expanded JSON |
-| `module_call {folder, handler, input?, settings?, item?}` | runs a handler **on this machine** (scripts with sh; a program with `host.exec` here) |
+| `module_run_local {folder, handler, input?, settings?, item?, allow_changes?}` | runs a handler **on this machine** (scripts with sh; a program with `host.exec` here); handlers of change/danger actions only with `allow_changes: true`, after asking the user |
 
 Resources: `sshkipper-sdk://guide/<topic>`, `sshkipper-sdk://schema/module|view`.
 
@@ -37,7 +37,7 @@ Resources: `sshkipper-sdk://guide/<topic>`, `sshkipper-sdk://schema/module|view`
 2. `module_scaffold` with `folder` — start from something that works.
 3. Change one thing: a handler's script, a view, an action.
 4. `module_validate` — fix every error; read the warnings.
-5. `module_call` the handler; `view_preview` the page with what it returned.
+5. `module_run_local` the handler; `view_preview` the page with what it returned.
 6. Ask the user to link the folder in SSHKipper (Settings → Extensions → Modules → Connect folder for
    development…) and look at it on a real server.
 

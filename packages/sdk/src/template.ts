@@ -5,7 +5,7 @@ import type { Json } from "./types.ts";
 
 export const ROOTS = new Set(["data", "item", "settings", "server", "props", "index", "context"]);
 export const MAX_BLOCKS = 400;
-export const MAX_DEPTH = 12;
+export const MAX_DEPTH = 32; // levels of JSON (a block is several: block → items → item → action); the app draws 8 of blocks
 
 export class TemplateError extends Error {}
 

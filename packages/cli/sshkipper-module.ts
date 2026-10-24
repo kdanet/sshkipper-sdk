@@ -31,15 +31,19 @@ Docs: docs/en/README.md · Protocol: spec/protocol.md`;
 
 type Flags = { _: string[]; [k: string]: string | string[] | boolean };
 
+/** Flags that take no value: `new --process disks` names the folder, it isn't the flag's value. */
+const SWITCHES = new Set(["process", "run", "help"]);
+
 function parse(argv: string[]): Flags {
   const f: Flags = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "-o") { f.out = argv[++i]; continue; }
+    if (a === "-h") { f.help = true; continue; }
     if (a.startsWith("--")) {
       const k = a.slice(2);
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith("--")) { f[k] = true; continue; }
+      if (SWITCHES.has(k) || next === undefined || next.startsWith("--")) { f[k] = true; continue; }
       i++;
       if (k === "secret") f.secret = [...((f.secret as string[]) ?? []), next];
       else f[k] = next;
@@ -74,12 +78,12 @@ function report(dir: string): boolean {
   for (const i of r.issues) console.log(formatIssue(i));
   const errors = r.issues.filter((i) => i.severity === "error").length;
   const warnings = r.issues.length - errors;
-  console.log(errors ? `${errors} error(s), ${warnings} warning(s): the app won't install it` : `ok — ${r.manifest?.id} ${r.manifest?.version}, ${r.files.length} files${warnings ? `, ${warnings} warning(s)` : ""}`);
+  console.log(errors ? `${errors} error(s), ${warnings} warning(s): fix the errors — the app refuses some of them on install, the rest break pages or calls` : `ok — ${r.manifest?.id} ${r.manifest?.version}, ${r.files.length} files${warnings ? `, ${warnings} warning(s)` : ""}`);
   return errors === 0;
 }
 
 const f = parse(process.argv.slice(2));
-const [command, ...args] = f._;
+const [command, ...args] = f.help ? ["help"] : f._;
 
 switch (command) {
   case "new": {
@@ -168,7 +172,7 @@ switch (command) {
     serveMCP();
     break;
   }
-  case undefined: case "help": case "--help": case "-h":
+  case undefined: case "help":
     console.log(HELP);
     break;
   default:

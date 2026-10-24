@@ -98,14 +98,15 @@ A page with `view` + `data` is a template the app expands before drawing:
 ```
 
 - `"{{ path }}"` alone keeps the value's type (a number, a list, an object); inside text it prints. Roots: `data`,
-  `item`, `settings`, `server`, `props`, `index`.
+  `item`, `settings`, `server`, `props`, `index`, `context` (`context.locale` — to localize:
+  `{"if": "context.locale == 'ru'", "block": …, "else": …}`).
 - Filters: `default:"—"`, `upper`, `lower`, `json`, `count`, `bytes` (1.2 MB), `duration` (seconds → 3 h 5 min),
   `ago` (a Unix time → 5 min ago).
 - `each` (`as`, `where`, `limit`), `if` (`block`, `else`), `use` (`props`) nodes go wherever a block, a row or a
   status part goes.
 - Anything else in `{{ }}` stays for the page's live formulas over `state` — so decide statuses and words in the
   handler (`"status": "bad"`), not in the template.
-- Limits: 400 blocks after expansion, 12 levels, 2 MB.
+- Limits: 400 blocks after expansion, 32 levels of JSON (8 levels of blocks are drawn), 2 MB.
 
 Check without the app: `sshkipper-module preview <page> --data data.json` or `--run`.
 

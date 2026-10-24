@@ -166,7 +166,7 @@ test("MCP: handshake, tools, validation through the server", async () => {
   assert.equal(init.result.protocolVersion, "2025-06-18");
   assert.equal(init.result.serverInfo.name, "sshkipper-sdk");
   const tools = (await ask(2, "tools/list")).result.tools.map((t: { name: string }) => t.name);
-  for (const n of ["sdk_guide", "sdk_schema", "ui_kit", "module_scaffold", "module_validate", "view_preview", "template_expand", "module_call"]) assert.ok(tools.includes(n), n);
+  for (const n of ["sdk_guide", "sdk_schema", "ui_kit", "module_scaffold", "module_validate", "view_preview", "template_expand", "module_run_local"]) assert.ok(tools.includes(n), n);
   const kit = (await ask(3, "tools/call", { name: "ui_kit", arguments: {} })).result.content[0].text;
   assert.match(kit, /### rows/);
   assert.match(kit, /internaldrive/);
@@ -177,4 +177,15 @@ test("MCP: handshake, tools, validation through the server", async () => {
   const g = (await ask(6, "tools/call", { name: "sdk_guide", arguments: { topic: "overview" } })).result;
   assert.ok(!g.isError, g.content[0].text);
   assert.equal((await ask(7, "nope")).error.code, -32601);
+});
+
+test("MCP: handlers that change things don't run locally without allow_changes", async () => {
+  const input = new PassThrough();
+  const out: string[] = [];
+  serveMCP(input, (s) => out.push(...s.split("\n").filter(Boolean)));
+  input.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "module_run_local", arguments: { folder: join(root, "examples/processes"), handler: "signal_kill", item: { id: "1" } } } }) + "\n");
+  for (let i = 0; i < 200 && !out.length; i++) await new Promise((r) => setTimeout(r, 10));
+  const r = JSON.parse(out[0]).result;
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /allow_changes/);
 });

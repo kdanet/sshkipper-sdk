@@ -80,6 +80,8 @@ when the handler's `sudo` and the server's settings allow it). The script gets:
   - `SK_INPUT_<KEY>` for each top-level input value (strings; numbers as text; booleans `1`/`0`);
   - `SK_SETTING_<KEY>` for each non-secret setting;
   - `SK_ITEM_ID` when there is an item;
+  - `SK_CONTAINER` — the container's name when the service runs in one;
+  - `SK_AUTOMATION=1` when the handler runs as an automation block (§8);
   - `SK_TMP` — a private temporary directory (0700), removed after the run;
   - `SK_SECRET_<KEY>` — the **path** of a 0600 file holding a secret setting (never its value).
   Keys are upper-cased. Values are passed through the session, not on the command line: other users of the server
@@ -156,7 +158,9 @@ A program that exits is started again on the next call.
 | `host/log` (notification) | `{"level": "debug"\|"info"\|"warn"\|"error", "message": "…"}` | — | — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
-containers); only servers present in a call's `context` (or the module's own settings) may be named. A method the
+containers); only the servers of calls **in progress** (their `context.server.id`) may be named — a program can't
+reach a server between calls. `stdin` and `container` don't go together (a container's command line is readable on
+the server); the request fails. A method the
 module may not use returns error `-32001` ("permission").
 
 ### 4.4 Errors
@@ -180,7 +184,8 @@ actions reload the page.
 
 Template expansion is done by the app on the JSON of a view before drawing:
 
-- `"{{ path }}"` — a value from `data.*`, `item.*`, `settings.*`, `server.*`, `props.*`, `index`. A string that is
+- `"{{ path }}"` — a value from `data.*`, `item.*`, `settings.*`, `server.*`, `props.*`, `index`, `context.*`
+  (`context.locale` — `ru`, `en`…: `{"if": "context.locale == 'ru'", …}` localizes a template). A string that is
   only a placeholder keeps the value's type (number, array…); inside text it is printed (`"{{ item.name }} — up"`).
   A missing path prints nothing. Filters: `| default:"—"`, `| upper`, `| lower`, `| bytes` (1.2 МБ),
   `| duration` (seconds → «3 ч 5 мин»), `| ago` (a Unix time → «5 мин назад»), `| json`, `| count`.
@@ -193,7 +198,7 @@ Template expansion is done by the app on the JSON of a view before drawing:
 - Anything else in `{{ }}` (a formula over `state`, e.g. `{{ rate * 2 }}`) is left for the view's own formulas,
   evaluated live as the user changes inputs.
 
-Limits: 400 blocks after expansion, 12 levels, 2 MB of JSON.
+Limits: 400 blocks after expansion, 32 levels of JSON nesting (the app draws 8 levels of blocks), 2 MB of JSON.
 
 ## 7. Packages and versions
 
@@ -231,7 +236,7 @@ A `tools` entry is offered to the app's agent through two fixed tools, `module_t
 offer, with parameters) and `module_call` (call one). The list the model sees doesn't grow with modules, so the
 prompt cache holds.
 
-- The model gives `server` (an open session), `module`, `tool` and `input`; the input is checked against `params`
+- The model gives `target` (an open session), `module`, `tool` and `input`; the input is checked against `params`
   (types, `required`, `choices`, `pattern` as a full match) and unknown keys are dropped.
 - `risk` goes through the server's AI mode like any command: `read` — as a check, `change` — as a service action,
   `danger` — as a disruptive one; the user confirms what the mode asks for.

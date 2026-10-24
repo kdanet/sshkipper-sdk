@@ -1,2 +1,3 @@
 # Every Linux server has processes; the service shows where ps and /proc are there.
-if sk_has ps && [ -r /proc/loadavg ]; then echo '{"found": true}'; else echo '{"found": false}'; fi
+# GNU ps (procps): busybox's has no -o etimes and --sort the pages need.
+if sk_has ps && ps -eo pid= --sort=-pcpu >/dev/null 2>&1 && [ -r /proc/loadavg ]; then echo '{"found": true}'; else echo '{"found": false}'; fi

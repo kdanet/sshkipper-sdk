@@ -409,7 +409,8 @@
         },
         "text": {
           "type": "string",
-          "maxLength": 12000
+          "maxLength": 12000,
+          "description": "Text (Markdown) — drawn up to 4 000 characters; code blocks up to 12 000."
         },
         "symbol": {
           "type": "string",
@@ -503,10 +504,11 @@
         },
         "items": {
           "type": "array",
-          "maxItems": 1000,
+          "maxItems": 200,
           "items": {
             "$ref": "#/$defs/itemNode"
-          }
+          },
+          "description": "Rows and list items; the app draws 200 at most."
         },
         "lines": {
           "type": "array",
@@ -569,8 +571,9 @@
         },
         "height": {
           "type": "number",
-          "minimum": 40,
-          "maximum": 2000
+          "minimum": 160,
+          "maximum": 1200,
+          "description": "Points; the app keeps it between 160 and 1200."
         },
         "style": {
           "$ref": "#/$defs/style"

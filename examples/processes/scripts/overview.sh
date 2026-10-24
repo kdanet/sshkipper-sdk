@@ -8,6 +8,6 @@ awk -v l1="$l1" -v l5="$l5" -v l15="$l15" -v procs="$procs" -v cpus="$cpus" '
   END {
     used = t - a; pct = t > 0 ? used * 100 / t : 0
     st = (l1 / (cpus > 0 ? cpus : 1) > 1.5) ? "warn" : "ok"
-    printf "{\"load1\":%s,\"load5\":%s,\"load15\":%s,\"load_status\":\"%s\",\"cpus\":%d,\"procs\":%d,\"mem_total\":%d,\"mem_used\":%d,\"mem_pct\":%.0f}",
+    printf "{\"load1\":%s,\"load5\":%s,\"load15\":%s,\"load_status\":\"%s\",\"cpus\":%d,\"procs\":%d,\"mem_total\":%.0f,\"mem_used\":%.0f,\"mem_pct\":%.0f}",
       l1, l5, l15, st, cpus, procs, t, used, pct
   }' /proc/meminfo

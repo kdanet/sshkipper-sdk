@@ -164,7 +164,7 @@ Templates are expanded by the app before drawing (spec/protocol.md §6):
 - {"if": "item.failed", "block": {...}, "else": {...}}.
 - {"use": "component", "props": {...}} — a component of the manifest's "components".
 - Anything else in {{ }} is a live formula over state (e.g. {{ rate * 2 }}).
-Limits: 400 blocks, 12 levels, 2 MB.
+Limits: 400 blocks, 32 levels of JSON (8 levels of blocks are drawn), 2 MB.
 
 ## Symbols (SF Symbols the app draws; any other shows a puzzle piece)
 ant, antenna.radiowaves.left.and.right, archivebox, arrow.clockwise, arrow.left.arrow.right, arrow.triangle.2.circlepath, bell, bolt.fill, calendar, chart.bar, chart.line.uptrend.xyaxis, chart.pie, checkmark.circle.fill, checkmark.shield, clock, clock.arrow.circlepath, cloud, cpu, cube, cube.box, cylinder.split.1x2, desktopcomputer, doc.on.doc, doc.plaintext, doc.text, envelope, envelope.badge, exclamationmark.triangle.fill, externaldrive, externaldrive.connected.to.line.below, flag, flame, folder, gauge.with.dots.needle.67percent, gearshape, gearshape.2, globe, hammer, heart, hourglass, icloud, info.circle, internaldrive, key.fill, ladybug, laptopcomputer, leaf, lightbulb, link, list.bullet, list.bullet.rectangle, lock, lock.open, lock.shield, magnifyingglass, memorychip, message, network, network.badge.shield.half.filled, number, paperplane, pause.circle.fill, percent, person.2.fill, person.crop.circle, person.fill, play.circle.fill, power, puzzlepiece.extension, questionmark.circle, rectangle.stack, server.rack, shield, shield.lefthalf.filled, shippingbox, speedometer, square.stack.3d.up, star, stop.circle.fill, stopwatch, tag, terminal, text.alignleft, timer, trash, tray, tray.2, tray.full, waveform.path.ecg, wifi, wrench.and.screwdriver, xmark.octagon.fill
