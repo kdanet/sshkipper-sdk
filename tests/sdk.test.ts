@@ -149,6 +149,22 @@ test("process runtime: handlers, host requests, errors, cancel", async () => {
   assert.equal((await next()).error.code, -32601);
 });
 
+test("process runtime: a call sent during setup waits for it", async () => {
+  const fromModule: string[] = [];
+  let lineCb: (l: string) => void = () => {};
+  const transport: Transport = { write: (l) => fromModule.push(l), onLine: (cb) => { lineCb = cb; }, onClose: () => {}, exit: () => {} };
+  let conn = "";
+  serve({
+    setup: async () => { await new Promise((r) => setTimeout(r, 40)); conn = "open"; },
+    handlers: { state: () => ({ conn }) },
+  }, transport);
+  const next = async () => { for (let i = 0; i < 100 && !fromModule.length; i++) await new Promise((r) => setTimeout(r, 5)); return JSON.parse(fromModule.shift()!); };
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { sdk: 1, app: "t", locale: "en", module: { id: "x", version: "1" } } }));
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "handler/call", params: { handler: "state", input: {}, context: { settings: {}, locale: "en", sdk: 1, app: "t" } } }));
+  const a = await next(), b = await next();
+  assert.deepEqual([a, b].find((m) => m.id === 2).result, { conn: "open" });
+});
+
 test("MCP: handshake, tools, validation through the server", async () => {
   const input = new PassThrough();
   const out: string[] = [];

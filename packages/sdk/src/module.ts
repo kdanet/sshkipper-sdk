@@ -81,7 +81,8 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
   let nextID = 1;
   const pending = new Map<number, Pending>();
   const running = new Map<string, AbortController>();
-  let initialized = false;
+  // Set by `initialize`, settled when `setup` is done: calls that come meanwhile wait for it.
+  let ready: Promise<void> | null = null;
   const exit = transport.exit ?? (() => process.exit(0));
 
   const send = (msg: Record<string, unknown>) => transport.write(JSON.stringify({ jsonrpc: "2.0", ...msg }));
@@ -152,11 +153,18 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
     switch (msg.method) {
       case "initialize":
-        initialized = true;
-        if (def.setup) await def.setup({ app: msg.params?.app ?? "", locale: msg.params?.locale ?? "en", module: msg.params?.module ?? { id: "", version: "" } });
+        ready ??= (async () => {
+          if (def.setup) await def.setup({ app: msg.params?.app ?? "", locale: msg.params?.locale ?? "en", module: msg.params?.module ?? { id: "", version: "" } });
+        })();
+        try { await ready; } catch (e) {
+          return send({ id: msg.id, error: { code: Codes.handlerFailed, message: `setup failed: ${e instanceof Error ? e.message : String(e)}` } });
+        }
         return send({ id: msg.id, result: { handlers: Object.keys(def.handlers) } });
       case "handler/call":
-        if (!initialized) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+        try { await ready; } catch {
+          return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+        }
         return call(msg.id, msg.params as Request);
       case "cancel":
         running.get(String(msg.params?.id))?.abort();
