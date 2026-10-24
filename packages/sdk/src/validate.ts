@@ -166,7 +166,7 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
       if (h.sudo === "required" && !perms.has("sudo")) err(`handlers.${n}.sudo`, "sudo: required — add «sudo» to permissions");
       if (h.sudo === "required" && m.service?.containers) warn(`handlers.${n}.sudo`, "in a container a handler's sudo doesn't apply: it runs as docker exec's user");
       // detect runs by itself on every connected server: the app never gives it sudo.
-      if (h.sudo === "required" && n === m.service?.detect) err(`handlers.${n}.sudo`, "detect runs on every server by itself, without sudo — drop sudo: required");
+      if (h.sudo === "required" && n === m.service?.detect) warn(`handlers.${n}.sudo`, "detect runs on every server by itself, without sudo — drop sudo: required");
     } else {
       if (h.script) warn(`handlers.${n}.script`, "a process module doesn't use scripts: the handler is a name its program answers");
       if (h.sudo) warn(`handlers.${n}.sudo`, "in a process module sudo is asked by host/exec, not the handler");
@@ -230,9 +230,9 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
       if (p.type === "choice" && !(p.choices ?? []).length) err(`${at}.params[${j}].choices`, "a choice without choices");
       // As the app, for actions, tools and blocks alike: «{{» would be a field of the automations engine.
       if (p.pattern?.includes("{{") || (p.choices ?? []).some((c) => c.includes("{{"))) err(`${at}.params[${j}]`, "«{{» isn't allowed in patterns and choices");
-      // The app checks with ICU (NSRegularExpression) and refuses what it can't read; JavaScript reads nearly the
-      // same — a pattern it can't read is an error here too (the module wouldn't install).
-      if (p.pattern) { try { new RegExp(p.pattern); } catch { err(`${at}.params[${j}].pattern`, "not a regular expression (the app refuses it)"); } }
+      // The app checks with ICU (NSRegularExpression): it reads more than JavaScript ((?i), possessive and atomic
+      // groups) — what JavaScript can't read is a warning, the app's own check decides.
+      if (p.pattern) { try { new RegExp(p.pattern); } catch { warn(`${at}.params[${j}].pattern`, "JavaScript can't read this pattern — make sure the app (ICU regular expressions) can"); } }
       if (server && p.type === "text" && !p.pattern) warn(`${at}.params[${j}]`, "text reaches a script: set «pattern» so nothing more gets in");
     });
   };

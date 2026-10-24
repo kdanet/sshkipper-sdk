@@ -87,10 +87,11 @@ when the handler's `sudo` and the server's settings allow it). The script gets:
   Keys are upper-cased. Values are passed through the session, not on the command line: other users of the server
   can't see them in `ps`.
 - **In a container** (`service.containers`, the service runs in Docker): the handler's script — with the request,
-  the plain settings and the item — goes to `docker exec` as an argument, so root on the server and the container's
-  own processes can see it in `ps` while it runs. Secret settings never go into a container (`SK_SECRET_*` are not
-  set there). `sudo` of the handler doesn't apply inside: it runs as `docker exec`'s user (the server's «sudo for
-  docker» decides only how docker itself is called) — the validator warns about `sudo: required` in such a module.
+  the plain settings and the item — goes to `docker exec` as an argument, so any user of the server (unless `/proc` is
+  mounted with `hidepid`) and the container's own processes can see it in `ps` while it runs. Secret settings never
+  go into a container (`SK_SECRET_*` are not set there). `sudo` of the handler doesn't apply inside: it runs as
+  `docker exec`'s user and the server's «Use sudo -n» isn't required for it (the server's «sudo for docker» decides
+  only how docker itself is called) — the validator warns about `sudo: required` in such a module.
 - **The SDK prelude** (§3.5) is defined before the script.
 - **Its own folder is not on the server.** Scripts run from the module package each time; nothing is installed.
   A module MAY ship more files under `scripts/` and read them with `sk_file <path>` (they travel with the call).
