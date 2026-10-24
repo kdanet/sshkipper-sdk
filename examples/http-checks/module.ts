@@ -94,7 +94,12 @@ defineModule({
     detect: (_input, ctx) => ({ found: urls(ctx).length > 0 }),
 
     async summary(_input, ctx) {
-      const { checks } = await checkAll(ctx);
+      // The page's last round when it is fresh (the app asks for the summary right after the page reloads): checking
+      // again would put two near-identical points in the history each time.
+      const history = ((await ctx.host.store.get(key(ctx))) ?? {}) as History;
+      const last = urls(ctx).map((u) => history[u]?.at(-1));
+      const fresh = last.every((c) => c && Date.now() / 1000 - c.at < 120);
+      const checks = fresh ? (last as Check[]) : (await checkAll(ctx)).checks;
       const s = sentence(checks, ctx);
       return { text: s.text, status: s.up < checks.length ? "bad" : s.slow ? "warn" : "ok" };
     },

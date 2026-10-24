@@ -165,9 +165,11 @@ export function filter(f: string, v: Json): Json {
     case "number": {
       // The app prints the decimal mark of its language («2,55» in Russian); the preview, this machine's.
       const n = num(v);
-      if (n === undefined || !Number.isFinite(n)) return v;
+      // As the app: past 1e15 as it came, no «-0».
+      if (n === undefined || !Number.isFinite(n) || Math.abs(n) >= 1e15) return v;
       const d = arg !== undefined && /^\s*\d+\s*$/.test(arg) ? Math.min(Number(arg), 6) : 2;
-      return new Intl.NumberFormat(undefined, { maximumFractionDigits: d, useGrouping: false }).format(n);
+      const s = new Intl.NumberFormat(undefined, { maximumFractionDigits: d, useGrouping: false }).format(n);
+      return s === "-0" ? "0" : s;
     }
     case "bytes": { const n = num(v); return n === undefined ? v : bytes(n); }
     case "duration": { const n = num(v); return n === undefined ? v : duration(n); }
