@@ -1,7 +1,7 @@
 // The SDK against itself and against what the app expects: `npm test` (node --test, Node 24+).
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { call } from "../packages/sdk/src/dev.ts";
 import { serve, type Transport } from "../packages/sdk/src/module.ts";
 import { preview } from "../packages/sdk/src/preview.ts";
-import { scaffold } from "../packages/sdk/src/scaffold.ts";
+import { scaffold, VENDORED } from "../packages/sdk/src/scaffold.ts";
 import { expand } from "../packages/sdk/src/template.ts";
 import type { Json, Manifest } from "../packages/sdk/src/types.ts";
 import { view, rows, row, metric, grid, each, $ } from "../packages/sdk/src/ui.ts";
@@ -166,11 +166,11 @@ test("process runtime: a call sent during setup waits for it", async () => {
 });
 
 test("examples carry the current SDK runtime (sshkipper-module vendor)", () => {
-  const src = join(root, "packages/sdk/src");
-  for (const f of readdirSync(src).filter((f) => f.endsWith(".ts"))) {
+  // Exactly what `vendor` copies: each file there and the same as the SDK's.
+  for (const f of VENDORED) {
     const copy = join(root, "examples/http-checks/lib/sshkipper-sdk", f);
-    if (!existsSync(copy)) continue;
-    assert.equal(readFileSync(copy, "utf8"), readFileSync(join(src, f), "utf8"), `${f}: run sshkipper-module vendor examples/http-checks`);
+    assert.ok(existsSync(copy), `${f} missing: run sshkipper-module vendor examples/http-checks`);
+    assert.equal(readFileSync(copy, "utf8"), readFileSync(join(root, "packages/sdk/src", f), "utf8"), `${f}: run sshkipper-module vendor examples/http-checks`);
   }
 });
 
