@@ -129,7 +129,8 @@ defineModule({
       const items: Item[] = checks.map((c) => row(short(c.url), {
         id: c.url,
         status: status(c, ctx),
-        detail: c.error ?? (status(c, ctx) === "warn" ? tr(ctx, { ru: "медленно", en: "slow" }) : tr(ctx, { ru: "отвечает", en: "answers" })),
+        detail: c.error ?? (!c.ok ? tr(ctx, { ru: "отвечает ошибкой", en: "answers with an error" })
+          : status(c, ctx) === "warn" ? tr(ctx, { ru: "медленно", en: "slow" }) : tr(ctx, { ru: "отвечает", en: "answers" })),
         trailing: `${c.ms} ${tr(ctx, { ru: "мс", en: "ms" })}`,
         badge: c.code ? `HTTP ${c.code}` : tr(ctx, { ru: "нет ответа", en: "no answer" }),
         badgeTone: c.ok ? "secondary" : "bad",
@@ -174,7 +175,7 @@ defineModule({
         grid([
           metric(tr(ctx, { ru: "Сейчас", en: "Now" }), last.ok ? last.ms : "—", { unit: last.ok ? tr(ctx, { ru: "мс", en: "ms" }) : undefined, status: status(last, ctx) }),
           metric(tr(ctx, { ru: "Отвечал", en: "Answered" }), uptime, { unit: "%", delta: tr(ctx, { ru: `из ${history.length} проверок`, en: `of ${history.length} checks` }) }),
-          metric(tr(ctx, { ru: "Медленнее всего", en: "Slowest" }), ok.length ? Math.max(...ok.map((c) => c.ms)) : "—", { unit: tr(ctx, { ru: "мс", en: "ms" }) }),
+          metric(tr(ctx, { ru: "Медленнее всего", en: "Slowest" }), ok.length ? Math.max(...ok.map((c) => c.ms)) : "—", { unit: ok.length ? tr(ctx, { ru: "мс", en: "ms" }) : undefined }),
         ], 3),
         chart("bar", [{ values: history.map((c) => (c.ok ? c.ms : 0)) }], { title: tr(ctx, { ru: "Время ответа, мс", en: "Response time, ms" }), height: 140 }),
         keyvalue([
