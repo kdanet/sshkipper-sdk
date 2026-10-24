@@ -155,6 +155,7 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
   const symbol = (path: string, s?: string) => { if (s && !sym.has(s)) warn(path, `symbol «${s}» isn't one the app draws (schemas/symbols.json): a puzzle piece shows instead`); };
   const handler = (path: string, n?: string) => { if (n !== undefined && !(n in handlers)) err(path, `no handler «${n}» in handlers`); };
 
+  if (m.id === "registry.json") err("id", "«registry.json» is taken by the app");
   symbol("icon.symbol", m.icon?.symbol);
   for (const [n, h] of Object.entries(handlers)) {
     if (server) {
