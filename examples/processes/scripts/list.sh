@@ -18,7 +18,8 @@ ps -eo pid=,ppid=,user=,pcpu=,pmem=,rss=,etimes=,comm=,args= --sort=-pcpu 2>/dev
     if (st == "warn") nbusy++
     # The first five also as summary items of the automation block (protocol.md §8).
     if (NR <= 5) top = top (NR > 1 ? "," : "") sprintf("{\"label\":%s,\"value\":\"%s%%\",\"status\":\"%s\",\"detail\":%s}", js(name " (" pid ")"), cpu, st, js(user))
-    if (NR == 1) first = name " " cpu "%"
+    # A decimal comma in the Russian line (the page shows its numbers the same way).
+    if (NR == 1) { c = cpu ""; sub(/\./, ",", c); first = name " " c "%" }
     if (NR > 1) printf ","
     printf "{\"id\":%s,\"pid\":%d,\"ppid\":%d,\"user\":%s,\"cpu\":%s,\"mem\":%s,\"rss\":%.0f,\"uptime\":%d,\"name\":%s,\"command\":%s,\"status\":\"%s\"}",
       js(pid), pid, ppid, js(user), cpu, mem, rss, up, js(name), js(cmd), st

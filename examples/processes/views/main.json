@@ -17,7 +17,7 @@
     { "type": "rows", "title": "Больше всего CPU", "bind": "q", "text": "Процессов нет", "items": [
       { "each": "data.procs.processes", "as": "p", "block": {
         "id": "{{ p.id }}", "title": "{{ p.name }}", "detail": "{{ p.command }}", "status": "{{ p.status }}",
-        "trailing": "{{ p.cpu }}% · {{ p.rss | bytes }}", "badge": "{{ p.user }}",
+        "trailing": "{{ p.cpu | number:1 }}% · {{ p.rss | bytes }}", "badge": "{{ p.user }}",
         "actions": ["stop", "reload", "kill"], "action": { "page": "process" }, "data": "{{ p }}"
       } }
     ] }

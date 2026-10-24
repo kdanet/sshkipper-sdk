@@ -168,8 +168,8 @@ export function filter(f: string, v: Json): Json {
       // As the app: past 1e15 as it came, no «-0».
       if (n === undefined || !Number.isFinite(n) || Math.abs(n) >= 1e15) return v;
       const d = arg !== undefined && /^\s*\d+\s*$/.test(arg) ? Math.min(Number(arg), 6) : 2;
-      const s = new Intl.NumberFormat(undefined, { maximumFractionDigits: d, useGrouping: false }).format(n);
-      return s === "-0" ? "0" : s;
+      // signDisplay "negative": no «-0» (nor «−0» with the minus sign of some locales).
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: d, useGrouping: false, signDisplay: "negative" }).format(n);
     }
     case "bytes": { const n = num(v); return n === undefined ? v : bytes(n); }
     case "duration": { const n = num(v); return n === undefined ? v : duration(n); }
