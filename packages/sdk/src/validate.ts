@@ -48,7 +48,7 @@ export function checkSchema(value: unknown, s: any, root: any = s, path = "", ou
   // A template node goes wherever an element of a list goes (both engines expand each/if in any array): its block is
   // held to what an element is.
   if (templates && value && typeof value === "object" && !Array.isArray(value) && "block" in (value as object)
-      && ("each" in (value as object) || "if" in (value as object)) && path.endsWith("]")) {
+      && ("each" in (value as object) || "if" in (value as object))) {
     const t = value as Record<string, unknown>;
     sub(t.block, s, `${path}.block`);
     if (t.else !== undefined) sub(t.else, s, `${path}.else`);
