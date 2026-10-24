@@ -121,11 +121,11 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     };
   }
 
-  async function call(id: number | string, params: Request) {
+  async function call(id: number | string, params: Request, abort: AbortController) {
     const fn = def.handlers[params.handler];
-    if (!fn) return send({ id, error: { code: Codes.methodNotFound, message: `no handler ${params.handler}` } });
-    const abort = new AbortController();
-    running.set(String(id), abort);
+    if (!fn) { running.delete(String(id)); return send({ id, error: { code: Codes.methodNotFound, message: `no handler ${params.handler}` } }); }
+    // Cancelled while it waited for setup: it doesn't run.
+    if (abort.signal.aborted) { running.delete(String(id)); return; }
     try {
       const ctx: HandlerContext = { ...params.context, host: hostFor(params.context), signal: abort.signal };
       const result = await fn(params.input ?? {}, ctx);
@@ -162,10 +162,16 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
         return send({ id: msg.id, result: { handlers: Object.keys(def.handlers) } });
       case "handler/call":
         if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        try { await ready; } catch {
-          return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+        {
+          // Known to `cancel` from the moment it arrives, also while it waits for setup.
+          const abort = new AbortController();
+          running.set(String(msg.id), abort);
+          try { await ready; } catch {
+            running.delete(String(msg.id));
+            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+          }
+          return call(msg.id, msg.params as Request, abort);
         }
-        return call(msg.id, msg.params as Request);
       case "cancel":
         running.get(String(msg.params?.id))?.abort();
         return;
