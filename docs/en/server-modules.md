@@ -59,8 +59,9 @@ Don't call `sudo` in a script (it would wait for a password). Say what the handl
 
 - `"sudo": "auto"` (default) — through `sudo -n` when the server's “Use sudo -n” is on and the module has the `sudo`
   permission; when sudo asks for a password anyway, the app runs it as the user and remembers that for the session;
-- `"required"` — fails with a clear message where sudo isn't allowed (not for `detect`: it runs by itself on every
-  connected server and never gets sudo; in a container sudo doesn't apply — the handler runs as `docker exec`'s user);
+- `"required"` — fails with a clear message where sudo isn't allowed. What the app runs by itself — `detect`, and the
+  summary of a service left on «Automatic» — never gets sudo (switch the service on for a server to give it sudo
+  there); in a container sudo doesn't apply — the handler runs as `docker exec`'s user;
 - `"never"`.
 
 ## Containers
