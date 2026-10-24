@@ -77,8 +77,11 @@ when the handler's `sudo` and the server's settings allow it). The script gets:
 - **stdin** — the request (§2) as one JSON line, then EOF.
 - **environment**:
   - `SK_HANDLER`, `SK_MODULE`, `SK_SDK=1`, `SK_LOCALE`;
-  - `SK_INPUT_<KEY>` for each top-level input value (strings; numbers as text; booleans `1`/`0`);
-  - `SK_SETTING_<KEY>` for each non-secret setting;
+  - `SK_INPUT_<KEY>` for each top-level input value (strings; numbers as text; booleans `1`/`0`; a list or an
+    object as its JSON text, `["a","b"]` — the full value is in the request on stdin);
+  - `SK_SETTING_<KEY>` for each non-secret setting, the same way (a `list` setting — `["a","b"]`; if the server has
+    `jq`, read it from `context.settings` of the request instead; a process module (§4) gets a real array
+    there — `http-checks` reads its `urls` that way);
   - `SK_ITEM_ID` when there is an item;
   - `SK_CONTAINER` — the container's name when the service runs in one;
   - `SK_AUTOMATION=1` when the handler runs as an automation block (§8);

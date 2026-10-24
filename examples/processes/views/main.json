@@ -2,7 +2,7 @@
   "$schema": "../../../schemas/view.schema.json",
   "status": [
     { "text": "Процессов: {{ data.overview.procs }}, нагрузка {{ data.overview.load1 | number }}, ядер: {{ data.overview.cpus }}." },
-    { "if": "data.overview.load_status == 'warn'", "block": { "text": " Сервер перегружен.", "tone": "attention" } }
+    { "if": "data.overview.load_status == 'warn'", "block": { "text": " Сервер перегружен.", "tone": "warning" } }
   ],
   "state": { "q": "" },
   "blocks": [

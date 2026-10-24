@@ -146,7 +146,12 @@ export function validateManifest(m: Manifest, files?: Set<string>): Issue[] {
 }
 
 function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
-  const err = (path: string, message: string) => out.push({ severity: "error", path, message });
+  // One error a path: the app's «from 1 to 3600» in place of the schema's «at least 1» for the same value.
+  const schemaErrors = new Set(out.filter((i) => i.severity === "error"));
+  const err = (path: string, message: string) => {
+    for (let i = out.length - 1; i >= 0; i--) if (schemaErrors.has(out[i]) && out[i].path === path) out.splice(i, 1);
+    out.push({ severity: "error", path, message });
+  };
   const warn = (path: string, message: string) => out.push({ severity: "warning", path, message });
   const perms = new Set(m.permissions ?? []);
   const handlers = m.handlers ?? {};

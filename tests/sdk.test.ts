@@ -62,6 +62,9 @@ test("validate: says what's wrong where", () => {
   const bad = validateManifest({ ...m, colour: "red", version: 1 } as never);
   assert.ok(bad.some((i) => i.path === "colour" && /unknown key/.test(i.message)));
   assert.ok(bad.some((i) => i.path === "version" && /must be string/.test(i.message)));
+  // A value both the schema and the app's checks refuse: one error, the app's words.
+  const slow = validateManifest({ ...m, handlers: { list: { script: "scripts/list.sh", timeout: -1e19 } } } as never);
+  assert.deepEqual(slow.filter((i) => i.path === "handlers.list.timeout").map((i) => i.message), ["timeout is seconds from 1 to 3600"]);
 });
 
 test("validate: views take templates in place of values", () => {

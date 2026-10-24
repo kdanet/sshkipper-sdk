@@ -62,7 +62,8 @@ row's `data` (or the row itself) is what they get as `item`.
 
 - `status` of blocks and rows: `ok`, `warn`, `bad`, `off`, `info` — the dot and the colour of a metric.
 - `tone` of status parts, badges (`badgeTone`) and styles: `plain`, `secondary`, `tertiary`, `good`, `warning`,
-  `attention`, `bad`, `accent`, `info`.
+  `attention`, `bad`, `accent`, `info`. A `warn` status is drawn `warning` (yellow). `attention` is a deep orange:
+  in the light theme it sits close to `bad`, so keep it for an accent next to a yellow, not for «something is off».
 - A badge is a label (a version, a user), grey unless you give it a tone.
 
 ## Your own look: `style`
