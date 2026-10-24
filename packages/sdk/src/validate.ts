@@ -181,6 +181,10 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     const cmd = m.runtime.command;
     if (!cmd.length) err("runtime.command", "empty command");
     else if (cmd[0].includes("/") && files && !files.has(norm(cmd[0]))) err("runtime.command", `no program «${cmd[0]}» in the module`);
+    // Same as the app: -I/-E ignore PYTHONPYCACHEPREFIX, byte code would land in the hashed module folder.
+    if (cmd.length && /^python/.test(cmd[0].split("/").pop() ?? "") && cmd.slice(1).some((a) => a === "-I" || a === "-E") && !cmd.includes("-B")) {
+      warn("runtime.command", "python with -I or -E writes byte code into the module folder — after its first run the module reads as changed; add -B");
+    }
     const program = cmd.slice(1).find((a) => /\.(ts|js|mjs|py|rb)$/.test(a));
     if (program && files && !files.has(norm(program))) err("runtime.command", `no file «${program}» in the module`);
   }

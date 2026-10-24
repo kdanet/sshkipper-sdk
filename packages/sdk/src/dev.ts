@@ -167,7 +167,7 @@ function processCall(dir: string, m: Manifest, handler: string, o: CallOptions, 
     const env = {
       PATH: [found, "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin", "/usr/local/bin"].filter(Boolean).join(":"),
       HOME: process.env.HOME ?? "", TMPDIR: process.env.TMPDIR ?? "/tmp", LANG: "en_US.UTF-8",
-      SK_SDK: "1", SK_MODULE: m.id, SK_DATA: data, ...own,
+      SK_SDK: "1", SK_MODULE: m.id, SK_DATA: data, PYTHONPYCACHEPREFIX: join(data, "pycache"), ...own,
     };
     const p = spawn(cmd, args, { cwd: dir, env, stdio: ["pipe", "pipe", "pipe"] });
     let buf = "", stderr = "", done = false;

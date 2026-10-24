@@ -68,8 +68,11 @@ Each needs its permission in the manifest; without it the call fails with `-3200
 | `ctx.host.log(level, message)` | — | the module's log in the app |
 
 The program runs with a clean environment: `PATH` (the folder its program was found in, system paths, Homebrew), `HOME`,
-`TMPDIR`, `LANG`, `SK_SDK`, `SK_MODULE`, `SK_DATA` (a private folder for the module's files) and `runtime.env`. It
-doesn't get the user's SSH agent or the app's secrets: reach servers through `host.exec`.
+`TMPDIR`, `LANG`, `SK_SDK`, `SK_MODULE`, `SK_DATA` (a private folder for the module's files),
+`PYTHONPYCACHEPREFIX` (Python's byte code under `SK_DATA`) and `runtime.env`. It doesn't get the user's SSH agent or the
+app's secrets: reach servers through `host.exec`. The module folder is read-only for it: an installed module's files are
+approved by their hashes, and anything written there (a cache, a log, `__pycache__` — so don't start Python with `-I` or
+`-E`, which ignore `PYTHONPYCACHEPREFIX`; add `-B` if you must) makes it a changed module until the user approves it again.
 
 ## Trying it
 
