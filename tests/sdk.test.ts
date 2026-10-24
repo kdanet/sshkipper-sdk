@@ -1,7 +1,7 @@
 // The SDK against itself and against what the app expects: `npm test` (node --test, Node 24+).
 
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -163,6 +163,15 @@ test("process runtime: a call sent during setup waits for it", async () => {
   lineCb(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "handler/call", params: { handler: "state", input: {}, context: { settings: {}, locale: "en", sdk: 1, app: "t" } } }));
   const a = await next(), b = await next();
   assert.deepEqual([a, b].find((m) => m.id === 2).result, { conn: "open" });
+});
+
+test("examples carry the current SDK runtime (sshkipper-module vendor)", () => {
+  const src = join(root, "packages/sdk/src");
+  for (const f of readdirSync(src).filter((f) => f.endsWith(".ts"))) {
+    const copy = join(root, "examples/http-checks/lib/sshkipper-sdk", f);
+    if (!existsSync(copy)) continue;
+    assert.equal(readFileSync(copy, "utf8"), readFileSync(join(src, f), "utf8"), `${f}: run sshkipper-module vendor examples/http-checks`);
+  }
 });
 
 test("MCP: handshake, tools, validation through the server", async () => {

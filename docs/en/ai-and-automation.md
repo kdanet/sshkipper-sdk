@@ -8,7 +8,8 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
 "tools": [
   { "name": "queue_list", "handler": "queues", "risk": "read",
     "description": "Queues of the server with jobs waiting, failed and workers. Use it to see whether jobs pile up." },
-  { "name": "queue_retry", "handler": "retry", "risk": "change",
+  { "name": "queue_retry", "title": { "ru": "Повторить задания очереди", "en": "Retry a queue's jobs" },
+    "handler": "retry", "risk": "change",
     "description": "Retries the failed jobs of one queue; returns how many went back.",
     "params": [{ "key": "queue", "title": "Queue", "type": "text", "required": true, "pattern": "[a-z0-9_-]{1,40}" }] }
 ]
@@ -17,6 +18,8 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
 - The agent sees two fixed tools — `module_tools` (what the modules of a server offer) and `module_call` — so its
   tool list doesn't change as modules come and go (the prompt cache holds).
 - `description` is all the model reads to choose: what it does, what it returns, when to use it.
+- `title` (optional) is for people: the confirmation of a call says «Модуль «Очереди»: Повторить задания очереди», not
+  `queue_retry`.
 - `risk` goes through the server's AI mode like any command: `read` — a check, `change` — a service action,
   `danger` — a disruptive one; the user confirms what the mode asks for. Production servers stay protected.
 - `params` are checked (types, `required`, `choices`, `pattern` as a full match) and unknown keys dropped before the

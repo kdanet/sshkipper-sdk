@@ -206,6 +206,7 @@
       "type": "object", "additionalProperties": false, "required": ["name", "description", "handler", "risk"],
       "properties": {
         "name": { "$ref": "#/$defs/name" },
+        "title": { "$ref": "#/$defs/text", "description": "For people: the confirmation of a call names the tool by it (the model reads description)." },
         "description": { "type": "string", "minLength": 10, "maxLength": 1000 },
         "handler": { "$ref": "#/$defs/name" },
         "risk": { "$ref": "#/$defs/risk" },

@@ -81,7 +81,8 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
   let nextID = 1;
   const pending = new Map<number, Pending>();
   const running = new Map<string, AbortController>();
-  let initialized = false;
+  // Set by `initialize`, settled when `setup` is done: calls that come meanwhile wait for it.
+  let ready: Promise<void> | null = null;
   const exit = transport.exit ?? (() => process.exit(0));
 
   const send = (msg: Record<string, unknown>) => transport.write(JSON.stringify({ jsonrpc: "2.0", ...msg }));
@@ -120,11 +121,11 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     };
   }
 
-  async function call(id: number | string, params: Request) {
+  async function call(id: number | string, params: Request, abort: AbortController) {
     const fn = def.handlers[params.handler];
-    if (!fn) return send({ id, error: { code: Codes.methodNotFound, message: `no handler ${params.handler}` } });
-    const abort = new AbortController();
-    running.set(String(id), abort);
+    if (!fn) { running.delete(String(id)); return send({ id, error: { code: Codes.methodNotFound, message: `no handler ${params.handler}` } }); }
+    // Cancelled while it waited for setup: it doesn't run.
+    if (abort.signal.aborted) { running.delete(String(id)); return; }
     try {
       const ctx: HandlerContext = { ...params.context, host: hostFor(params.context), signal: abort.signal };
       const result = await fn(params.input ?? {}, ctx);
@@ -152,12 +153,25 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
     switch (msg.method) {
       case "initialize":
-        initialized = true;
-        if (def.setup) await def.setup({ app: msg.params?.app ?? "", locale: msg.params?.locale ?? "en", module: msg.params?.module ?? { id: "", version: "" } });
+        ready ??= (async () => {
+          if (def.setup) await def.setup({ app: msg.params?.app ?? "", locale: msg.params?.locale ?? "en", module: msg.params?.module ?? { id: "", version: "" } });
+        })();
+        try { await ready; } catch (e) {
+          return send({ id: msg.id, error: { code: Codes.handlerFailed, message: `setup failed: ${e instanceof Error ? e.message : String(e)}` } });
+        }
         return send({ id: msg.id, result: { handlers: Object.keys(def.handlers) } });
       case "handler/call":
-        if (!initialized) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        return call(msg.id, msg.params as Request);
+        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+        {
+          // Known to `cancel` from the moment it arrives, also while it waits for setup.
+          const abort = new AbortController();
+          running.set(String(msg.id), abort);
+          try { await ready; } catch {
+            running.delete(String(msg.id));
+            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+          }
+          return call(msg.id, msg.params as Request, abort);
+        }
       case "cancel":
         running.get(String(msg.params?.id))?.abort();
         return;

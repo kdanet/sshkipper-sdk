@@ -170,7 +170,8 @@ defineModule({
             status: slowest && slowest.ms > slowMs(ctx) ? "warn" : undefined,
           }),
         ], 3),
-        chart("line", Object.entries(history).map(([u, h]) => ({ name: short(u), values: h.slice(-30).map((c) => (c.ok ? c.ms : 0)) })), {
+        // A check with no answer is a gap in its line, not a fall to 0 ms.
+        chart("line", Object.entries(history).map(([u, h]) => ({ name: short(u), values: h.slice(-30).map((c) => (c.ok ? c.ms : null)) })), {
           title: tr(ctx, { ru: "Время ответа, мс", en: "Response time, ms" }), height: 160,
         }),
         search("q", tr(ctx, { ru: "Адрес", en: "URL" })),
@@ -199,7 +200,7 @@ defineModule({
           metric(tr(ctx, { ru: "Отвечал", en: "Answered" }), uptime, { unit: "%", delta: tr(ctx, { ru: `из ${history.length} проверок`, en: `of ${history.length} checks` }) }),
           metric(tr(ctx, { ru: "Медленнее всего", en: "Slowest" }), ok.length ? Math.max(...ok.map((c) => c.ms)) : "—", { unit: ok.length ? tr(ctx, { ru: "мс", en: "ms" }) : undefined }),
         ], 3),
-        chart("bar", [{ values: history.map((c) => (c.ok ? c.ms : 0)) }], { title: tr(ctx, { ru: "Время ответа, мс", en: "Response time, ms" }), height: 140 }),
+        chart("bar", [{ values: history.map((c) => (c.ok ? c.ms : null)) }], { title: tr(ctx, { ru: "Время ответа, мс", en: "Response time, ms" }), height: 140 }),
         keyvalue([
           [tr(ctx, { ru: "Адрес", en: "URL" }), url],
           [tr(ctx, { ru: "Последний ответ", en: "Last answer" }), last.code ? `HTTP ${last.code}` : tr(ctx, { ru: "нет", en: "none" })],

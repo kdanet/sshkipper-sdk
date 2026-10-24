@@ -46,9 +46,9 @@
       "risk": "danger", "on": "item", "confirm": { "ru": "Убить {{ item.name }} ({{ item.pid }}) без шанса завершиться?", "en": "Kill {{ item.name }} ({{ item.pid }}) without a chance to exit?" } }
   ],
   "tools": [
-    { "name": "top", "description": "The busiest processes of the server by CPU: pid, user, CPU %, memory, uptime and command line.",
+    { "name": "top", "title": { "ru": "Самые занятые процессы", "en": "Busiest processes" }, "description": "The busiest processes of the server by CPU: pid, user, CPU %, memory, uptime and command line.",
       "handler": "list", "risk": "read" },
-    { "name": "stop", "description": "Stops a process of the server with SIGTERM (it may finish its work first). A change: asked about in the strict mode and on Production.", "handler": "signal_term", "risk": "change",
+    { "name": "stop", "title": { "ru": "Остановить процесс (TERM)", "en": "Stop a process (TERM)" }, "description": "Stops a process of the server with SIGTERM (it may finish its work first). A change: asked about in the strict mode and on Production.", "handler": "signal_term", "risk": "change",
       "params": [ { "key": "pid", "title": "PID", "type": "number", "required": true } ] }
   ],
   "automation": [

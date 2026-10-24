@@ -34,7 +34,7 @@ export const metric = (title: string, value: number | string, o: Common & { unit
   return { type: "metric", title, value, ...rest, ...(series ? { series: [{ values: series }] } : {}) };
 };
 export const gauge = (title: string, value: number | string, max: number | string = 100, o: Common & { unit?: string } = {}): Block => ({ type: "gauge", title, value, max, ...o });
-export const chart = (kind: "line" | "bar" | "area" | "pie", series: { name?: string; values: number[] }[], o: Common & { title?: string; labels?: string[]; unit?: string; height?: number } = {}): Block =>
+export const chart = (kind: "line" | "bar" | "area" | "pie", series: { name?: string; values: (number | null)[] }[], o: Common & { title?: string; labels?: string[]; unit?: string; height?: number } = {}): Block =>
   ({ type: "chart", chart: kind, series, ...o });
 export const table = (headers: string[], rows: (string | number | boolean | null)[][], o: Common & { title?: string } = {}): Block => ({ type: "table", headers, rows, ...o });
 export const keyvalue = (pairs: Record<string, string | number> | [string, string | number][], o: Common & { title?: string } = {}): Block => ({

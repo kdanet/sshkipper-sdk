@@ -69,6 +69,8 @@ export interface Action {
 
 export interface Tool {
   name: string;
+  /** For people: the confirmation of a call names the tool by it (the model reads `description`). */
+  title?: Text;
   description: string;
   handler: string;
   risk: Risk;
@@ -190,7 +192,8 @@ export interface Block {
   unit?: string;
   delta?: string;
   chart?: "line" | "bar" | "area" | "pie";
-  series?: { name?: string; values?: number[]; formula?: string; points?: number }[];
+  /** `null` in values is a gap: the line breaks there. */
+  series?: { name?: string; values?: (number | null)[]; formula?: string; points?: number }[];
   labels?: string[];
   headers?: string[];
   rows?: (string | number | boolean | null)[][];

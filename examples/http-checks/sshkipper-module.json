@@ -55,6 +55,7 @@
   "tools": [
     {
       "name": "http_check",
+      "title": { "ru": "Проверить адрес", "en": "Check a URL" },
       "description": "Checks one URL from the server with curl (never from the user's Mac): HTTP code, time in ms, error. Use it to see whether a site answers from that server.",
       "handler": "check_url", "risk": "read",
       "params": [{ "key": "url", "title": "URL", "type": "text", "required": true, "pattern": "https?://[^\\s'\"\\\\]+" }]

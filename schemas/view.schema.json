@@ -266,8 +266,9 @@
         "values": {
           "type": "array",
           "maxItems": 1000,
+          "description": "null is a gap: the line breaks there (a check that got no answer).",
           "items": {
-            "type": "number"
+            "type": ["number", "null"]
           }
         },
         "formula": {
