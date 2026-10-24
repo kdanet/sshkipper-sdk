@@ -182,7 +182,7 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     if (!cmd.length) err("runtime.command", "empty command");
     else if (cmd[0].includes("/") && files && !files.has(norm(cmd[0]))) err("runtime.command", `no program «${cmd[0]}» in the module`);
     // Same as the app: -I/-E ignore PYTHONPYCACHEPREFIX, byte code would land in the hashed module folder.
-    if (cmd.length && /^python/.test(cmd[0].split("/").pop() ?? "") && cmd.slice(1).some((a) => a === "-I" || a === "-E") && !cmd.includes("-B")) {
+    if (pythonIgnoresCachePrefix(cmd)) {
       warn("runtime.command", "python with -I or -E writes byte code into the module folder — after its first run the module reads as changed; add -B");
     }
     const program = cmd.slice(1).find((a) => /\.(ts|js|mjs|py|rb)$/.test(a));
@@ -365,3 +365,16 @@ export function validateFolder(dir: string): { manifest?: Manifest; files: strin
 }
 
 export const formatIssue = (i: Issue) => `${i.severity === "error" ? "✗" : "⚠"} ${i.path}: ${i.message}`;
+
+/** `python3 -I main.py`, `/usr/bin/env python3 -Is …`: the interpreter's own options hold I or E and not B (as the app checks). */
+export function pythonIgnoresCachePrefix(cmd: string[]): boolean {
+  let i = (cmd[0] ?? "").split("/").pop() === "env" ? 1 : 0;
+  if (!/^python/.test((cmd[i] ?? "").split("/").pop() ?? "")) return false;
+  const letters = new Set<string>();
+  for (const a of cmd.slice(i + 1)) {
+    if (!a.startsWith("-") || a.startsWith("--") || a.length < 2) break;
+    for (const c of a.slice(1)) letters.add(c);
+    if (/[cmWX]/.test(a.slice(1))) break;
+  }
+  return (letters.has("I") || letters.has("E")) && !letters.has("B");
+}

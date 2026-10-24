@@ -67,6 +67,9 @@ test("validate: says what's wrong where", () => {
     .filter((i) => i.path === "runtime.command" && i.severity === "warning");
   assert.equal(py(["python3", "-I", "main.py"]).length, 1);
   assert.equal(py(["python3", "-I", "-B", "main.py"]).length, 0);
+  assert.equal(py(["/usr/bin/env", "python3", "-Is", "main.py"]).length, 1);
+  assert.equal(py(["python3", "-IB", "main.py"]).length, 0);
+  assert.equal(py(["python3", "main.py", "-I"]).length, 0);
   // A value both the schema and the app's checks refuse: one error, the app's words.
   const slow = validateManifest({ ...m, handlers: { list: { script: "scripts/list.sh", timeout: -1e19 } } } as never);
   assert.deepEqual(slow.filter((i) => i.path === "handlers.list.timeout").map((i) => i.message), ["timeout is seconds from 1 to 3600"]);
