@@ -86,6 +86,11 @@ when the handler's `sudo` and the server's settings allow it). The script gets:
   - `SK_SECRET_<KEY>` — the **path** of a 0600 file holding a secret setting (never its value).
   Keys are upper-cased. Values are passed through the session, not on the command line: other users of the server
   can't see them in `ps`.
+- **In a container** (`service.containers`, the service runs in Docker): the handler's script — with the request,
+  the plain settings and the item — goes to `docker exec` as an argument, so root on the server and the container's
+  own processes can see it in `ps` while it runs. Secret settings never go into a container (`SK_SECRET_*` are not
+  set there). `sudo` of the handler doesn't apply inside: it runs as `docker exec`'s user (the server's «sudo for
+  docker» decides only how docker itself is called) — the validator warns about `sudo: required` in such a module.
 - **The SDK prelude** (§3.5) is defined before the script.
 - **Its own folder is not on the server.** Scripts run from the module package each time; nothing is installed.
   A module MAY ship more files under `scripts/` and read them with `sk_file <path>` (they travel with the call).
@@ -187,7 +192,7 @@ Template expansion is done by the app on the JSON of a view before drawing:
 - `"{{ path }}"` — a value from `data.*`, `item.*`, `settings.*`, `server.*`, `props.*`, `index`, `context.*`
   (`context.locale` — `ru`, `en`…: `{"if": "context.locale == 'ru'", …}` localizes a template). A string that is
   only a placeholder keeps the value's type (number, array…); inside text it is printed (`"{{ item.name }} — up"`).
-  A missing path prints nothing. Filters: `| default:"—"`, `| upper`, `| lower`, `| bytes` (1.2 МБ),
+  A missing path prints nothing. Filters: `| default:"—"`, `| upper`, `| lower`, `| number` (the decimal mark of the app's language: «2,55» in Russian; `| number:1` — at most one digit), `| bytes` (1.2 МБ),
   `| duration` (seconds → «3 ч 5 мин»), `| ago` (a Unix time → «5 мин назад»), `| json`, `| count`.
 - `{"each": "data.units", "as": "unit", "where": "unit.state == 'failed'", "limit": 50, "block": {…}}` — the block
   once per element (`index` is its number from 0).
