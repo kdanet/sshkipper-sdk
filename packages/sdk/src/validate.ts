@@ -247,8 +247,7 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     tools.add(t.name);
     handler(`${at}.handler`, t.handler);
     params(at, t.params);
-    // As the app checks: the model needs words, a person a title that says something.
-    if ((t.description ?? "").length < 10) err(`${at}.description`, "say for the model what the tool does and what it returns");
+    // As the app checks (a short description is the schema's error already): a title that says something.
     const titles = t.title === undefined ? [] : typeof t.title === "string" ? [t.title] : Object.values(t.title);
     if (t.title !== undefined && titles.every((x) => typeof x !== "string" || x.trim() === "")) warn(`${at}.title`, "an empty title — the question shows the tool's name");
   });
