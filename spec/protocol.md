@@ -138,7 +138,10 @@ Defined before each script (POSIX sh, no dependencies — `jq` is not assumed):
 
 `runtime.command` starts in the module folder with a clean environment (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`
 plus the user's Homebrew and Node paths found at start, `HOME`, `TMPDIR`, `LANG`, `SK_SDK=1`, `SK_MODULE`,
-`SK_DATA` — a private folder for the module's files, plus `runtime.env`). Messages are JSON-RPC 2.0 objects, **one per line**
+`SK_DATA` — a private folder for the module's files, `PYTHONDONTWRITEBYTECODE=1`, plus `runtime.env`). **The module
+folder is read-only for the module**: an installed module's files are hashed and approved, and a file written there
+(a cache, a log) reads as a changed module, which stops until the user approves it again — write state to `SK_DATA`
+or `host/store`. `.git`, `.DS_Store` and `__pycache__` are never part of a module. Messages are JSON-RPC 2.0 objects, **one per line**
 (UTF-8, `\n`-terminated, no embedded newlines) on stdin (app → module) and stdout (module → app). stderr is the
 module's log. Both sides MAY send requests; ids are unique per sender. A line longer than 16 MB ends the process.
 
