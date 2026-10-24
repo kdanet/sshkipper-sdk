@@ -158,6 +158,7 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
   if (m.id === "registry.json") err("id", "«registry.json» is taken by the app");
   symbol("icon.symbol", m.icon?.symbol);
   for (const [n, h] of Object.entries(handlers)) {
+    if (h.timeout !== undefined && !(typeof h.timeout === "number" && h.timeout >= 1 && h.timeout <= 3600)) err(`handlers.${n}.timeout`, "timeout is seconds from 1 to 3600");
     if (server) {
       if (!h.script) { err(`handlers.${n}`, "a server module's handler is a script: set «script»"); continue; }
       if (!isInside(h.script)) err(`handlers.${n}.script`, `«${h.script}» leaves the module folder`);
