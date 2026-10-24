@@ -159,7 +159,7 @@ Statuses: ok, warn, bad, off, info
 ## Templates
 Templates are expanded by the app before drawing (spec/protocol.md §6):
 - "{{ data.x }}" alone keeps the value's type; inside text it's printed. Roots: data, item, settings, server, props, index.
-- Filters: default:"—", upper, lower, json, count, bytes, duration, ago.
+- Filters: default:"—", upper, lower, json, count, number (2.55 → «2,55» in Russian; number:1 — at most one digit), bytes, duration, ago.
 - {"each": "data.units", "as": "u", "where": "u.state == 'failed'", "limit": 50, "block": {...}} — once per element.
 - {"if": "item.failed", "block": {...}, "else": {...}}.
 - {"use": "component", "props": {...}} — a component of the manifest's "components".

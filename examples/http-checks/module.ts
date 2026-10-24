@@ -134,7 +134,8 @@ defineModule({
       const s = sentence(checks, ctx);
       const answered = checks.filter((c) => c.ok);
       const avg = answered.length ? Math.round(answered.reduce((a, c) => a + c.ms, 0) / answered.length) : 0;
-      const slowest = [...answered].sort((a, b) => b.ms - a.ms)[0];
+      // Every URL that answered at all (an HTTP 404 took its time too), not only the healthy ones.
+      const slowest = checks.filter((c) => c.code > 0).sort((a, b) => b.ms - a.ms)[0];
       // The average of each round of checks, oldest first: the sparkline under «Среднее».
       const rounds = Math.max(0, ...Object.values(history).map((h) => h.length));
       const averages = Array.from({ length: rounds }, (_, i) => {
@@ -146,7 +147,8 @@ defineModule({
         status: status(c, ctx),
         detail: c.error ?? (!c.ok ? tr(ctx, { ru: "отвечает ошибкой", en: "answers with an error" })
           : status(c, ctx) === "warn" ? tr(ctx, { ru: "медленно", en: "slow" }) : tr(ctx, { ru: "отвечает", en: "answers" })),
-        trailing: `${c.ms} ${tr(ctx, { ru: "мс", en: "ms" })}`,
+        // No answer has no time: a dash, not «0 мс».
+        trailing: c.code > 0 ? `${c.ms} ${tr(ctx, { ru: "мс", en: "ms" })}` : "—",
         badge: c.code ? `HTTP ${c.code}` : tr(ctx, { ru: "нет ответа", en: "no answer" }),
         badgeTone: c.ok ? "secondary" : "bad",
         action: { page: "url" },

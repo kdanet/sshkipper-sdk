@@ -48,7 +48,7 @@
   "tools": [
     { "name": "top", "description": "The busiest processes of the server by CPU: pid, user, CPU %, memory, uptime and command line.",
       "handler": "list", "risk": "read" },
-    { "name": "stop", "description": "Stops a process of the server with SIGTERM. The user confirms it.", "handler": "signal_term", "risk": "change",
+    { "name": "stop", "description": "Stops a process of the server with SIGTERM (it may finish its work first). A change: asked about in the strict mode and on Production.", "handler": "signal_term", "risk": "change",
       "params": [ { "key": "pid", "title": "PID", "type": "number", "required": true } ] }
   ],
   "automation": [

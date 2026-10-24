@@ -100,7 +100,7 @@ A page with `view` + `data` is a template the app expands before drawing:
 - `"{{ path }}"` alone keeps the value's type (a number, a list, an object); inside text it prints. Roots: `data`,
   `item`, `settings`, `server`, `props`, `index`, `context` (`context.locale` — to localize:
   `{"if": "context.locale == 'ru'", "block": …, "else": …}`).
-- Filters: `default:"—"`, `upper`, `lower`, `json`, `count`, `bytes` (1.2 MB), `duration` (seconds → 3 h 5 min),
+- Filters: `default:"—"`, `upper`, `lower`, `json`, `count`, `number` (a decimal mark of the app's language: «2,55» in Russian; `number:1` — at most one digit), `bytes` (1.2 MB), `duration` (seconds → 3 h 5 min),
   `ago` (a Unix time → 5 min ago).
 - `each` (`as`, `where`, `limit`), `if` (`block`, `else`), `use` (`props`) nodes go wherever a block, a row or a
   status part goes.

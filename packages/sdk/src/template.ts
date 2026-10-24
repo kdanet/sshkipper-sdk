@@ -162,6 +162,13 @@ export function filter(f: string, v: Json): Json {
     case "lower": return print(v).toLowerCase();
     case "json": return JSON.stringify(sortKeys(v));
     case "count": return Array.isArray(v) ? v.length : v && typeof v === "object" ? Object.keys(v).length : print(v).length;
+    case "number": {
+      // The app prints the decimal mark of its language («2,55» in Russian); the preview, this machine's.
+      const n = num(v);
+      if (n === undefined || !Number.isFinite(n)) return v;
+      const d = arg !== undefined && /^\s*\d+\s*$/.test(arg) ? Math.min(Number(arg), 6) : 2;
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: d, useGrouping: false }).format(n);
+    }
     case "bytes": { const n = num(v); return n === undefined ? v : bytes(n); }
     case "duration": { const n = num(v); return n === undefined ? v : duration(n); }
     case "ago": { const n = num(v); return n === undefined ? v : agoText(Date.now() / 1000 - n); }
