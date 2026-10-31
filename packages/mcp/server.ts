@@ -95,11 +95,10 @@ const TOOLS = [
   },
   {
     name: "module_run_local",
-    description: "Runs one handler of a module folder ON THIS MACHINE (server scripts with sh, process modules with their program; host.exec runs here too), to see what it returns while writing it — never on servers. Handlers of change/danger actions, tools or blocks (they stop, delete, restart) run only with allow_changes: true — ask the user first.",
+    description: "Runs one handler of a module folder ON THIS MACHINE (server scripts with sh, process modules with their program; host.exec runs here too), to see what it returns while writing it — never on servers. Handlers of change/danger actions, tools or blocks (they stop, delete, restart) run only when the person started this server with --allow-changes: the agent can't allow them itself.",
     inputSchema: obj({
       folder: { type: "string" }, handler: { type: "string" },
       input: { type: "object" }, settings: { type: "object" }, item: {}, locale: { type: "string" },
-      allow_changes: { type: "boolean", description: "Run a handler that changes things (on this machine). Only after the user agreed." },
     }, ["folder", "handler"]),
     annotations: { destructiveHint: true, openWorldHint: false },
   },
@@ -141,11 +140,12 @@ async function tool(name: string, a: Record<string, any>) {
     case "module_run_local": {
       const dir = resolve(a.folder);
       const m: Manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8"));
-      // What changes things isn't run on the agent's machine by default (a kill handler would kill a local PID).
+      // What changes things isn't run on the agent's machine (a kill handler would kill a local PID) unless the person
+      // started the server with --allow-changes: a parameter the agent sets itself would be no one's consent.
       const changes = [...(m.actions ?? []), ...(m.tools ?? []), ...(m.automation ?? [])].filter((x) => x.handler === a.handler && x.risk !== "read");
-      if (changes.length && a.allow_changes !== true) {
+      if (changes.length && !options.allowChanges) {
         return text(`«${a.handler}» is the handler of ${changes.map((x) => ("id" in x ? x.id : (x as { name: string }).name) + ` (${x.risk})`).join(", ")}: it changes things. ` +
-          "It would run on this machine — ask the user, then call again with allow_changes: true.", true);
+          "It would run on this machine — not allowed: the person who started this MCP server can restart it with `sshkipper-module mcp --allow-changes`.", true);
       }
       const r = await call(dir, a.handler, { input: a.input, settings: a.settings, item: a.item, locale: a.locale ?? "en" });
       const log = r.log.length ? `\n\nlog:\n${r.log.join("\n")}` : "";
@@ -196,7 +196,13 @@ async function handle(msg: any): Promise<unknown> {
 }
 
 /** Serves MCP over `input`/`output` (stdio by default). */
-export function serveMCP(input: NodeJS.ReadableStream = process.stdin, write: (s: string) => void = (s) => process.stdout.write(s)) {
+/// How the server was started (by the person, not the agent): `--allow-changes` lets module_run_local run handlers that
+/// change things on this machine.
+const options = { allowChanges: false };
+
+export function serveMCP(input: NodeJS.ReadableStream = process.stdin, write: (s: string) => void = (s) => process.stdout.write(s),
+                         opts: { allowChanges?: boolean } = {}) {
+  options.allowChanges = opts.allowChanges === true;
   let buf = "";
   input.setEncoding?.("utf8");
   input.on("data", async (chunk: string) => {
@@ -216,4 +222,6 @@ export function serveMCP(input: NodeJS.ReadableStream = process.stdin, write: (s
 }
 
 // Run as a program (not imported by the CLI or a test).
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) serveMCP();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  serveMCP(process.stdin, (s) => process.stdout.write(s), { allowChanges: process.argv.includes("--allow-changes") });
+}

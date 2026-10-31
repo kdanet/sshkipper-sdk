@@ -47,14 +47,14 @@
 `process`: the command runs in the module's folder; a bare name (`node`, `python3`) is looked up in the usual
 places and the user's login shell `PATH`; a path (`bin/agent`) must be a file of the module.
 
-`permissions` — shown when the module is installed, enforced where the app can:
+`permissions` — shown in words when the module is installed; checked where the app is in the path:
 
 | | |
 |---|---|
-| `exec` | Commands on servers (server handlers; `host.exec` of process modules) |
+| `exec` | Commands on servers. **Required** for a server module with handlers (the app refuses the module without it and runs none of its scripts) and for `host.exec` of process modules |
 | `sudo` | Through `sudo -n`, where the server's “Use sudo -n” is on |
 | `secrets` | Secret settings (`type: "secret"`) — handed to handlers as files or through `host.secret` |
-| `network` | The program makes its own connections from this Mac (process modules) |
+| `network` | A declaration: the program makes its own connections from this Mac (process modules). Not limited — a process module has no sandbox |
 | `store` | `host.store` — the module's JSON storage on this Mac |
 | `notify` | `host.notify` — notifications |
 

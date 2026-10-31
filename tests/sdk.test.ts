@@ -215,13 +215,14 @@ test("MCP: handshake, tools, validation through the server", async () => {
   assert.equal((await ask(7, "nope")).error.code, -32601);
 });
 
-test("MCP: handlers that change things don't run locally without allow_changes", async () => {
+test("MCP: handlers that change things don't run locally unless the person started the server with --allow-changes", async () => {
   const input = new PassThrough();
   const out: string[] = [];
   serveMCP(input, (s) => out.push(...s.split("\n").filter(Boolean)));
-  input.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "module_run_local", arguments: { folder: join(root, "examples/processes"), handler: "signal_kill", item: { id: "1" } } } }) + "\n");
+  // The agent setting a parameter itself is no consent: refused all the same.
+  input.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "module_run_local", arguments: { folder: join(root, "examples/processes"), handler: "signal_kill", item: { id: "1" }, allow_changes: true } } }) + "\n");
   for (let i = 0; i < 200 && !out.length; i++) await new Promise((r) => setTimeout(r, 10));
   const r = JSON.parse(out[0]).result;
   assert.equal(r.isError, true);
-  assert.match(r.content[0].text, /allow_changes/);
+  assert.match(r.content[0].text, /--allow-changes/);
 });

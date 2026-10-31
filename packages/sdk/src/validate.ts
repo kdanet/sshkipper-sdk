@@ -161,6 +161,8 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
   const handler = (path: string, n?: string) => { if (n !== undefined && !(n in handlers)) err(path, `no handler «${n}» in handlers`); };
 
   if (m.id === "registry.json") err("id", "«registry.json» is taken by the app");
+  // As the app: a server module's handlers are commands on servers — without «exec» it runs none of them.
+  if (server && Object.keys(handlers).length && !perms.has("exec")) err("permissions", "the module's scripts run on servers — add «exec» to permissions");
   symbol("icon.symbol", m.icon?.symbol);
   for (const [n, h] of Object.entries(handlers)) {
     if (h.timeout !== undefined && !(typeof h.timeout === "number" && h.timeout >= 1 && h.timeout <= 3600)) err(`handlers.${n}.timeout`, "timeout is seconds from 1 to 3600");
@@ -184,6 +186,9 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     // Same as the app: -I/-E ignore PYTHONPYCACHEPREFIX, byte code would land in the hashed module folder.
     if (pythonIgnoresCachePrefix(cmd)) {
       warn("runtime.command", "python with -I or -E writes byte code into the module folder — after its first run the module reads as changed; add -B");
+    }
+    for (const k of Object.keys(m.runtime.env ?? {}).sort()) {
+      if (loadsOutsideCode(k)) err(`runtime.env.${k}`, `«${k}» loads code from outside the module — such variables can't be set`);
     }
     const program = cmd.slice(1).find((a) => /\.(ts|js|mjs|py|rb)$/.test(a));
     if (program && files && !files.has(norm(program))) err("runtime.command", `no file «${program}» in the module`);
@@ -365,6 +370,14 @@ export function validateFolder(dir: string): { manifest?: Manifest; files: strin
 }
 
 export const formatIssue = (i: Issue) => `${i.severity === "error" ? "✗" : "⚠"} ${i.path}: ${i.message}`;
+
+/** Environment variables that make an interpreter or the loader take code from outside the module (as the app checks). */
+export function loadsOutsideCode(key: string): boolean {
+  const k = key.toUpperCase();
+  if (k.startsWith("DYLD_") || k.startsWith("LD_") || k.endsWith("_OPTIONS") || k.endsWith("OPT")) return true;
+  return ["PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "NODE_PATH", "PERL5LIB", "PERLLIB", "RUBYLIB",
+    "BASH_ENV", "ENV", "ZDOTDIR", "CLASSPATH", "GEM_PATH", "GEM_HOME", "LUA_PATH", "LUA_CPATH"].includes(k);
+}
 
 /** `python3 -I main.py`, `/usr/bin/env python3 -Is …`: the interpreter's own options hold I or E and not B (as the app checks). */
 export function pythonIgnoresCachePrefix(cmd: string[]): boolean {

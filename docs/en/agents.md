@@ -27,7 +27,7 @@ Claude Code: `claude mcp add sshkipper-sdk -- node /path/to/sshkipper-sdk/packag
 | `module_validate {folder}` or `{manifest, files?}` | the app's checks before installing |
 | `view_preview {view, data?, item?, settings?, components?}` | the page as text after templates, with its problems |
 | `template_expand {view, vars, components?}` | the expanded JSON |
-| `module_run_local {folder, handler, input?, settings?, item?, allow_changes?}` | runs a handler **on this machine** (scripts with sh; a program with `host.exec` here); handlers of change/danger actions only with `allow_changes: true`, after asking the user |
+| `module_run_local {folder, handler, input?, settings?, item?}` | runs a handler **on this machine** (scripts with sh; a program with `host.exec` here) with your rights, without a sandbox; handlers of change/danger actions only when you started the server with `sshkipper-module mcp --allow-changes` — the agent can't allow them itself |
 
 Resources: `sshkipper-sdk://guide/<topic>`, `sshkipper-sdk://schema/module|view`.
 

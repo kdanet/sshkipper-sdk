@@ -71,6 +71,10 @@ An error is a failed call (§3.4, §4.4); its message is shown to the user, give
 
 ### 3.1 How a script runs
 
+A server module needs the `exec` permission: without it the app refuses the module and runs none of its scripts. The
+app runs `detect` (and `summary`) by itself only on servers where the module's service is switched on — or on every
+connected server when the user allowed that when installing it.
+
 The app runs `sh` on the server (through `docker exec <container> sh` when in a container, through `sudo -n sh`
 when the handler's `sudo` and the server's settings allow it). The script gets:
 
@@ -136,18 +140,21 @@ Defined before each script (POSIX sh, no dependencies — `jq` is not assumed):
 
 ### 4.1 Transport
 
-`runtime.command` starts in the module folder with a clean environment (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`
-plus the user's Homebrew and Node paths found at start, `HOME`, `TMPDIR`, `LANG`, `SK_SDK=1`, `SK_MODULE`,
-`SK_DATA` — a private folder for the module's files, `PYTHONPYCACHEPREFIX` under it (Python's byte code is read and
-written there, never in the module folder), plus `runtime.env`). **The module folder is read-only for the module**: an
+`runtime.command` starts in the module folder with a clean environment (`PATH` — the program's own folder, then
+`/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin`, fixed; `HOME`, `TMPDIR`, `LANG`, `SK_SDK=1`,
+`SK_MODULE`, `SK_DATA` — a private folder for the module's files, `PYTHONPYCACHEPREFIX` under it (Python's byte code is
+read and written there, never in the module folder), plus `runtime.env` — except variables that load code from
+outside the module: `DYLD_*`, `LD_*`, `*_OPTIONS`, `*OPT`, `PYTHONSTARTUP`, `PYTHONPATH`, `NODE_PATH`, `BASH_ENV`… are
+refused by the check and never set). The program runs with the user's rights and **no sandbox**. **The module folder is read-only for the module**: an
 installed module's files are hashed and approved, and a file written there (a cache, a log) reads as a changed module,
 which stops until the user approves it again — write state to `SK_DATA` or `host/store`. `.git` and `.DS_Store` are
 never part of a module. Messages are JSON-RPC 2.0 objects, **one per line**
 (UTF-8, `\n`-terminated, no embedded newlines) on stdin (app → module) and stdout (module → app). stderr is the
 module's log. Both sides MAY send requests; ids are unique per sender. A line longer than 16 MB ends the process.
 
-The app starts the program on first use and keeps it while the module is used; it stops it (stdin closed, then
-SIGTERM after 3 s) when the module is disabled, updated, the last user goes, all documents lock, or the app quits.
+The app starts the program on first use and keeps it while the module is used; it stops it (`shutdown`, stdin closed,
+then SIGTERM to its process group after 3 s and SIGKILL to what is left 2 s later; at quit at once) when the module is
+disabled, updated or removed, after ten minutes without calls, when any document locks, or when the app quits.
 A program that exits is started again on the next call.
 
 ### 4.2 App → module

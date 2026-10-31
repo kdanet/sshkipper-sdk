@@ -25,7 +25,8 @@ const HELP = `sshkipper-module — build modules for SSHKipper (SDK 1)
   pack [folder] [-o file.sshkmod]
                          validate, then zip the module for «Install module…»
   vendor [folder]        copy the SDK runtime into lib/sshkipper-sdk/ (process modules)
-  mcp                    the MCP server for AI agents (stdio)
+  mcp [--allow-changes]  the MCP server for AI agents (stdio); --allow-changes lets module_run_local run handlers that
+                         change things (stop, delete, restart) on this machine — your decision, not the agent's
 
 Docs: docs/en/README.md · Protocol: spec/protocol.md`;
 
@@ -169,7 +170,7 @@ switch (command) {
   }
   case "mcp": {
     const { serveMCP } = await import("../mcp/server.ts");
-    serveMCP();
+    serveMCP(process.stdin, (s) => process.stdout.write(s), { allowChanges: process.argv.includes("--allow-changes") });
     break;
   }
   case undefined: case "help":
