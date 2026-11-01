@@ -34,7 +34,7 @@ test("templates: the conformance cases the app runs too", () => {
 });
 
 test("validate: the examples are clean", () => {
-  for (const ex of ["processes", "http-checks", "screens"]) {
+  for (const ex of ["processes", "http-checks", "screens", "node-type-sitechecks"]) {
     const r = validateFolder(join(root, "examples", ex));
     assert.deepEqual(r.issues.filter((i) => i.severity === "error"), [], ex);
   }
@@ -317,4 +317,46 @@ test("live screens: ui/event answered by onEvent; push goes to the screen", asyn
   // Later, by itself: a notification for that screen.
   pushLater!([ops.append("rate", { points: [[5]] })]);
   assert.deepEqual(await next(), { jsonrpc: "2.0", method: "ui/push", params: { screen: "s1", ops: [{ op: "append", id: "rate", points: [[5]] }] } });
+});
+
+test("node types: a link field only in a node type, with kinds the app knows", () => {
+  const base = { sdk: 1, id: "dev.a.n", version: "1.0.0", title: "N", runtime: { kind: "process", command: ["node", "m.ts"] }, permissions: ["secrets"], handlers: { render: {} } };
+  const screen = [{ id: "s", title: "S", placement: "tab", render: "render" }];
+  const errs = (m: object) => validateManifest(m as never).filter((i) => i.severity === "error").map((i) => i.path);
+  assert.deepEqual(errs({ ...base, contributes: { nodeType: [{ id: "n", title: "N", screen: "s", fields: [{ key: "s", title: "S", type: "node", nodeKinds: ["connection", "ext:n"] }] }], screen } }), []);
+  assert.deepEqual(errs({ ...base, settings: [{ key: "s", title: "S", type: "node" }] }), ["settings[0].type"]);
+  assert.deepEqual(errs({ ...base, contributes: { nodeType: [{ id: "n", title: "N", screen: "s", fields: [{ key: "s", title: "S", type: "node", nodeKinds: ["credential"] }] }], screen } }),
+    ["contributes.nodeType[0].fields[0].nodeKinds[0]", "contributes.nodeType[0].fields[0].nodeKinds"]);
+});
+
+test("node types: host.nodeSecret, host.open, host.ask send what the app reads", async () => {
+  const fromModule: string[] = [];
+  let lineCb: (l: string) => void = () => {};
+  const transport: Transport = { write: (l) => fromModule.push(l), onLine: (cb) => { lineCb = cb; }, onClose: () => {}, exit: () => {} };
+  const got: unknown[] = [];
+  serve({
+    handlers: {},
+    onEvent: async (e, ctx) => {
+      got.push(await ctx.host.nodeSecret("token"));
+      got.push(await ctx.host.open({ terminal: { server: "S1", command: "uptime" } }));
+      got.push(await ctx.host.ask({ title: "Q?", buttons: ["Да", "Нет"], risk: "danger" }));
+      return null;
+    },
+  }, transport);
+  const next = async () => { for (let i = 0; i < 100 && !fromModule.length; i++) await new Promise((r) => setTimeout(r, 5)); return JSON.parse(fromModule.shift()!); };
+  const context = { settings: {}, locale: "en", sdk: 1, app: "t", node: { id: "N1", name: "Сайты", type: "ext:dev.a/n", settings: {}, links: {}, secrets: ["token"] } };
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { sdk: 1, app: "t", locale: "en", module: { id: "x", version: "1" } } }));
+  await next();
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ui/event", params: { event: { screen: "s1", seq: 1, type: "press" }, context } }));
+  const a = await next();
+  assert.deepEqual([a.method, a.params], ["host/secret", { node: "N1", key: "token" }]);
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: a.id, result: { value: "t0k" } }));
+  const b = await next();
+  assert.deepEqual([b.method, b.params], ["host/open", { terminal: { server: "S1", command: "uptime" } }]);
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: b.id, result: { opened: false } }));
+  const c = await next();
+  assert.deepEqual([c.method, c.params], ["host/ask", { title: "Q?", buttons: ["Да", "Нет"], risk: "danger" }]);
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: c.id, result: { button: 1 } }));
+  assert.equal((await next()).result, null);
+  assert.deepEqual(got, ["t0k", false, 1]);
 });
