@@ -91,7 +91,7 @@ const button = await ctx.host.ask({
 ## 4. Проверка
 
 ```sh
-node packages/cli/sshkipper-module.ts validate examples/node-type-sitechecks
+node packages/cli/sshkipper-ext.ts validate examples/node-type-sitechecks
 ```
 
 В review-экземпляре: `extinstall <папка>`, `extnodenew ext:<id>/<тип>`, `extnodeset <ключ>|<значение>`,

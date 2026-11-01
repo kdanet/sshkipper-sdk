@@ -1,7 +1,10 @@
 # The manifest
 
-`sshkipper-module.json` at the module's root. The schema is [schemas/module.schema.json](../../schemas/module.schema.json)
-(point `$schema` at it and your editor completes and checks keys); `sshkipper-module validate` checks the rest.
+`sshkipper-extension.json` at the extension's root — or `sshkipper-module.json` for a module (a service, AI tools and
+automation blocks only; read the same way, packed as `.sshkmod`). A folder holds one of the two. The schema is
+[schemas/module.schema.json](../../schemas/module.schema.json) for both (point `$schema` at it and your editor
+completes and checks keys); `sshkipper-ext validate` checks the rest. What an extension adds besides a service —
+`contributes` — is at the end of this page.
 
 ```json
 {
@@ -57,6 +60,10 @@ places and the user's login shell `PATH`; a path (`bin/agent`) must be a file of
 | `network` | A declaration: the program makes its own connections from this Mac (process modules). Not limited — a process module has no sandbox |
 | `store` | `host.store` — the module's JSON storage on this Mac |
 | `notify` | `host.notify` — notifications |
+| `forward` | `host.forward` — a port forwarded through the app's SSH session of the server a storage (or database) is bound to |
+| `oauth` | `host.oauth` — a sign-in through the browser while the user presses «Войти»; the token is kept as the node's secret |
+
+An update that adds a permission (or a contribution) is installed switched off until the user switches it on.
 
 ## Settings
 
@@ -154,3 +161,25 @@ Pieces of views used with `{"use": "name", "props": {…}}`, read as `props.*`:
   "kpi": { "type": "metric", "title": "{{ props.title }}", "value": "{{ props.value }}", "status": "{{ props.status }}" }
 }
 ```
+
+## Contributions (`contributes`)
+
+An extension lists what it adds to the app under `contributes` — each kind an array of items with an `id`
+(`^[a-z][a-z0-9_-]{0,39}$`, unique within its kind), a `title` and an optional `icon`. `service`, `tools` and
+`automation` may be written there or at the top level (not both). Protocol: [spec/protocol.md](../../spec/protocol.md) §10.
+
+| Kind | Its own keys | Answered by | Guide |
+|---|---|---|---|
+| `service`, `tools`, `automation` | as above | handlers | [server](server-modules.md), [process](process-modules.md), [AI and automation](ai-and-automation.md) |
+| `database` | `model`, `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote`, `keywords`, `functions`, `readCommands`, `logo`, `command` | a driver, [spec/database.md](../../spec/database.md) | [database drivers](database-drivers.md) |
+| `storage` | `signIn`, `fields`, `capabilities` | `storage/*` (§12.1) | [storages and sources](storage-and-sources.md) |
+| `source` | `fields`, `refresh` | `source/*` (§12.2) | [storages and sources](storage-and-sources.md) |
+| `nodeType` | `fields` (with `node` links), `screen` | its screen's `render` (§14) | [node types](node-types.md) |
+| `screen` | `placement` (`tab`, `section`), `render` | `render`, then `ui/event` (§11, §14.2) | [node types](node-types.md), [UI-Kit](ui-kit.md) |
+| `import` | `fileExtensions`, `maxSizeMB` | `import/parse` (§15) | [importers and consoles](importers-and-consoles.md) |
+| `console` | `appliesTo` | `console/*` (§16) | [importers and consoles](importers-and-consoles.md) |
+| `ai` | `fields`, `reasoning` | `ai/models`, `ai/chat` (§13) | [AI and automation](ai-and-automation.md) |
+
+Everything but `service`, `tools`, `automation`, `nodeType` and `screen` needs the `process` runtime (a `database` may
+name its own `command`). Built-in ids (`mysql`, `s3`, `tailscale`…) are never replaced; a kind this version of the app
+doesn't know is an error.

@@ -92,7 +92,7 @@ const button = await ctx.host.ask({
 ## 4. Checking it
 
 ```sh
-node packages/cli/sshkipper-module.ts validate examples/node-type-sitechecks
+node packages/cli/sshkipper-ext.ts validate examples/node-type-sitechecks
 ```
 
 In a review instance: `extinstall <folder>`, `extnodenew ext:<id>/<type>`, `extnodeset <key>|<value>`,

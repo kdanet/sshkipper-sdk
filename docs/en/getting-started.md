@@ -1,30 +1,32 @@
 # Getting started
 
-## 1. The CLI
+## 1. The command line
 
 ```sh
 git clone https://github.com/kdanet/sshkipper-sdk.git
-cd sshkipper-sdk && npm link          # puts sshkipper-module on PATH (Node 24+, no dependencies)
-sshkipper-module help
+cd sshkipper-sdk && npm link          # puts sshkipper-ext on PATH (Node 24+, no dependencies)
+sshkipper-ext help
 ```
 
-Without `npm link`: `node /path/to/sshkipper-sdk/packages/cli/sshkipper-module.ts …`.
+Without `npm link`: `node /path/to/sshkipper-sdk/packages/cli/sshkipper-ext.ts …`. The old name `sshkipper-module`
+still works (one line says it was renamed; its `call` is `run`).
 
-## 2. A module
+## 2. An extension
 
 ```sh
-sshkipper-module new disks --id dev.acme.disks --title "Disks"
+sshkipper-ext new disks --id dev.acme.disks --title "Disks"
 cd disks
-sshkipper-module validate
+sshkipper-ext validate
 ```
 
-`new` writes a server module that already works: a **service** that appears where `df` answers, a **page** with
-gauges and rows, a **refresh action**, an **AI tool** (`disk_usage`) and an **automation block** (“Disk usage” of one
-mount point). `--process` writes the same as a TypeScript program instead.
+`new` writes an extension that already works — by default a **service** of servers made of shell scripts: the
+**service** shows up where `df` answers; a **page** with rings and rows; an **action** “Refresh”; an **AI tool**
+`disk_usage`; an **automation block** “Disk usage” of one mount point. `--process` — the same as a program in
+TypeScript on this Mac.
 
 ```
 disks/
-  sshkipper-module.json      the manifest: what the module adds and which handler does each thing
+  sshkipper-extension.json   the manifest: what it adds and which handler does what
   scripts/detect.sh          {"found": true} where the service is
   scripts/summary.sh         {"text": "/ — 71%", "status": "ok"} — the line next to it in the tree
   scripts/list.sh            the page's data
@@ -32,25 +34,44 @@ disks/
   views/main.json            the page: a template over data.list
 ```
 
-## 3. Run it without the app
+`--kind` starts from another contribution instead — each one works from the first minute and its README says how to
+try it:
+
+| `--kind` | What you get | Read next |
+|---|---|---|
+| `service` | a service of servers (scripts; `--process` — a program) | [server](server-modules.md), [process](process-modules.md) |
+| `database` | a database engine with the app's whole database tab (reads tables from a JSON file) | [database drivers](database-drivers.md) |
+| `storage` | a kind of storage for the file panel and transfers | [storages and sources](storage-and-sources.md) |
+| `source` | a live folder of servers in the tree | [storages and sources](storage-and-sources.md) |
+| `node-type` | a node of your own with its card and a live screen in a tab | [node types](node-types.md) |
+| `import` | another program's file into folders and connections | [importers and consoles](importers-and-consoles.md) |
+| `console` | a text console in the app's terminal | [importers and consoles](importers-and-consoles.md) |
+| `ai` | a model provider for Settings → AI | [AI and automation](ai-and-automation.md) |
+| `automation` | automation blocks answered by a program | [AI and automation](ai-and-automation.md) |
+
+A program in Swift instead of TypeScript: [Swift](swift.md).
+
+## 3. Running it without the app
 
 ```sh
-sshkipper-module call summary                     # the handler, here, with sh
-sshkipper-module call summary --ssh deploy@web-1  # the same on a server, over your ssh
-sshkipper-module preview main --run               # the page as text, with what its handlers return
+sshkipper-ext run summary                     # the handler, here, with sh
+sshkipper-ext run summary --ssh deploy@web-1  # the same on a server, over your ssh
+sshkipper-ext preview main --run              # the page as text, with what its handlers return
 ```
 
-`call` gives the handler what the app gives it: the request on stdin, `SK_*` variables, the SDK prelude, other
+`run` gives the handler what the app gives it: the request on stdin, `SK_*` variables, the SDK prelude, other
 files of `scripts/` for `sk_file`. `--input '{"mount": "/var"}'`, `--settings '{…}'`, `--secret key=value` — the rest.
+A name with a slash is a contribution's own method of a program: `run source/poll --params '{…}'`,
+`run import/parse --file servers.txt --importer hosts`. `preview` lives a live screen through events:
+`preview tasks --events '[{"type": "open"}, {"type": "press", "value": {"item": "add"}}]'`.
 
 ## 4. In SSHKipper
 
-1. Settings → Extensions → Modules → **Connect folder for development…** → pick `disks/`. A linked folder is
-   reloaded as you save files.
+1. Settings → Extensions → **«Папка разработки…»** → pick `disks/`. A linked folder is reloaded as you save files.
 2. Open a connection: its **Services** now list “Disks” (automatic: on where `detect` finds it), with the module's
    settings under it. The sidebar shows the service under the server; the server's services tab has its section.
-3. The section is your page, drawn with the app's own parts. Its “⋯” menu has your actions and “Module log…” —
-   what each handler printed to stderr, how long it took, what failed.
+3. The section is your page, drawn with the app's own parts. Its «⋯» menu has your actions; the extension's «⋯» in
+   Settings → Extensions has «Журнал…» — what each handler printed to stderr, how long it took, what failed.
 
 ## 5. Make it yours
 
@@ -59,13 +80,13 @@ files of `scripts/` for `sk_file`. `--input '{"mount": "/var"}'`, `--settings '{
 - Change `views/main.json`: blocks are listed in [UI-Kit](ui-kit.md); `{{ data.list.… }}` takes what `list` returned.
 - Add an action: a handler, then `actions: [{"id", "title", "handler", "risk": "change", "confirm": "…"}]`, and put its
   id in a row's `actions` — it shows in the row's menu and asks before it runs.
-- `sshkipper-module validate` after each change says what the app would.
+- `sshkipper-ext validate` after each change says what the app would.
 
 ## 6. Share it
 
 ```sh
-sshkipper-module pack            # → dev.acme.disks-0.1.0.sshkmod
+sshkipper-ext pack            # → dev.acme.disks-0.1.0.sshkext
 ```
 
-Settings → Extensions → Modules → **Install module…** takes the file; the app shows what the module asks for
-(permissions, commands on servers, AI tools) before installing. See [Publishing](publishing.md).
+Settings → Extensions → **«Установить расширение…»** takes the file; the app shows what the extension adds and asks
+for (permissions, commands on servers, AI tools) before installing. See [Publishing](publishing.md).

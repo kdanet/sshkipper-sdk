@@ -2,9 +2,9 @@
 
 # SSHKipper UI-Kit (SDK 1)
 
-A view is {title?, status?: [{text, tone?}], state?: {var: value}, blocks: [...]}. The app draws every block natively (AppKit/SwiftUI, no web views).
+A view is {title?, status?: [{text, tone?}], state?: {var: value}, events?, layout?, blocks: [...]}. The app draws every block natively (AppKit/SwiftUI, no web views).
 
-## layout
+## Layout
 
 ### stack
 Children one under another (axis vertical) or in a row (horizontal).
@@ -31,7 +31,7 @@ A thin line.
 Fields: —
 Example: {"type":"divider"}
 
-## content
+## Content
 
 ### text
 Markdown text: **bold**, `code`, links, lists.
@@ -93,7 +93,7 @@ A highlighted note: info, ok, warn, bad.
 Fields: status, title, text?
 Example: {"type":"callout","status":"warn","title":"Certificate expires in 5 days"}
 
-## service
+## Service-page blocks
 
 ### rows
 The list of a service page: a status dot, title and detail, trailing text, a badge, a ⋯ menu of the module's actions, a click.
@@ -120,7 +120,7 @@ The search capsule; rows with the same bind filter by it.
 Fields: bind, subtitle? (placeholder), width?
 Example: {"type":"search","bind":"q","subtitle":"Name or user"}
 
-## input
+## Inputs
 
 ### button
 Does an action: a module action (run), a page, refresh, set state, open an app link, ask the AI.
@@ -147,7 +147,7 @@ A number bound to a state variable.
 Fields: bind, title, min, max, step?, unit?
 Example: {"type":"slider","bind":"workers","title":"Workers","min":1,"max":16}
 
-## screen
+## A live screen's own (a view with "events")
 
 ### datatable
 Any number of rows, loaded a page at a time (`more` events); sorting, editable cells, a row menu, drops.
@@ -184,6 +184,11 @@ A form shown as a sheet; OK sends `submit` with its values.
 Fields: id, title, text?, subtitle (OK), children (fields)
 Example: {"type":"sheet","id":"new","title":"New job","subtitle":"Add","children":[{"type":"field","bind":"name","title":"Name"}]}
 
+### chart (live)
+A live chart: give it an `id` and the program appends points (`append` op, `ui/push`); `window` — points kept.
+Fields: id, chart, series [{name, values}], window? (300), labels?, unit?, height?
+Example: {"type":"chart","id":"rate","chart":"line","title":"Requests/s","window":60,"series":[{"name":"shop","values":[]}]}
+
 ## Style (any block)
 style: {tone, color, background (card|well|none|<color>), font (title|headline|body|callout|caption|mono), weight, padding, radius, align, width, grow}
 Tones: plain, secondary, tertiary, good, warning, attention, bad, accent, info
@@ -193,10 +198,30 @@ Statuses: ok, warn, bad, off, info
 ## Actions
 {run: "<action id>", params?} · {page: "<page id>"} · {refresh: true} · {set: {var: value | "= formula"}} · {open: "node:<id>"} · {ask: "question for the AI panel"} · live screens: {event: "<name>", params?} · {sheet: "<sheet id>"}
 
+## Ops of a live screen (ui/patch, ui/push — spec/protocol.md §11.4)
+
+- `replace` {id, block} — The block anew (its id kept)
+- `insert` {block, parent?, index? | after?} — A new block into a container (stack, grid, tabs, card, split, sheet) or the top
+- `remove` {id} — The block goes
+- `set` {id, props} — Fields of the block (title, value, status, items, text…); not type or id
+- `state` {values} — Variables of the screen
+- `title` {text} — The screen's title
+- `rows` {id, offset, rows, total?, reset?} — A page of a datatable; reset — the other loaded rows are forgotten
+- `update_rows` {id, rows (with ids)} — Rows in place
+- `insert_rows` {id, index, rows} — Rows inserted
+- `remove_rows` {id, ids} — Rows removed
+- `children` {id, node?, nodes} — A tree node's children (no node — the top)
+- `append` {id, text | lines | points (+ labels)} — Text to a terminal, lines to logs, points to a live chart
+- `clear` {id} — A terminal, logs or chart emptied
+- `text` {id, text} — An editor's text replaced
+- `select` {id, ids} — Rows (nodes) selected and shown
+- `sheet / close_sheet` {id / —} — A sheet shown / closed
+- `notice` {text, status?} — A note over the screen (empty text removes it)
+
 ## Templates
 Templates are expanded by the app before drawing (spec/protocol.md §6):
-- "{{ data.x }}" alone keeps the value's type; inside text it's printed. Roots: data, item, settings, server, props, index.
-- Filters: default:"—", upper, lower, json, count, bytes, duration, ago.
+- "{{ data.x }}" alone keeps the value's type; inside text it's printed. Roots: data, item, settings, server, props, index, context.
+- Filters: default:"—", upper, lower, number, json, count, bytes, duration, ago.
 - {"each": "data.units", "as": "u", "where": "u.state == 'failed'", "limit": 50, "block": {...}} — once per element.
 - {"if": "item.failed", "block": {...}, "else": {...}}.
 - {"use": "component", "props": {...}} — a component of the manifest's "components".

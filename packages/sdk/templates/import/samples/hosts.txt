@@ -1,0 +1,4 @@
+# name    address[:port]     user
+web-1     10.0.0.5           deploy
+web-2     10.0.0.6:2222      deploy
+db        db.internal        admin

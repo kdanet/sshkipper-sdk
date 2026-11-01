@@ -16,8 +16,156 @@ export function preview(view: Json, vars: Record<string, Json> = {}, components:
   }
   if (v.state && Object.keys(v.state).length) lines.push(`state: ${JSON.stringify(v.state)}`);
   if (v.events) lines.push(`live screen: events → ${v.events === true ? "the program (ui/event)" : `handler ${v.events}`}${v.layout === "fill" ? ", fills the area" : ""}`);
+  if (v.notice) lines.push(`notice${v.notice.status ? ` (${v.notice.status})` : ""}: ${v.notice.text}`);
+  if (v.sheet) lines.push(`sheet shown: #${v.sheet}`);
   for (const b of v.blocks ?? []) block(b, 0, lines);
   return lines.join("\n");
+}
+
+// MARK: Ops (spec/protocol.md §11.4)
+
+/** What `applyOps` couldn't apply — an unknown id, a block that doesn't read the op — as the app's screen inspector
+ * reports it; the other ops still apply. */
+export interface OpProblem { index: number; op: string; message: string }
+
+/** A live screen after ops of `ui/patch` / `ui/push`, as the app applies them (a copy; `view` isn't changed). The
+ * preview's own extras: `notice` and `sheet` on the view, `selected` on a datatable or tree. */
+export function applyOps(view: Json, ops: Json[]): { view: Json; problems: OpProblem[] } {
+  const v = structuredClone(view) as any;
+  v.blocks ??= [];
+  const problems: OpProblem[] = [];
+  /** The block with `id` and the array holding it. */
+  const find = (id: string): { block: any; list: any[]; index: number } | null => {
+    const walk = (list: any[]): { block: any; list: any[]; index: number } | null => {
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i];
+        if (!b || typeof b !== "object") continue;
+        if (b.id === id) return { block: b, list, index: i };
+        for (const k of ["children", "blocks"]) if (Array.isArray(b[k])) { const r = walk(b[k]); if (r) return r; }
+      }
+      return null;
+    };
+    return walk(v.blocks);
+  };
+  const rowID = (r: any, i: number) => (r && !Array.isArray(r) && r.id !== undefined ? String(r.id) : `#${i}`);
+  ops.forEach((raw, index) => {
+    const o = raw as any;
+    const fail = (message: string) => problems.push({ index, op: String(o?.op), message });
+    const target = (types?: string[]) => {
+      const f = typeof o.id === "string" ? find(o.id) : null;
+      if (!f) { fail(`no block «${o.id}»`); return null; }
+      if (types && !types.includes(f.block.type)) { fail(`«${o.id}» is a ${f.block.type}: it doesn't read «${o.op}»`); return null; }
+      return f;
+    };
+    switch (o?.op) {
+      case "replace": { const f = target(); if (f) f.list[f.index] = { ...o.block, id: o.id }; break; }
+      case "insert": {
+        let list: any[] = v.blocks;
+        if (o.parent) {
+          const f = find(o.parent);
+          if (!f) { fail(`no block «${o.parent}»`); break; }
+          if (!["stack", "grid", "tabs", "card", "split", "sheet"].includes(f.block.type)) { fail(`«${o.parent}» is a ${f.block.type}: it holds no blocks`); break; }
+          list = f.block.children ??= [];
+        }
+        const after = o.after ? list.findIndex((b) => b?.id === o.after) : -1;
+        const at = after >= 0 ? after + 1 : typeof o.index === "number" ? Math.min(Math.max(0, o.index), list.length) : list.length;
+        list.splice(at, 0, o.block);
+        break;
+      }
+      case "remove": { const f = target(); if (f) f.list.splice(f.index, 1); break; }
+      case "set": {
+        const f = target();
+        if (!f) break;
+        for (const [k, x] of Object.entries(o.props ?? {})) {
+          if (k === "type" || k === "id") fail(`«${k}» isn't changed by set`); else f.block[k] = x;
+        }
+        break;
+      }
+      case "state": v.state = { ...(v.state ?? {}), ...(o.values ?? {}) }; break;
+      case "title": v.title = o.text; break;
+      case "rows": {
+        const f = target(["datatable"]);
+        if (!f) break;
+        const rows: any[] = o.reset ? [] : [...(f.block.rows ?? [])];
+        (o.rows ?? []).forEach((r: any, i: number) => { rows[(o.offset ?? 0) + i] = r; });
+        f.block.rows = rows;
+        if (typeof o.total === "number") f.block.total = o.total;
+        break;
+      }
+      case "update_rows": {
+        const f = target(["datatable"]);
+        if (!f) break;
+        const rows: any[] = f.block.rows ?? [];
+        for (const r of o.rows ?? []) {
+          const i = rows.findIndex((x, j) => rowID(x, j) === String(r.id));
+          if (i < 0) fail(`no row «${r.id}» loaded`); else rows[i] = r;
+        }
+        break;
+      }
+      case "insert_rows": {
+        const f = target(["datatable"]);
+        if (!f) break;
+        f.block.rows = f.block.rows ?? [];
+        f.block.rows.splice(Math.min(o.index ?? 0, f.block.rows.length), 0, ...(o.rows ?? []));
+        if (typeof f.block.total === "number") f.block.total += (o.rows ?? []).length;
+        break;
+      }
+      case "remove_rows": {
+        const f = target(["datatable"]);
+        if (!f) break;
+        const gone = new Set((o.ids ?? []).map(String));
+        const before = (f.block.rows ?? []).length;
+        f.block.rows = (f.block.rows ?? []).filter((r: any, i: number) => !gone.has(rowID(r, i)));
+        if (typeof f.block.total === "number") f.block.total -= before - f.block.rows.length;
+        break;
+      }
+      case "children": {
+        const f = target(["tree"]);
+        if (!f) break;
+        if (!o.node) { f.block.nodes = o.nodes ?? []; break; }
+        const walk = (ns: any[]): any => { for (const n of ns ?? []) { if (n.id === o.node) return n; const x = walk(n.children); if (x) return x; } return null; };
+        const n = walk(f.block.nodes);
+        if (!n) fail(`no node «${o.node}» in «${o.id}»`); else n.children = o.nodes ?? [];
+        break;
+      }
+      case "append": {
+        const f = target(["terminal", "logs", "chart"]);
+        if (!f) break;
+        const b = f.block;
+        if (b.type === "terminal") {
+          const lines = String((b.text ?? "") + (o.text ?? "")).split("\n");
+          b.text = lines.slice(-(b.maxLines ?? 5000)).join("\n");
+        } else if (b.type === "logs") b.lines = [...(b.lines ?? []), ...(o.lines ?? [])];
+        else {
+          const keep = b.window ?? 300;
+          b.series = b.series ?? [];
+          for (const point of o.points ?? []) {
+            (point as (number | null)[]).forEach((x, s) => {
+              b.series[s] ??= { values: [] };
+              b.series[s].values = [...(b.series[s].values ?? []), x].slice(-keep);
+            });
+          }
+          if (o.labels) b.labels = [...(b.labels ?? []), ...o.labels].slice(-keep);
+        }
+        break;
+      }
+      case "clear": {
+        const f = target(["terminal", "logs", "chart"]);
+        if (!f) break;
+        if (f.block.type === "terminal") f.block.text = "";
+        else if (f.block.type === "logs") f.block.lines = [];
+        else { f.block.series = (f.block.series ?? []).map((s: any) => ({ ...s, values: [] })); f.block.labels = []; }
+        break;
+      }
+      case "text": { const f = target(["editor"]); if (f) f.block.text = o.text ?? ""; break; }
+      case "select": { const f = target(["datatable", "tree"]); if (f) f.block.selected = o.ids ?? []; break; }
+      case "sheet": { const f = target(["sheet"]); if (f) v.sheet = o.id; break; }
+      case "close_sheet": delete v.sheet; break;
+      case "notice": if (o.text) v.notice = { text: o.text, ...(o.status ? { status: o.status } : {}) }; else delete v.notice; break;
+      default: fail(`unknown op «${o?.op}»`);
+    }
+  });
+  return { view: v, problems };
 }
 
 function item(i: any): string {
@@ -58,9 +206,11 @@ function block(b: any, depth: number, out: string[]) {
       head(`[metric]${t}: ${print(b.value ?? "")}${b.unit ? " " + b.unit : ""}${b.delta ? ` (${b.delta})` : ""}${st}${b.series?.[0]?.values ? ` ~${b.series[0].values.length} points` : ""}`);
       return;
     case "gauge": head(`[gauge]${t}: ${print(b.value ?? "")} of ${print(b.max ?? 100)}${b.unit ? " " + b.unit : ""}${b.subtitle ? " — " + b.subtitle : ""}`); return;
-    case "chart":
-      head(`[chart ${b.chart ?? "line"}]${t}: ${(b.series ?? []).map((s: any) => `${s.name ?? "series"} (${s.values?.length ?? 0})`).join(", ")}`);
+    case "chart": {
+      const last = (s: any) => (s.values?.length ? ` last ${print(s.values[s.values.length - 1])}` : "");
+      head(`[chart ${b.chart ?? "line"}${b.id ? ` #${b.id}` : ""}]${t}: ${(b.series ?? []).map((s: any) => `${s.name ?? "series"} (${s.values?.length ?? 0}${last(s)})`).join(", ")}${b.window ? ` — live, keeps ${b.window}` : ""}`);
       return;
+    }
     case "table":
       head(`[table]${t}: ${(b.headers ?? []).join(" | ")}`);
       for (const r of (b.rows ?? []).slice(0, 20)) head(`  ${r.map((c: any) => print(c ?? "")).join(" | ")}`);

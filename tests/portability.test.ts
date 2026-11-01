@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { PRELUDE, serverScript } from "../packages/sdk/src/dev.ts";
 import { scaffold } from "../packages/sdk/src/scaffold.ts";
 import type { Manifest } from "../packages/sdk/src/types.ts";
+import { manifestFile } from "../packages/sdk/src/validate.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const images = ["alpine:3.22", "debian:bookworm-slim"].filter((i) => spawnSync("docker", ["image", "inspect", i]).status === 0);
@@ -42,7 +43,7 @@ test("scaffold and example handlers answer JSON on busybox and mawk", { skip: !o
     ];
     for (const image of images) {
       for (const [folder, handler, input] of cases) {
-        const m: Manifest = JSON.parse(readFileSync(join(folder, "sshkipper-module.json"), "utf8"));
+        const m: Manifest = JSON.parse(readFileSync(join(folder, manifestFile(folder)), "utf8"));
         const r = sh(image, serverScript(folder, m, handler, { input: input as never, settings: { warn_pct: 85 } }));
         assert.equal(r.code, 0, `${image} ${handler}: ${r.err}`);
         const v = JSON.parse(r.out);

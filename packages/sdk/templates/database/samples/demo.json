@@ -1,0 +1,13 @@
+{
+  "tables": {
+    "hosts": [
+      { "name": "web-1", "address": "10.0.0.5", "port": 22, "role": "web" },
+      { "name": "web-2", "address": "10.0.0.6", "port": 22, "role": "web" },
+      { "name": "db", "address": "10.0.0.9", "port": 5432, "role": "database" }
+    ],
+    "owners": [
+      { "host": "web-1", "team": "shop" },
+      { "host": "db", "team": "data" }
+    ]
+  }
+}

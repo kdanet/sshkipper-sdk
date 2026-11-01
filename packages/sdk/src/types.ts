@@ -485,7 +485,7 @@ export type OpenTarget =
   | { screen: string; node?: string; server?: string }
   | { terminal: { server: string; command?: string; title?: string } };
 
-/** `host/ask` (§14.4): a question in the app's dialog. `buttons[0]` is the main one; `risk: "danger"` makes it red
+/** `host/ask` (§14.3): a question in the app's dialog. `buttons[0]` is the main one; `risk: "danger"` makes it red
  * and never the Return default; Esc answers `cancel` (the last button by default). */
 export interface Question {
   title: string;

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "Blocks for the automations canvas, answered by a program on this Mac: one reads a server through the automation's session, one judges a number. Write your own blocks in blocks.ts.",
+  "icon": { "symbol": "gearshape.2", "color": "orange" },
+  "runtime": { "kind": "process", "command": ["node", "blocks.ts"] },
+  "permissions": ["exec"],
+  "handlers": { "disk_free": { "timeout": 30 }, "threshold": { "timeout": 5 } },
+  "contributes": {
+    "automation": [
+      {
+        "id": "disk_free",
+        "title": { "en": "Free disk space", "ru": "Свободное место" },
+        "description": { "en": "Free space of a mount point on the server, %", "ru": "Свободное место точки монтирования на сервере, %" },
+        "symbol": "internaldrive",
+        "handler": "disk_free",
+        "risk": "read",
+        "server": true,
+        "returns": "json",
+        "params": [{ "key": "mount", "title": { "en": "Mount point", "ru": "Точка монтирования" }, "type": "text", "default": "/", "pattern": "/[A-Za-z0-9._/-]*" }]
+      },
+      {
+        "id": "threshold",
+        "title": { "en": "Compare with a threshold", "ru": "Сравнить с порогом" },
+        "description": { "en": "ok above the threshold, warn below it, error below half of it", "ru": "ok выше порога, warn ниже, error ниже половины" },
+        "symbol": "gauge.with.dots.needle.67percent",
+        "handler": "threshold",
+        "risk": "read",
+        "returns": "json",
+        "params": [
+          { "key": "value", "title": { "en": "Value", "ru": "Значение" }, "type": "number", "required": true },
+          { "key": "min", "title": { "en": "Threshold", "ru": "Порог" }, "type": "number", "default": 20 }
+        ]
+      }
+    ]
+  }
+}

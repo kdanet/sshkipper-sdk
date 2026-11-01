@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "Another program's file into folders and connections. The app reads the file and sends its bytes; the program answers what to create. This start reads a list of hosts — parse your program's format in importer.ts.",
+  "icon": { "symbol": "tray.full", "color": "green" },
+  "runtime": { "kind": "process", "command": ["node", "importer.ts"] },
+  "permissions": [],
+  "contributes": {
+    "import": [
+      {
+        "id": "hosts",
+        "title": "__TITLE__",
+        "description": { "en": "Lines «name address[:port] [user]», # for comments", "ru": "Строки «имя адрес[:порт] [пользователь]», # — комментарий" },
+        "icon": { "symbol": "tray.full" },
+        "fileExtensions": ["txt", "list"],
+        "maxSizeMB": 1
+      }
+    ]
+  }
+}

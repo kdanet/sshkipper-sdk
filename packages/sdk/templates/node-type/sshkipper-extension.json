@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "A node of your own in the user's tree, with its card and its tab: a list of tasks kept per node, a toolbar, a sheet to add one, a row menu. Make it yours in extension.ts.",
+  "icon": { "symbol": "list.bullet.rectangle", "color": "green" },
+  "runtime": { "kind": "process", "command": ["node", "extension.ts"] },
+  "permissions": ["store"],
+  "handlers": { "render": { "timeout": 10 } },
+  "contributes": {
+    "nodeType": [
+      {
+        "id": "tasks",
+        "title": "__TITLE__",
+        "icon": { "symbol": "list.bullet.rectangle", "color": "green" },
+        "description": { "en": "Tasks of a server or a project, open in a tab.", "ru": "Задачи сервера или проекта — во вкладке." },
+        "screen": "tasks",
+        "fields": [
+          { "key": "owner", "type": "text", "title": { "en": "Owner", "ru": "Ответственный" } },
+          { "key": "server", "type": "node", "nodeKinds": ["connection"], "title": { "en": "Server", "ru": "Сервер" } }
+        ]
+      }
+    ],
+    "screen": [
+      { "id": "tasks", "title": "__TITLE__", "placement": "tab", "render": "render" }
+    ]
+  }
+}

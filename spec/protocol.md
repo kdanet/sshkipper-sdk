@@ -1,6 +1,26 @@
-# Module protocol, SDK 1
+# Extension protocol, SDK 1
 
-Normative. Words MUST / SHOULD as in RFC 2119. The guides in `docs/` explain the same with examples.
+Normative. Words MUST / SHOULD as in RFC 2119. The guides in `docs/` explain the same with examples; the words are
+those of [docs/glossary.md](../docs/glossary.md). An **extension** (§10) is a package of **contributions**; a
+**module** is the extension of a service, AI tools and automation blocks only. §1–§9 describe what every extension's
+handlers do (written for modules, where they started), §10 the package and its contributions, §11 live screens,
+§12–§16 the contributions a program answers by its own methods. A database driver speaks its own protocol:
+[database.md](database.md).
+
+| § | |
+|---|---|
+| 1–3 | The model, a handler's call, scripts on the server |
+| 4 | A program on this Mac: JSON-RPC over stdio, what each side may ask |
+| 5–6 | Pages and templates |
+| 7 | Packages (`.sshkext`, `.sshkmod`) and versions |
+| 8–9 | Automation blocks, AI tools |
+| 10 | Extensions: the manifest's `contributes` |
+| 11 | Live screens: `ui/event`, ops, `ui/push` |
+| 12 | Storages and sources; `host/forward`, `host/oauth` |
+| 13 | Model providers |
+| 14 | Node types and their screens; `host/open`, `host/ask` |
+| 15 | Importers |
+| 16 | Consoles |
 
 ## 1. Model
 
@@ -170,6 +190,8 @@ is started again on the next call.
 | `import/parse` | `{"importer", "name", "size", "data", "locale"}` — a file to import (§15) | `{"nodes", "credentials"?, "secrets"?, "warnings"?}` |
 | `console/open` | `{"console", "session", "cols", "rows", "node", "context"}` — a console to open (§16) | `{}` once it is open |
 | `console/input`, `console/resize`, `console/close` (notifications) | `{"session", …}` (§16) | — |
+| `storage/…`, `source/…` | `{"storage" \| "source", …}` — a storage's or source's own methods (§12) | as §12 says |
+| `ai/models`, `ai/chat`; `ai/cancel` (notification) | a model provider's (§13) | `{"models"}`; the answer, after `ai/delta` notifications |
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
 ### 4.3 Module → app
@@ -184,6 +206,9 @@ is started again on the next call.
 | `host/log` (notification) | `{"level": "debug"\|"info"\|"warn"\|"error", "message": "…"}` | — | — |
 | `ui/push` (notification) | `{"screen": "…", "ops": […]}` — ops to one of its live screens (§11.5) | — | — |
 | `console/data`, `console/closed` (notifications) | `{"session", "data"}` / `{"session", "reason"?}` — a console's output, its end (§16) | — | — |
+| `ai/delta` (notification) | `{"id", "type", …}` — a piece of a model provider's answer (§13) | — | — |
+| `host/forward`, `host/oauth` | a port forwarded through the app's SSH session; a browser sign-in (§12.3) | §12.3 | `forward`, `oauth` |
+| `host/secret {node}`, `host/open`, `host/ask` | an extension node's secret field; open a node, screen or terminal; ask the user (§14.3) | §14.3 | `secrets` (`node`) / — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
 containers); only the servers of calls **in progress** (their `context.server.id`) may be named — a program can't
@@ -512,6 +537,7 @@ the app's activation.
   `tokenURL` (https, or http on 127.0.0.1 for a stand-in), keeps the refresh token as the node's secret `oauth` once the
   card is saved, and gives the program the access token. Later calls bring the refresh token in `settings.oauth`:
   the program refreshes its access token itself.
+
 ## 13. Model providers
 
 A `contributes.ai[]` entry is a **model provider**: Settings → AI gets a profile of it («Из расширений») — its
@@ -556,6 +582,7 @@ The program answers three methods of its own (on the same connection as its hand
 
 In TypeScript: `defineModule({ handlers: {}, ai: { models(req), async chat(req, ctx) { ctx.delta({type: "text",
 text: "…"}); return { stop: "end_turn" }; } } })` — `examples/ai-echo-provider`.
+
 ## 14. Node types and screens
 
 An extension may add **a node of its own** to the user's document (`contributes.nodeType`) and **screens** the app
@@ -630,6 +657,7 @@ another extension's node — is refused (`-32001`).
   and never the Return default; Esc answers `cancel` (the last button by default). One question of an extension on
   screen at a time, at most 8 waiting; with no window to ask over (closed to the menu bar, everything locked) a
   question waits for one.
+
 ## 15. Import
 
 A `contributes.import[]` item reads another program's file into folders and connections. The user picks the file
