@@ -320,6 +320,14 @@ const BUILT_IN = {
 const CONTRIBUTION_ID = /^[a-z][a-z0-9_-]{0,39}$/;
 /** Run by a program on this Mac: a server script can't answer for them (as the app checks). */
 const NEEDS_PROGRAM = new Set(["database", "storage", "source", "import", "console", "ai"]);
+/** Words that start a change in some SQL engine: never a database's read command (the app's `ExtensionDatabase.changingWords`). */
+export const CHANGING_WORDS = new Set([
+  "insert", "update", "delete", "replace", "merge", "upsert", "create", "drop", "alter", "truncate", "rename", "grant",
+  "revoke", "call", "exec", "execute", "do", "copy", "load", "import", "attach", "detach", "vacuum", "optimize", "kill",
+  "lock", "unlock", "set", "begin", "commit", "rollback", "savepoint", "release", "start", "prepare", "deallocate",
+  "handler", "install", "uninstall", "flush", "reset", "purge", "analyze", "analyse", "cluster", "reindex", "refresh",
+  "comment", "security", "listen", "notify", "unlisten", "discard", "checkpoint", "pragma", "with",
+]);
 
 /** The app's checks of `contributes` (its ModuleKit `contributionIssues`). */
 function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
@@ -363,6 +371,13 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
       if (kind in BUILT_IN && BUILT_IN[kind as keyof typeof BUILT_IN].has(x.id)) err(`${at}.id`, `«${x.id}» is built into SSHKipper — an extension doesn't replace it`);
       switch (kind) {
         case "database":
+          if (x.identifierQuote !== undefined && x.identifierQuote !== '"' && x.identifierQuote !== "`") err(`${at}.identifierQuote`, 'the quote of names — " or `');
+          ((x.readCommands ?? []) as string[]).forEach((w, j) => {
+            const lw = String(w).toLowerCase();
+            if (!/^[a-z][a-z_]{0,30}$/.test(lw)) err(`${at}.readCommands[${j}]`, `«${w}»: one latin word`);
+            else if (CHANGING_WORDS.has(lw)) err(`${at}.readCommands[${j}]`, `«${w}» may change data — not a read command`);
+          });
+          if ((x.readCommands ?? []).length && x.model !== "sql") warn(`${at}.readCommands`, "read commands count for the sql model only");
           if (x.command?.[0]?.includes("/")) {
             if (!isInside(x.command[0])) err(`${at}.command`, `«${x.command[0]}» leaves the extension folder`);
             else if (files && !files.has(norm(x.command[0]))) err(`${at}.command`, `no program «${x.command[0]}» in the extension`);

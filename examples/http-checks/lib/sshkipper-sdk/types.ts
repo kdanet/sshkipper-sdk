@@ -138,7 +138,11 @@ export interface DatabaseContribution extends Contribution {
   identifierQuote?: string;
   keywords?: string[];
   functions?: string[];
-  /** Its own program speaking the database protocol; else the extension's runtime. */
+  /** First words of statements that only read (`select`, `explain`…): trusted only for an extension of the SSHKipper
+   *  library; for any other every statement is a change (Production asks, «Только чтение» refuses). */
+  readCommands?: string[];
+  /** Its own program speaking the database protocol (spec/database.md); else the extension's runtime, started apart
+   *  with SK_ROLE=database. */
   command?: string[];
 }
 export interface StorageContribution extends Contribution {

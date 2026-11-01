@@ -281,7 +281,7 @@ and read as extensions unchanged.
 | Contribution | Manifest | Used by the app since |
 |---|---|---|
 | `service`, `tools`, `automation` | `contributes.*` or the top level (not both) | modules (§1–§9) |
-| `database[]` | `id` (engine, never a built-in one), `title`, `model` (`sql` / `keyValue` / `document`), `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote`, `keywords`, `functions`, `logo` (`si:<slug>`), `command` (its own program speaking the database protocol; else `runtime`) | stage 2 |
+| `database[]` | `id` (engine, never a built-in one), `title`, `model` (`sql` / `keyValue` / `document`), `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote` (`"` or `` ` ``), `keywords`, `functions`, `readCommands` (trusted only for library extensions), `logo` (`si:<slug>`), `command` (its own program; else `runtime`, started apart with `SK_ROLE=database`). The driver speaks the database protocol — [database.md](database.md) | stage 2 |
 | `storage[]` | `id` (kind), `title`, `signIn` (`keys` / `login` / `browser` — needs `oauth` / `none`), `fields` (settings, §3.3 kinds), `capabilities` | stage 4 |
 | `source[]` | `id` (kind), `title`, `fields`, `refresh` (s, 60…86400) | stage 4 |
 | `nodeType[]` | `id`, `title`, `icon`, `fields`, `screen` (an id of `contributes.screen`) | stage 3 |
@@ -302,7 +302,8 @@ and read as extensions unchanged.
 - Trust: an extension installed from any file is shown as «Автор не проверен»; extensions of SSHKipper's library
   (signed, stage 5) as «Проверено SSHKipper».
 - A program serves every contribution of its extension: handlers through `handler/call` (§4.2), a contribution's own
-  methods (`ui/event`, a storage's `list`…, defined by their stages) as JSON-RPC requests on the same connection.
+  methods (`ui/event`, a storage's `storage/list`… — §11–12) as JSON-RPC requests on the same connection. A
+  database driver is the exception: a separate process speaking the database protocol ([database.md](database.md)).
 
 ## 11. Live screens
 
@@ -396,7 +397,6 @@ loaded — pages far from sight are forgotten and asked again), 50 000 nodes a t
 `{"screen": "<event.screen>", "ops": [...]}` — the same ops. The app applies pushes only to screens of the module
 that sends them, gathers those coming faster than it draws (applied together, at most 5 000 waiting), and drops them
 once the screen is closed. A program learns a screen's id from its events (`open` first).
-  methods (`ui/event`, a storage's `storage/list`… — §11–12) as JSON-RPC requests on the same connection.
 
 ## 12. Storage and source contributions
 
