@@ -160,9 +160,47 @@ export interface StorageContribution extends Contribution {
 export interface SourceContribution extends Contribution { description?: Text; fields?: Setting[]; refresh?: number }
 export interface NodeTypeContribution extends Contribution { description?: Text; fields?: Setting[]; screen?: string }
 export interface ScreenContribution extends Contribution { placement: "tab" | "section" | "panel"; render: string }
-export interface ImportContribution extends Contribution { fileExtensions: string[]; handler: string }
+export interface ImportContribution extends Contribution {
+  description?: Text;
+  /** File name extensions it reads (no dot), or "*" — any file. */
+  fileExtensions: string[];
+  /** The largest file it takes, MB (never above the app's 8 MB). */
+  maxSizeMB?: number;
+  /** Stage 1's field, still read: the program answers `import/parse` for the contribution's id. */
+  handler?: string;
+}
+export interface ConsoleContribution extends Contribution {
+  description?: Text;
+  /** Nodes whose menu offers it: "connection" (the default) and node types of the same extension. */
+  appliesTo?: string[];
+  /** Stage 1's field, still read: the program answers `console/open` for the contribution's id. */
+  handler?: string;
+}
 export interface HandlerContribution extends Contribution { handler: string }
 export interface AIContribution extends Contribution { description?: Text; fields?: Setting[]; reasoning?: string[]; handler?: string }
+
+// MARK: Import (spec/protocol.md §15)
+
+/** A folder of the import: what it holds, as the user will see it in the tree. */
+export interface ImportFolder { type: "folder"; name: string; note?: string; children?: ImportNode[] }
+/** A connection: address, port, login; `bastion` — another connection of this import (its `id`, else its name) or
+ *  one of the document, by name; `credential` — an `id` of `credentials`. */
+export interface ImportConnection {
+  type: "connection"; id?: string; name: string; host: string; port?: number; user?: string;
+  note?: string; tags?: string[]; bastion?: string; credential?: string;
+}
+export type ImportNode = ImportFolder | ImportConnection;
+/** Logins only: a password or a key goes in `secrets` — the app asks the user before it imports any. */
+export interface ImportCredential { id: string; name?: string; user?: string }
+export interface ImportSecret { credential: string; kind: "password" | "privateKey"; value: string }
+export interface ImportResult { nodes: ImportNode[]; credentials?: ImportCredential[]; secrets?: ImportSecret[]; warnings?: string[] }
+/** The file the user picked, as the app read it (the program never gets its path). */
+export interface ImportFile { importer: string; name: string; size: number; data: Uint8Array; text(): string }
+
+// MARK: Consoles (spec/protocol.md §16)
+
+/** The node a console was opened for: its address and login (never a password). */
+export interface ConsoleNode { id: string; name?: string; host?: string; port?: number; user?: string }
 
 export interface Contributes {
   service?: Manifest["service"];
@@ -174,7 +212,7 @@ export interface Contributes {
   nodeType?: NodeTypeContribution[];
   screen?: ScreenContribution[];
   import?: ImportContribution[];
-  console?: HandlerContribution[];
+  console?: ConsoleContribution[];
   ai?: AIContribution[];
 }
 

@@ -1,0 +1,27 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.console-echo",
+  "version": "1.0.0",
+  "title": { "ru": "Учебная консоль (пример)", "en": "Pretend console (an example)" },
+  "description": {
+    "ru": "Консоль расширения в терминале приложения: программа изображает серийную консоль устройства — загрузка, эхо, редактирование строки, цвета, размер окна, выход по Ctrl-D. Ни оболочки, ни порта, ни сети: настоящая консоль передавала бы байты шлюзу провайдера.",
+    "en": "An extension's console in the app's terminal: the program pretends to be a device's serial console — boot log, echo, line editing, colours, the window's size, Ctrl-D to leave. No shell, no port, no network: a real one would relay the bytes to a provider's gateway."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "terminal", "color": "indigo" },
+  "runtime": { "kind": "process", "command": ["node", "module.ts"] },
+  "permissions": [],
+  "contributes": {
+    "console": [
+      {
+        "id": "echo",
+        "title": { "ru": "Учебная консоль", "en": "Pretend console" },
+        "description": { "ru": "Серийная консоль учебного устройства (без сети)", "en": "A pretend device's serial console (no network)" },
+        "icon": { "symbol": "terminal" },
+        "appliesTo": ["connection"]
+      }
+    ]
+  }
+}

@@ -415,6 +415,14 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
           handler(`${at}.handler`, x.handler);
           fields(at, x.fields);
           break;
+        case "console": {
+          handler(`${at}.handler`, x.handler);
+          const nodeTypes = new Set((c.nodeType ?? []).map((t) => t.id));
+          ((x.appliesTo ?? []) as string[]).forEach((t, j) => {
+            if (t !== "connection" && !nodeTypes.has(t)) err(`${at}.appliesTo[${j}]`, `«${t}»: connection or an id of contributes.nodeType`);
+          });
+          break;
+        }
         default: handler(`${at}.handler`, x.handler);
       }
     });

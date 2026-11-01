@@ -39,6 +39,8 @@ with each call and leave nothing behind.
 | [examples/http-checks](../../examples/http-checks) | A process module in TypeScript: URL checks, history, notifications, an AI tool |
 | [examples/ai-echo-provider](../../examples/ai-echo-provider) | A model provider (protocol §13): streaming, tool calls, cancel — deterministic, no network |
 | [examples/screens](../../examples/screens) | A live screen (protocol §11): a 50 000-row table loaded by pages, a tree expanded on demand, a split, an editor with completion, a terminal, a chart the program pushes points to, a sheet |
+| [examples/import-csv](../../examples/import-csv) | An importer (protocol §15): a server table into folders and connections, passwords apart |
+| [examples/console-echo](../../examples/console-echo) | A console (protocol §16): a pretend serial device in the app's terminal |
 
 ## Guides
 
@@ -54,6 +56,7 @@ with each call and leave nothing behind.
 10. [Storages and sources](storage-and-sources.md) — an extension's kind of storage and live folder of servers
 11. [Database drivers](database-drivers.md) — a database engine of your own with the full database tab ([protocol](../../spec/database.md))
 12. [A node type and a screen of your own](node-types.md) — an extension's node in the tree, its card, its tab
+13. [Importers and consoles](importers-and-consoles.md) — a file of another program into connections; a text console in a terminal tab
 
 Requirements: SSHKipper with modules (Settings → Extensions → Modules); Node.js 24+ for the CLI and for TypeScript
 modules.

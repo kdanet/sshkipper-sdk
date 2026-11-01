@@ -167,6 +167,9 @@ is started again on the next call.
 | `handler/call` | the request of §2 | the handler's JSON value |
 | `cancel` (notification) | `{"id": <id of a handler/call>}` | — the call should end (the app no longer waits) |
 | `ui/event` | `{"event", "context"}` — a live screen's event (§11.3) | ops (and completions) |
+| `import/parse` | `{"importer", "name", "size", "data", "locale"}` — a file to import (§15) | `{"nodes", "credentials"?, "secrets"?, "warnings"?}` |
+| `console/open` | `{"console", "session", "cols", "rows", "node", "context"}` — a console to open (§16) | `{}` once it is open |
+| `console/input`, `console/resize`, `console/close` (notifications) | `{"session", …}` (§16) | — |
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
 ### 4.3 Module → app
@@ -180,6 +183,7 @@ is started again on the next call.
 | `host/notify` | `{"title": "…", "text": "…"}` | `null` | `notify` |
 | `host/log` (notification) | `{"level": "debug"\|"info"\|"warn"\|"error", "message": "…"}` | — | — |
 | `ui/push` (notification) | `{"screen": "…", "ops": […]}` — ops to one of its live screens (§11.5) | — | — |
+| `console/data`, `console/closed` (notifications) | `{"session", "data"}` / `{"session", "reason"?}` — a console's output, its end (§16) | — | — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
 containers); only the servers of calls **in progress** (their `context.server.id`) may be named — a program can't
@@ -307,8 +311,8 @@ and read as extensions unchanged.
 | `source[]` | `id` (kind), `title`, `fields`, `refresh` (s, 60…86400) | stage 4 |
 | `nodeType[]` | `id`, `title`, `icon`, `fields` (settings and `node` links, §14), `screen` (an id of `contributes.screen`) | stage 3 (§14) |
 | `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | stage 3 (§14) |
-| `import[]` | `id`, `title`, `fileExtensions`, `handler` | stage 6 |
-| `console[]` | `id`, `title`, `handler` | stage 6 |
+| `import[]` | `id`, `title`, `description`, `fileExtensions` (no dot, or `*`), `maxSizeMB`; the program answers `import/parse` (§15) | stage 6 |
+| `console[]` | `id`, `title`, `description`, `appliesTo` (`connection` — the default — and node types of the extension); the program answers `console/open` (§16) | stage 6 |
 | `ai[]` | `id`, `title`, `icon`, `description`, `fields` (the profile's settings; `secret` ones kept in the keychain), `reasoning` (levels) — §13 | stage 6 |
 
 - Every contribution has an `id` (`^[a-z][a-z0-9_-]{0,39}$`, unique within its kind), a `title` (text or per
@@ -626,3 +630,70 @@ another extension's node — is refused (`-32001`).
   and never the Return default; Esc answers `cancel` (the last button by default). One question of an extension on
   screen at a time, at most 8 waiting; with no window to ask over (closed to the menu bar, everything locked) a
   question waits for one.
+## 15. Import
+
+A `contributes.import[]` item reads another program's file into folders and connections. The user picks the file
+(File → «Импорт: <title>…», the tree's «Создать», Settings → Хосты); **the app reads it** and sends its bytes — the
+program never gets the path, and gets nothing else of the disk through the app.
+
+### 15.1 `import/parse` (app → program)
+
+| | |
+|---|---|
+| Params | `{"importer": "<contribution id>", "name": "servers.csv", "size": 1234, "data": "<base64>", "locale": "ru"}` — `name` is the file's name only |
+| Result | `{"nodes": [node, …], "credentials"?: [credential, …], "secrets"?: [secret, …], "warnings"?: ["…"]}` |
+| Timeout | 60 s (cancelled — `cancel` — when the user closes the progress sheet) |
+
+The file is at most 8 MB (`maxSizeMB` lowers it); a bigger one is refused before it is read. A file whose name
+doesn't end with one of `fileExtensions` (`*` — any) is refused too.
+
+| Item | Fields |
+|---|---|
+| folder | `{"type": "folder", "name", "note"?, "children"?: [node, …]}` |
+| connection | `{"type": "connection", "id"?, "name", "host", "port"?: 1…65535 (number or numeric string), "user"?, "note"?, "tags"?: ["…"], "bastion"?, "credential"?}` |
+| credential | `{"id", "name"?, "user"?}` — a login only |
+| secret | `{"credential": "<credential id>", "kind": "password" \| "privateKey", "value": "…"}` |
+
+- `bastion` names another connection of this import — its `id`, else its `name` — or, failing that, a connection of
+  the document by name. One not found leaves the connection direct (the summary names it); a chain that comes back to
+  itself sets no bastion.
+- **Secrets come apart.** A password or a key the file held goes in `secrets`, never in a connection: the app asks
+  («Импортировать без паролей» — the default, or «с паролями») and keeps them only on a yes, in the credential, as
+  the document's own encrypted records. A key with a passphrase isn't taken.
+- The answer is checked before anything changes: an unknown `type`, a connection without `host`, a port out of range,
+  an address or login with spaces or starting with `-` (ssh would read it as an option), a `credential` or a secret
+  naming no credential, a repeated `id` — the import stops with the place and the reason
+  («nodes[2].port — порт от 1 до 65535»). Control characters are removed from every text. Limits: 5 000 items, 12
+  levels, 1 000 credentials, 2 000 secrets, 100 warnings, names up to 200 characters, notes up to 64 KB.
+- Tags have no field in the document: they go into the note («Теги: a, b»). Unknown keys of an item are ignored.
+
+The app shows what came (a tree, the counts, the program's warnings) in the built-in import's question, then merges
+the way its ~/.ssh/config import does: one folder per importer («Импорт: <title>»); a re-import finds a node by its
+folder path and name and updates only the fields the user hasn't changed since; undo (⌘Z) takes the whole import
+back. The free version imports as many connections as it allows.
+
+## 16. Consoles
+
+A `contributes.console[]` item is a text console the program streams — a provider's serial console, IPMI SoL, a
+hypervisor's `virsh console` — in a terminal tab of the app: the app's own terminal (find, copy, the session log when
+the server keeps one, OSC 52 asked as for any server). It opens from a node's menu («Консоль: <title>») — a
+connection's, unless `appliesTo` says otherwise. A graphical console (KVM, VNC) can't be one: the app draws no
+pixels of an extension.
+
+| Method | Direction | Params |
+|---|---|---|
+| `console/open` (request) | app → program | `{"console", "session", "cols", "rows", "node": {"id", "name", "host", "port", "user"}, "context"}` — answer `{}` once the console runs (30 s at most); an error is shown in the tab |
+| `console/data` | program → app | `{"session", "data": "<base64>"}` — bytes for the terminal (it MAY come before the `console/open` answer) |
+| `console/input` | app → program | `{"session", "data": "<base64>"}` — what the user typed, as the terminal encodes it (Return is `\r`; a paste comes in pieces of 48 KB) |
+| `console/resize` | app → program | `{"session", "cols", "rows"}` — when the grid changes |
+| `console/close` | app → program | `{"session"}` — the tab was closed: stop feeding it |
+| `console/closed` | program → app | `{"session", "reason"?}` — the program ended the console; the tab shows the reason |
+
+- `node` carries no password or key; `context` is the call's (§2: settings of the extension for that server, the
+  language). While the console is open the node's server counts as a call in progress: `host/exec` and `host/secret`
+  may name it, and the program isn't stopped as idle. A document lock that stops the program closes its consoles.
+- **Limits.** A `console/data` chunk is at most ≈ 1 MB (1 400 000 base64 characters) — a bigger one is dropped whole;
+  the output may burst to 4 MB and keeps to 2 MB a second after — the rest is dropped and the terminal says how much
+  («[консоль: вывод слишком быстрый — пропущено N КБ]»). Bytes go to the terminal off the main thread.
+- `console/data` for a session the program didn't open is ignored (and noted in the extension's log).
+- The program exiting, crashing or being stopped ends its consoles: each tab says why and offers «Открыть снова» (⌘R).

@@ -1,0 +1,8 @@
+имя,адрес,порт,пользователь,папка,бастион,заметка,теги
+jump,bastion.example.net,2222,ops,Инфраструктура,,Вход в сеть офиса,сеть
+web-1,10.0.1.11,,deploy,Production/Web,jump,"Фронт, nginx",prod;web
+web-2,10.0.1.12,,deploy,Production/Web,jump,,prod;web
+db-1,10.0.2.21,5022,postgres,Production/DB,jump,"Основная база
+реплика — db-2",prod;db
+stage,stage.example.net,,deploy,Staging,,,
+broken,,22,root,Staging,,нет адреса — будет предупреждение,
