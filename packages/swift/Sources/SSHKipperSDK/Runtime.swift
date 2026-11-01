@@ -389,13 +389,16 @@ public final class Extension: @unchecked Sendable {
             }
         case "console/open":
             let fn = lock.withLock { consoles[params["console"].string ?? ""] }
+            // Listed before the loop reads on: input or a resize right behind the open isn't lost.
+            let node = (try? params["node"].decode(ConsoleNode.self)) ?? ConsoleNode(id: "")
+            let session = ConsoleSession(id: params["session"].text, console: params["console"].text, node: node,
+                                         cols: params["cols"].int ?? 80, rows: params["rows"].int ?? 24, connection: connection)
+            if fn != nil {
+                session.onEnd = { self.lock.withLock { _ = self.sessions.removeValue(forKey: session.id) } }
+                lock.withLock { sessions[session.id] = session }
+            }
             return {
                 guard let fn else { throw ExtensionError("no console \(params["console"].text)", code: ErrorCode.methodNotFound) }
-                let node = (try? params["node"].decode(ConsoleNode.self)) ?? ConsoleNode(id: "")
-                let session = ConsoleSession(id: params["session"].text, console: params["console"].text, node: node,
-                                             cols: params["cols"].int ?? 80, rows: params["rows"].int ?? 24, connection: connection)
-                session.onEnd = { self.lock.withLock { _ = self.sessions.removeValue(forKey: session.id) } }
-                self.lock.withLock { self.sessions[session.id] = session }
                 let context = (try? params["context"].decode(Context.self)) ?? Context(locale: locale)
                 do { try await fn(session, HandlerContext(context: context, host: host(context))) } catch {
                     self.lock.withLock { _ = self.sessions.removeValue(forKey: session.id) }
@@ -446,6 +449,8 @@ public final class ConsoleSession: @unchecked Sendable {
     private var size: (cols: Int, rows: Int)
     private var closed = false
     private var inputs: [@Sendable (Data) -> Void] = []
+    /// Input that came before the console listened (typed while it opened): given to the first `onInput`.
+    private var queued: [Data] = []
     private var resizes: [@Sendable (Int, Int) -> Void] = []
     private var closes: [@Sendable () -> Void] = []
     private let connection: Connection
@@ -479,12 +484,18 @@ public final class ConsoleSession: @unchecked Sendable {
     }
 
     /// What the user typed (Return is "\r"; a paste comes in pieces).
-    public func onInput(_ fn: @escaping @Sendable (Data) -> Void) { lock.withLock { inputs.append(fn) } }
+    public func onInput(_ fn: @escaping @Sendable (Data) -> Void) {
+        let early = lock.withLock { () -> [Data] in inputs.append(fn); defer { queued = [] }; return queued }
+        for d in early { fn(d) }
+    }
     public func onResize(_ fn: @escaping @Sendable (_ cols: Int, _ rows: Int) -> Void) { lock.withLock { resizes.append(fn) } }
     /// The tab was closed (or the program stops): stop whatever feeds it.
     public func onClose(_ fn: @escaping @Sendable () -> Void) { lock.withLock { closes.append(fn) } }
 
-    func input(_ data: Data) { for f in lock.withLock({ inputs }) { f(data) } }
+    func input(_ data: Data) {
+        let fs = lock.withLock { () -> [@Sendable (Data) -> Void] in if inputs.isEmpty { queued.append(data) }; return inputs }
+        for f in fs { f(data) }
+    }
     func resize(cols: Int, rows: Int) {
         let fs = lock.withLock { () -> [@Sendable (Int, Int) -> Void] in size = (cols, rows); return resizes }
         for f in fs { f(cols, rows) }

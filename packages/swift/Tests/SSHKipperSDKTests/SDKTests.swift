@@ -210,6 +210,28 @@ struct RuntimeTests {
     }
 }
 
+@Suite("Console timing")
+struct ConsoleTimingTests {
+    /// The user may type while the console opens: input right behind `console/open` reaches the first `onInput`.
+    @Test func inputBeforeTheConsoleListensIsKept() async throws {
+        let ext = Extension()
+        ext.console("serial") { s, _ in
+            try await Task.sleep(nanoseconds: 50_000_000)
+            s.onInput { s.write($0) }
+        }
+        let app = App(ext)
+        _ = await app.call(1, "initialize", [:])
+        app.pipe.send(["jsonrpc": "2.0", "id": 2, "method": "console/open", "params": ["console": "serial", "session": "c", "cols": 80, "rows": 24, "node": ["id": "n"]]])
+        app.pipe.send(["jsonrpc": "2.0", "method": "console/input", "params": ["session": "c", "data": .string(Data("early".utf8).base64EncodedString())]])
+        _ = await app.call(3, "nothing/here", [:])
+        while !app.pipe.written.contains(where: { $0["id"] == 2 }) { try await Task.sleep(nanoseconds: 10_000_000) }
+        let echoed = app.pipe.written.filter { $0["method"] == "console/data" }.compactMap { Data(base64Encoded: $0["params"]["data"].string ?? "") }
+        #expect(echoed.map { String(decoding: $0, as: UTF8.self) } == ["early"])
+        app.pipe.close()
+        await app.task.value
+    }
+}
+
 @Suite("Database protocol")
 struct DatabaseTests {
     @Test func answersByIDWithCodes() async throws {

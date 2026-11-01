@@ -322,7 +322,8 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
   }
 
   /** Open consoles by session id: their callbacks and state. */
-  type OpenConsole = { input: ((d: Uint8Array) => void)[]; resize: ((c: number, r: number) => void)[]; close: (() => void)[]; abort: AbortController; size: { cols: number; rows: number } };
+  // `queued` — input that came before the console listened (the user typed while it opened): given to the first `onInput`.
+  type OpenConsole = { input: ((d: Uint8Array) => void)[]; queued: Uint8Array[]; resize: ((c: number, r: number) => void)[]; close: (() => void)[]; abort: AbortController; size: { cols: number; rows: number } };
   const consoles = new Map<string, OpenConsole>();
   const CHUNK = 48 * 1024;
 
@@ -335,12 +336,10 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
   }
 
   /** `console/open` (§16): the session handed to the console's function; answered once that function returns. */
-  async function openConsole(id: number | string, params: any) {
+  async function openConsole(id: number | string, params: any, state: OpenConsole) {
     const fn = def.consoles?.[params?.console];
-    if (!fn) return send({ id, error: { code: Codes.methodNotFound, message: `no console ${params?.console}` } });
     const session = String(params.session);
-    const state: OpenConsole = { input: [], resize: [], close: [], abort: new AbortController(), size: { cols: Number(params.cols ?? 80), rows: Number(params.rows ?? 24) } };
-    consoles.set(session, state);
+    if (!fn) { consoles.delete(session); return send({ id, error: { code: Codes.methodNotFound, message: `no console ${params?.console}` } }); }
     const s: ConsoleSession = {
       id: session, console: params.console, node: params.node ?? { id: "" },
       get cols() { return state.size.cols; }, get rows() { return state.size.rows; },
@@ -356,7 +355,7 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
         send({ method: "console/closed", params: { session, ...(reason ? { reason } : {}) } });
         endConsole(session);
       },
-      onInput: (cb) => { state.input.push(cb); },
+      onInput: (cb) => { state.input.push(cb); for (const d of state.queued.splice(0)) { try { cb(d); } catch (e) { console.error(e); } } },
       onResize: (cb) => { state.resize.push(cb); },
       onClose: (cb) => { state.close.push(cb); },
       signal: state.abort.signal,
@@ -443,14 +442,20 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
           }
           return importFile(msg.id, msg.params, abort);
         }
-      case "console/open":
+      case "console/open": {
         if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        try { await ready; } catch { return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } }); }
-        return openConsole(msg.id, msg.params);
+        // Known before anything is awaited: input or a resize right behind the open isn't lost.
+        const p = msg.params ?? {};
+        const state: OpenConsole = { input: [], queued: [], resize: [], close: [], abort: new AbortController(), size: { cols: Number(p.cols ?? 80), rows: Number(p.rows ?? 24) } };
+        consoles.set(String(p.session), state);
+        try { await ready; } catch { consoles.delete(String(p.session)); return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } }); }
+        return openConsole(msg.id, p, state);
+      }
       case "console/input": {
         const c = consoles.get(String(msg.params?.session));
         if (!c) return;
         const data = new Uint8Array(Buffer.from(String(msg.params?.data ?? ""), "base64"));
+        if (!c.input.length) { c.queued.push(data); return; }
         for (const cb of c.input) { try { cb(data); } catch (e) { console.error(e); } }
         return;
       }

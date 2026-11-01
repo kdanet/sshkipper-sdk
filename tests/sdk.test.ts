@@ -237,7 +237,7 @@ test("MCP: handshake, tools, validation through the server", async () => {
   assert.equal(init.result.protocolVersion, "2025-06-18");
   assert.equal(init.result.serverInfo.name, "sshkipper-sdk");
   const tools = (await ask(2, "tools/list")).result.tools.map((t: { name: string }) => t.name);
-  for (const n of ["sdk_guide", "sdk_schema", "ui_kit", "module_scaffold", "module_validate", "view_preview", "template_expand", "module_run_local"]) assert.ok(tools.includes(n), n);
+  for (const n of ["sdk_guide", "sdk_schema", "ui_kit", "ext_scaffold", "ext_validate", "view_preview", "screen_preview", "template_expand", "ext_run_local"]) assert.ok(tools.includes(n), n);
   const kit = (await ask(3, "tools/call", { name: "ui_kit", arguments: {} })).result.content[0].text;
   assert.match(kit, /### rows/);
   assert.match(kit, /internaldrive/);
