@@ -13,7 +13,7 @@ import { preview } from "../packages/sdk/src/preview.ts";
 import { scaffold, VENDORED } from "../packages/sdk/src/scaffold.ts";
 import { expand } from "../packages/sdk/src/template.ts";
 import type { Json, Manifest } from "../packages/sdk/src/types.ts";
-import { view, rows, row, metric, grid, each, $ } from "../packages/sdk/src/ui.ts";
+import { view, rows, row, metric, grid, each, $, screen, datatable, tree, split, editor, terminal, toolbar, sheet, field, liveChart, ops } from "../packages/sdk/src/ui.ts";
 import { validateFolder, validateManifest, validateView } from "../packages/sdk/src/validate.ts";
 import { serveMCP } from "../packages/mcp/server.ts";
 
@@ -34,7 +34,7 @@ test("templates: the conformance cases the app runs too", () => {
 });
 
 test("validate: the examples are clean", () => {
-  for (const ex of ["processes", "http-checks"]) {
+  for (const ex of ["processes", "http-checks", "screens"]) {
     const r = validateFolder(join(root, "examples", ex));
     assert.deepEqual(r.issues.filter((i) => i.severity === "error"), [], ex);
   }
@@ -260,4 +260,61 @@ test("MCP: handlers that change things don't run locally unless the person start
   const r = JSON.parse(out[0]).result;
   assert.equal(r.isError, true);
   assert.match(r.content[0].text, /--allow-changes/);
+});
+
+test("live screens: the builders make what the schema allows; the preview reads them", () => {
+  const v = screen([
+    toolbar([{ id: "r", title: "Refresh", symbol: "arrow.clockwise" }, { id: "x", title: "Delete", danger: true }]),
+    split([
+      tree([{ id: "q", title: "default", expandable: true }], { id: "queues", menu: [{ id: "pause", title: "Pause" }] }),
+      datatable([{ id: "id", kind: "number" }, "name"], [[1, "a"], { id: "j2", values: { id: 2, name: "b" }, status: "bad" }], { id: "jobs", total: 10_000, drop: ["files"] }),
+    ], { sizes: [240] }),
+    editor("select 1", { id: "q1", language: "sql", completion: true }),
+    terminal("\u001b[32mok\u001b[0m\n", { id: "out" }),
+    liveChart("line", [{ values: [1, 2] }], { id: "rate", window: 60 }),
+    sheet("new", "New", [field("name", "Name")], { ok: "Add" }),
+  ], { title: "Queues", fill: true });
+  assert.deepEqual(validateView(v as Json).filter((i) => i.severity === "error"), []);
+  assert.equal(v.events, true);
+  assert.equal(v.layout, "fill");
+  // A block the schema doesn't know is still an error; a grid's count of columns still a number.
+  assert.ok(validateView({ blocks: [{ type: "datatable", id: "t", columns: [{ id: "a", nope: 1 }] }] }).some((i) => i.severity === "error"));
+  assert.ok(validateView({ blocks: [{ type: "grid", columns: 9, children: [] }] }).some((i) => i.severity === "error"));
+  const text = preview(v as Json);
+  assert.match(text, /live screen: events → the program/);
+  assert.match(text, /\[datatable #jobs\]: id \| name — 2 of 10000 rows/);
+  assert.match(text, /▸ default \(asks\)/);
+  assert.match(text, /\[terminal #out\]\n {2}ok/);
+  assert.match(text, /\[sheet #new\] New — OK: Add/);
+});
+
+test("live screens: ui/event answered by onEvent; push goes to the screen", async () => {
+  const fromModule: string[] = [];
+  let lineCb: (l: string) => void = () => {};
+  const transport: Transport = { write: (l) => fromModule.push(l), onLine: (cb) => { lineCb = cb; }, onClose: () => {}, exit: () => {} };
+  let pushLater: ((o: any[]) => void) | undefined;
+  serve({
+    handlers: {},
+    onEvent: (e, ctx) => {
+      if (e.type === "open") { pushLater = ctx.push; return null; }
+      if (e.type === "more") return [ops.rows("jobs", (e.value as any).offset, [[1, "a"]])];
+      if (e.type === "complete") return { items: ["status"] };
+      throw new Error("no such event");
+    },
+  }, transport);
+  const next = async () => { for (let i = 0; i < 100 && !fromModule.length; i++) await new Promise((r) => setTimeout(r, 5)); return JSON.parse(fromModule.shift()!); };
+  const context = { settings: {}, locale: "en", sdk: 1, app: "t" };
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { sdk: 1, app: "t", locale: "en", module: { id: "x", version: "1" } } }));
+  await next();
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ui/event", params: { event: { screen: "s1", seq: 1, type: "open" }, context } }));
+  assert.equal((await next()).result, null);
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "ui/event", params: { event: { screen: "s1", seq: 2, type: "more", block: "jobs", value: { offset: 200, limit: 200 } }, context } }));
+  assert.deepEqual((await next()).result, [{ op: "rows", id: "jobs", offset: 200, rows: [[1, "a"]] }]);
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 4, method: "ui/event", params: { event: { screen: "s1", seq: 3, type: "complete", block: "q" }, context } }));
+  assert.deepEqual((await next()).result, { items: ["status"] });
+  lineCb(JSON.stringify({ jsonrpc: "2.0", id: 5, method: "ui/event", params: { event: { screen: "s1", seq: 4, type: "drop" }, context } }));
+  assert.deepEqual((await next()).error, { code: -32000, message: "no such event" });
+  // Later, by itself: a notification for that screen.
+  pushLater!([ops.append("rate", { points: [[5]] })]);
+  assert.deepEqual(await next(), { jsonrpc: "2.0", method: "ui/push", params: { screen: "s1", ops: [{ op: "append", id: "rate", points: [[5]] }] } });
 });

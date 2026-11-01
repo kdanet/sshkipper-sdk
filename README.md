@@ -14,7 +14,7 @@ sshkipper-module pack disks
 
 - **Docs:** [English](docs/en/README.md) · [Русский](docs/ru/README.md)
 - **Protocol:** [spec/protocol.md](spec/protocol.md) · **Schemas:** [schemas/](schemas)
-- **Examples:** [processes](examples/processes) (a server module) · [http-checks](examples/http-checks) (a TypeScript process module)
+- **Examples:** [processes](examples/processes) (a server module) · [http-checks](examples/http-checks) (a TypeScript process module) · [screens](examples/screens) (a live screen: big table, tree, split, editor, live chart)
 - **For AI agents:** `sshkipper-module mcp` — an MCP server with the guides, schemas, UI-Kit, scaffolds, validation,
   previews and a local runner ([docs/en/agents.md](docs/en/agents.md))
 

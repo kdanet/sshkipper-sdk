@@ -199,6 +199,10 @@ export interface ViewAction {
   open?: string;
   /** A question for the AI panel. */
   ask?: string;
+  /** A live screen: a `press` event with this name (and `params`) goes to the program. */
+  event?: string;
+  /** A live screen: opens its sheet block of this id. */
+  sheet?: string;
 }
 
 export interface Item {
@@ -224,7 +228,44 @@ export type BlockType =
   | "text" | "stack" | "grid" | "tabs" | "card" | "divider"
   | "metric" | "gauge" | "chart" | "table" | "list" | "keyvalue" | "timeline" | "checklist" | "code" | "diff" | "callout"
   | "rows" | "logs" | "chips" | "message" | "search"
-  | "slider" | "field" | "toggle" | "picker" | "button";
+  | "slider" | "field" | "toggle" | "picker" | "button"
+  // A live screen's own (spec/protocol.md §11).
+  | "datatable" | "tree" | "split" | "editor" | "terminal" | "toolbar" | "sheet";
+
+/** A column of a datatable. */
+export interface Column {
+  id: string;
+  title?: string;
+  width?: number;
+  kind?: "text" | "number" | "date";
+  sortable?: boolean;
+  /** A double click edits the cell: an `edit` event. */
+  editable?: boolean;
+}
+
+/** A row of a datatable: cells in column order, or `values` by column id. */
+export interface Row {
+  id?: string | number;
+  cells?: (string | number | boolean | null)[];
+  values?: Record<string, string | number | boolean | null>;
+  status?: Status;
+  data?: Record<string, Json>;
+}
+
+/** A node of a tree; `expandable` without `children` — they are asked for when it is expanded. */
+export interface TreeNode {
+  id: string;
+  title: string;
+  detail?: string;
+  symbol?: string;
+  status?: Status;
+  badge?: string;
+  children?: TreeNode[];
+  expandable?: boolean;
+  data?: Record<string, Json>;
+}
+
+export interface MenuItem { id: string; title: string; symbol?: string; danger?: boolean }
 
 export interface Block {
   type: BlockType;
@@ -235,7 +276,8 @@ export interface Block {
   symbol?: string;
   status?: Status | string;
   axis?: "vertical" | "horizontal";
-  columns?: number;
+  /** grid: how many columns; datatable: the columns. */
+  columns?: number | (string | Column)[];
   children?: Node[];
   value?: number | string;
   max?: number | string;
@@ -246,7 +288,22 @@ export interface Block {
   series?: { name?: string; values?: (number | null)[]; formula?: string; points?: number }[];
   labels?: string[];
   headers?: string[];
-  rows?: (string | number | boolean | null)[][];
+  rows?: ((string | number | boolean | null)[] | Row)[];
+  // A live screen's blocks.
+  total?: number;
+  pageSize?: number;
+  sort?: { column: string; ascending?: boolean };
+  selection?: "none" | "single" | "multiple";
+  menu?: MenuItem[];
+  draggable?: boolean;
+  drop?: ("files" | "rows")[];
+  nodes?: TreeNode[];
+  sizes?: number[];
+  completion?: boolean;
+  editable?: boolean;
+  keywords?: string[];
+  maxLines?: number;
+  window?: number;
   items?: (Item | Node)[];
   lines?: string[];
   language?: string;
@@ -275,8 +332,58 @@ export interface View {
   /** The sentence under the page title, in parts. */
   status?: { text: string; tone?: Tone }[];
   state?: Record<string, string | number | boolean>;
+  /** A live screen: true — the program answers its events (`ui/event`); a handler's name — a server module's. */
+  events?: boolean | string;
+  /** fill: the screen takes the whole area. */
+  layout?: "fill";
   blocks: Node[];
 }
+
+// MARK: Live screens (spec/protocol.md §11)
+
+export type EventType =
+  | "open" | "close" | "press" | "activate" | "select" | "change" | "submit" | "expand" | "collapse"
+  | "more" | "sort" | "edit" | "menu" | "drop" | "move" | "complete";
+
+/** What the user did on a screen. `state` — the screen's variables now. */
+export interface ScreenEvent {
+  screen: string;
+  seq: number;
+  type: EventType;
+  block?: string;
+  value?: Json;
+  state?: Record<string, string | number | boolean>;
+}
+
+/** One change of a screen by block id (`ui/patch`). */
+export interface Op {
+  op: "replace" | "insert" | "remove" | "set" | "state" | "title" | "rows" | "update_rows" | "insert_rows" | "remove_rows"
+    | "children" | "append" | "clear" | "text" | "select" | "sheet" | "close_sheet" | "notice";
+  id?: string;
+  parent?: string;
+  index?: number;
+  after?: string;
+  block?: Block;
+  props?: Record<string, Json>;
+  values?: Record<string, string | number | boolean>;
+  text?: string;
+  status?: Status;
+  offset?: number;
+  total?: number;
+  reset?: boolean;
+  rows?: ((string | number | boolean | null)[] | Row)[];
+  ids?: string[];
+  node?: string;
+  nodes?: TreeNode[];
+  lines?: string[];
+  points?: (number | null)[][];
+  labels?: string[];
+}
+
+export interface Completion { title: string; insert?: string; detail?: string }
+
+/** What `ui/event` answers: ops, or ops and completions (for `complete`). */
+export type EventAnswer = Op[] | { ops?: Op[]; items?: (string | Completion)[] } | null | void;
 
 // MARK: Calls (spec/protocol.md §2)
 

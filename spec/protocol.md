@@ -166,6 +166,7 @@ is started again on the next call.
 | `initialize` | `{"sdk": 1, "app": "1.0.1704", "module": {"id", "version"}, "locale": "ru"}` | `{"handlers": ["list_units", …]}` — the names it answers |
 | `handler/call` | the request of §2 | the handler's JSON value |
 | `cancel` (notification) | `{"id": <id of a handler/call>}` | — the call should end (the app no longer waits) |
+| `ui/event` | `{"event", "context"}` — a live screen's event (§11.3) | ops (and completions) |
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
 ### 4.3 Module → app
@@ -178,6 +179,7 @@ is started again on the next call.
 | `host/store/set` | `{"key": "…", "value": <json> \| null}` | `null` | `store` |
 | `host/notify` | `{"title": "…", "text": "…"}` | `null` | `notify` |
 | `host/log` (notification) | `{"level": "debug"\|"info"\|"warn"\|"error", "message": "…"}` | — | — |
+| `ui/push` (notification) | `{"screen": "…", "ops": […]}` — ops to one of its live screens (§11.5) | — | — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
 containers); only the servers of calls **in progress** (their `context.server.id`) may be named — a program can't
@@ -301,3 +303,96 @@ and read as extensions unchanged.
   (signed, stage 5) as «Проверено SSHKipper».
 - A program serves every contribution of its extension: handlers through `handler/call` (§4.2), a contribution's own
   methods (`ui/event`, a storage's `list`…, defined by their stages) as JSON-RPC requests on the same connection.
+
+## 11. Live screens
+
+A page whose view has `events` is a **live screen**: the app keeps its state, sends what the user does to the module
+(`ui/event`) and applies the module's answer — **ops** that change only the blocks they name (`ui/patch`). A program may
+also send ops by itself at any time (`ui/push`): live data. Selection, scrolling and sorting of the rows already loaded,
+typing, a sheet's fields — the app does them by itself, without asking.
+
+### 11.1 The view
+
+| Field | Meaning |
+|---|---|
+| `events` | `true` — the program answers (`ui/event`, a process module); a handler's name — that handler of a server module answers, with the event as its input `event` (`SK_INPUT_EVENT`, and the request on stdin). Without `events` a page is a plain view: nothing is sent. |
+| `layout` | `fill` — the screen takes the whole area (a split, a big table to the bottom edge) instead of scrolling. |
+
+A server module can't push (nothing runs between calls); a process module can.
+
+### 11.2 Blocks of a live screen
+
+Besides every block of a view (`schemas/view.schema.json`), a live screen reads these. Each MUST have an `id` to be
+patched (the app gives one to those without, but a program can't name it).
+
+| Block | Fields | Events |
+|---|---|---|
+| `datatable` | `columns` [{id, title, width, kind: text\|number\|date, sortable, editable}], `rows` — the first ones (cells in column order, or `{id, cells \| values, status, data}`), `total`, `pageSize` (200), `sort`, `selection` none\|single\|multiple, `menu`, `draggable`, `drop` [files, rows] | `more {offset, limit}` when rows in sight aren't loaded; `sort {column, ascending}` when not every row is loaded (all loaded — the app sorts itself); `select {rows}`; `activate {row, data}` (double click); `edit {row, column, value}`; `menu {item, rows}`; `move {rows, to}`; `drop {paths, source, target, position}` or `drop {rows, from, target}` |
+| `tree` | `nodes` [{id, title, detail, symbol, status, badge, children, expandable, data}], `selection`, `menu`, `drop` | `expand {node}` for a node with `expandable` and no `children`; `collapse {node}`; `select {nodes}`; `activate {node}`; `menu {item, nodes}`; `drop {paths, target}` |
+| `split` | `children` — 2 or 3 panes; `sizes` — widths but the last's, points (the user's widths are remembered per screen and block) | — |
+| `editor` | `text`, `language` (sql, sh, python, js colored), `keywords`, `completion`, `editable` | `change {text}` (half a second after typing stops); `complete {text, cursor, prefix}` — answer with `{"items": [...]}` |
+| `terminal` | `text` (ANSI colors kept), `maxLines` (5000) | — (append with ops) |
+| `toolbar` | `items` [{id, title, symbol, status: bad, action}] | `press {item}` |
+| `sheet` | `title`, `text`, `subtitle` — the OK button, `children` — fields | `submit {values}` — the values of its fields' `bind`s; shown by a button's `{"sheet": id}` or the `sheet` op |
+| `chart` with an `id` | `window` — points kept (300) | — (append points with ops) |
+
+A button's `{"event": "name", "params": {...}}` sends `press {event, params}`; a row's item with such an action — also
+`item`. An input (`field`, `toggle`, `picker`, `slider`, `search`) with an `id` sends `change {bind, value}` when its
+value changes (fields in a sheet go with its `submit`).
+
+Files dropped from the app's file panel come as their paths on that panel's server (`source: "pane"`); from Finder —
+paths on this Mac (`source: "finder"`).
+
+### 11.3 `ui/event` (app → module)
+
+| | |
+|---|---|
+| Params | `{"event": {"screen", "seq", "type", "block"?, "value"?, "state"}, "context": <as in §2>}` |
+| Result | `[op, …]`, `{"ops": [op, …], "items": [completion, …]}` or `null` |
+
+`type` is one of `open`, `close`, `press`, `activate`, `select`, `change`, `submit`, `expand`, `collapse`, `more`,
+`sort`, `edit`, `menu`, `drop`, `move`, `complete`. `open` comes when the screen is shown (a program may start pushing),
+`close` when it goes. `state` — the screen's variables now. For a process module the call counts as a call on the
+page's server: `host/exec` and `host/secret` may name `context.server.id` while it runs. Its timeout is 30 s.
+
+**Order.** Events are numbered (`seq`). An answer the app gets after a newer event of the same kind was sent is
+**dropped**: `select`, `change`, `complete`, `sort` of a block; `expand`/`collapse` of a node; `more` of a table sorted
+anew since. Presses, submits, edits, menus and drops are never dropped (each is its own). Everything asked before a
+screen is loaded anew (another page, a reload) is dropped. A program SHOULD answer within half a second: past it the
+screen shows «waiting for the program», and the window never waits.
+
+### 11.4 Ops (`ui/patch`)
+
+Applied in order; an op that can't apply (an unknown id, a block that doesn't read) is reported to the author (the
+screen's inspector, the module's log) and skipped — the others still apply.
+
+| `op` | Fields | Does |
+|---|---|---|
+| `replace` | `id`, `block` | The block anew (its id kept) |
+| `insert` | `block`, `parent`? (a container: stack, grid, tabs, card, split, sheet; none — the top), `index`? or `after`? | A new block |
+| `remove` | `id` | The block goes |
+| `set` | `id`, `props` | Fields of the block (`title`, `value`, `status`, `items`, `text`…); not `type`, `id` |
+| `state` | `values` | Variables of the screen |
+| `title` | `text` | The screen's title |
+| `rows` | `id`, `offset`, `rows`, `total`?, `reset`? | A page of a datatable; `reset` — every other loaded row is forgotten (a new sort, a new filter) |
+| `update_rows` | `id`, `rows` (with ids) | Rows in place — only they are drawn again |
+| `insert_rows` | `id`, `index`, `rows` | Rows inserted; those below move |
+| `remove_rows` | `id`, `ids` | Rows removed |
+| `children` | `id`, `node`? (none — the top), `nodes` | A tree node's children |
+| `append` | `id`, `text` \| `lines` \| `points` (+ `labels`) | Text to a terminal, lines to `logs`, points to a chart (each point — a value per series) |
+| `clear` | `id` | A terminal, logs or chart emptied |
+| `text` | `id`, `text` | An editor's text replaced |
+| `select` | `id`, `ids` | Rows (nodes) selected and shown |
+| `sheet` / `close_sheet` | `id` / — | A sheet shown / closed |
+| `notice` | `text`, `status`? | A note over the screen (empty `text` removes it) |
+
+A completion: `"status"` or `{"title", "insert"?, "detail"?}`.
+
+Limits: 8 MB of an answer, 2 000 ops, 10 000 rows an op, 10 000 000 rows a table (the app keeps up to 200 000
+loaded — pages far from sight are forgotten and asked again), 50 000 nodes a tree, 400 blocks a screen.
+
+### 11.5 `ui/push` (module → app, a notification)
+
+`{"screen": "<event.screen>", "ops": [...]}` — the same ops. The app applies pushes only to screens of the module
+that sends them, gathers those coming faster than it draws (applied together, at most 5 000 waiting), and drops them
+once the screen is closed. A program learns a screen's id from its events (`open` first).

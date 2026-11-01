@@ -1,18 +1,80 @@
 // UI-Kit builders: plain functions returning the JSON the app draws natively. Nothing here draws — the app does,
 // with the same parts as its own service pages. Any field the helpers don't name can still be passed in `extra`.
 
-import type { Block, Item, Json, Node, Status, Style, Tone, View, ViewAction } from "./types.ts";
+import type { Block, Column, Item, Json, MenuItem, Node, Op, Row, Status, Style, Tone, TreeNode, View, ViewAction } from "./types.ts";
 
 type Common = { id?: string; style?: Style; visible?: string };
 
-/** A whole page. `status` — the sentence under the title, in parts. */
-export function view(blocks: Node[], opts: { title?: string; status?: (string | { text: string; tone?: Tone })[]; state?: View["state"] } = {}): View {
+/** A whole page. `status` — the sentence under the title, in parts. `events` — a live screen (spec/protocol.md §11). */
+export function view(blocks: Node[], opts: { title?: string; status?: (string | { text: string; tone?: Tone })[]; state?: View["state"]; events?: View["events"]; layout?: View["layout"] } = {}): View {
   const v: View = { blocks };
   if (opts.title) v.title = opts.title;
   if (opts.status) v.status = opts.status.map((p) => (typeof p === "string" ? { text: p } : p));
   if (opts.state) v.state = opts.state;
+  if (opts.events !== undefined) v.events = opts.events;
+  if (opts.layout) v.layout = opts.layout;
   return v;
 }
+
+/** A live screen: a view whose events the program answers (`ui/event`). */
+export const screen = (blocks: Node[], opts: { title?: string; state?: View["state"]; fill?: boolean } = {}): View =>
+  view(blocks, { title: opts.title, state: opts.state, events: true, ...(opts.fill ? { layout: "fill" as const } : {}) });
+
+// MARK: Live screen blocks (spec/protocol.md §11)
+
+type Heavy = Common & { title?: string; subtitle?: string; height?: number };
+
+/** Many rows: the first `rows` here, the rest asked for with `more` as the user scrolls (answer with `ops.rows`). */
+export const datatable = (columns: (string | Column)[], rows: Row[] | (string | number | boolean | null)[][],
+  o: Heavy & { id: string; total?: number; pageSize?: number; sort?: Block["sort"]; selection?: Block["selection"]; menu?: MenuItem[]; draggable?: boolean; drop?: Block["drop"] }): Block =>
+  ({ type: "datatable", columns, rows, ...o });
+/** Nodes; give `expandable: true` without `children` to have them asked for (`expand`, answer with `ops.children`). */
+export const tree = (nodes: TreeNode[], o: Heavy & { id: string; selection?: Block["selection"]; menu?: MenuItem[]; drop?: Block["drop"] }): Block =>
+  ({ type: "tree", nodes, ...o });
+/** Two or three panes side by side; `sizes` — widths of all but the last, in points (the user's are remembered). */
+export const split = (panes: Node[], o: Common & { sizes?: number[]; height?: number } = {}): Block => ({ type: "split", children: panes, ...o });
+/** A code editor; `completion` — `complete` events (answer with `{ items }`), `change` events as the text changes. */
+export const editor = (source: string, o: Heavy & { id: string; language?: string; completion?: boolean; editable?: boolean; keywords?: string[] }): Block =>
+  ({ type: "editor", text: source, ...o });
+/** Output as it comes (ANSI colors kept): append with `ops.append`. */
+export const terminal = (output: string, o: Heavy & { id: string; maxLines?: number }): Block => ({ type: "terminal", text: output, ...o });
+/** Buttons with symbols: each press is a `press` event with `{item}`. */
+export const toolbar = (items: { id: string; title: string; symbol?: string; danger?: boolean; action?: ViewAction }[], o: Common & { title?: string } = {}): Block =>
+  ({ type: "toolbar", items: items.map(({ danger, ...i }) => ({ ...i, ...(danger ? { status: "bad" as const } : {}) })), ...o });
+/** A form shown as a sheet (a button's `{sheet: id}` or `ops.sheet`); OK sends `submit` with the fields' values. */
+export const sheet = (id: string, title: string, fields: Node[], o: Common & { text?: string; ok?: string } = {}): Block => {
+  const { ok, ...rest } = o;
+  return { type: "sheet", id, title, children: fields, ...(ok ? { subtitle: ok } : {}), ...rest };
+};
+/** A chart whose points the program appends (`ops.append`); `window` — points kept. */
+export const liveChart = (kind: "line" | "bar" | "area", series: { name?: string; values?: (number | null)[] }[],
+  o: Common & { id: string; title?: string; labels?: string[]; unit?: string; height?: number; window?: number }): Block =>
+  ({ type: "chart", chart: kind, series, ...o });
+
+/** Ops of `ui/patch`: what an event's answer (or `push`) changes, by block id. */
+export const ops = {
+  replace: (id: string, block: Block): Op => ({ op: "replace", id, block }),
+  insert: (block: Block, at: { parent?: string; index?: number; after?: string } = {}): Op => ({ op: "insert", block, ...at }),
+  remove: (id: string): Op => ({ op: "remove", id }),
+  set: (id: string, props: Record<string, Json>): Op => ({ op: "set", id, props }),
+  state: (values: Record<string, string | number | boolean>): Op => ({ op: "state", values }),
+  title: (text: string): Op => ({ op: "title", text }),
+  /** A page of rows at `offset`; `reset` forgets the others (a new sort or filter); `total` — the new count. */
+  rows: (id: string, offset: number, rows: Row[] | (string | number | boolean | null)[][], o: { total?: number; reset?: boolean } = {}): Op => ({ op: "rows", id, offset, rows, ...o }),
+  updateRows: (id: string, rows: Row[]): Op => ({ op: "update_rows", id, rows }),
+  insertRows: (id: string, index: number, rows: Row[]): Op => ({ op: "insert_rows", id, index, rows }),
+  removeRows: (id: string, ids: string[]): Op => ({ op: "remove_rows", id, ids }),
+  /** The children of `node` (none — the tree's top level). */
+  children: (id: string, node: string | undefined, nodes: TreeNode[]): Op => ({ op: "children", id, ...(node ? { node } : {}), nodes }),
+  /** Text to a terminal, lines to a logs block, or points (one value per series each) to a live chart. */
+  append: (id: string, what: { text?: string; lines?: string[]; points?: (number | null)[][]; labels?: string[] }): Op => ({ op: "append", id, ...what }),
+  clear: (id: string): Op => ({ op: "clear", id }),
+  text: (id: string, text: string): Op => ({ op: "text", id, text }),
+  select: (id: string, ids: string[]): Op => ({ op: "select", id, ids }),
+  sheet: (id: string): Op => ({ op: "sheet", id }),
+  closeSheet: (): Op => ({ op: "close_sheet" }),
+  notice: (text: string, status?: Status): Op => ({ op: "notice", text, ...(status ? { status } : {}) }),
+};
 
 /** One part of a status sentence. */
 export const part = (text: string, tone?: Tone) => (tone ? { text, tone } : { text });
