@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 import type { Json, Manifest, Param } from "./types.ts";
 import { expand, TemplateError } from "./template.ts";
 
+/** What a storage contribution may declare beyond list, stat, read and write (spec/protocol.md §11). */
+export const STORAGE_CAPABILITIES = ["folders", "rename", "delete", "links", "freeSpace", "check"];
+
 export type Issue = { severity: "error" | "warning"; path: string; message: string };
 
 const schemaDir = fileURLToPath(new URL("../../../schemas/", import.meta.url));
@@ -367,6 +370,9 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
           break;
         case "storage":
           if (x.signIn === "browser" && !perms.has("oauth")) err(`${at}.signIn`, "sign-in through the browser — add «oauth» to permissions");
+          for (const c of x.capabilities ?? []) {
+            if (!STORAGE_CAPABILITIES.includes(c)) warn(`${at}.capabilities`, `«${c}» isn't known and won't be offered — known: ${STORAGE_CAPABILITIES.join(", ")}`);
+          }
           fields(at, x.fields);
           break;
         case "source": fields(at, x.fields); break;

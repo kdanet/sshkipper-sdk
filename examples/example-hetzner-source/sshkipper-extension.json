@@ -1,0 +1,72 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.hetzner-source",
+  "version": "1.0.0",
+  "title": { "ru": "Пример: источник Hetzner Cloud", "en": "Example: a Hetzner Cloud source" },
+  "description": {
+    "ru": "Живая папка серверов проекта Hetzner Cloud: GET /v1/servers с токеном API. Адрес API — в настройках: в тестах и review это подставной сервер на этом Mac.",
+    "en": "A live folder of a Hetzner Cloud project's servers: GET /v1/servers with an API token. The API's address is in the settings: in tests and review it is a stand-in server on this Mac."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "cloud", "color": "red" },
+  "runtime": { "kind": "process", "command": ["node", "main.ts"] },
+  "permissions": ["network", "secrets"],
+  "contributes": {
+    "source": [
+      {
+        "id": "hetzner-cloud",
+        "title": "Hetzner Cloud",
+        "icon": { "symbol": "cloud" },
+        "description": {
+          "ru": "Серверы проекта Hetzner Cloud: имя, адрес, метки, расположение.",
+          "en": "The servers of a Hetzner Cloud project: name, address, labels, location."
+        },
+        "refresh": 300,
+        "fields": [
+          {
+            "key": "token", "type": "secret",
+            "title": { "ru": "Токен API", "en": "API token" },
+            "help": { "ru": "Console → проект → Security → API tokens; достаточно «Read».", "en": "Console → project → Security → API tokens; «Read» is enough." }
+          },
+          {
+            "key": "api", "type": "text", "default": "https://api.hetzner.cloud/v1",
+            "title": { "ru": "Адрес API", "en": "API address" }
+          },
+          {
+            "key": "address", "type": "choice", "default": "ipv4",
+            "title": { "ru": "Адрес для подключения", "en": "Address to connect to" },
+            "choices": [
+              { "value": "ipv4", "title": { "ru": "Публичный IPv4", "en": "Public IPv4" } },
+              { "value": "ipv6", "title": { "ru": "Публичный IPv6", "en": "Public IPv6" } },
+              { "value": "private", "title": { "ru": "Частная сеть", "en": "Private network" } }
+            ]
+          },
+          {
+            "key": "user", "type": "text", "default": "root",
+            "title": { "ru": "Пользователь", "en": "User" }
+          },
+          {
+            "key": "jump", "type": "text",
+            "title": { "ru": "Бастион", "en": "Bastion" },
+            "placeholder": "bastion",
+            "help": {
+              "ru": "Имя подключения документа; у сервера метка «sshkipper-jump» сильнее. Для частной сети.",
+              "en": "The name of a connection of the document; a server's «sshkipper-jump» label wins. For the private network."
+            }
+          },
+          {
+            "key": "group_by", "type": "choice", "default": "location",
+            "title": { "ru": "Папки", "en": "Folders" },
+            "choices": [
+              { "value": "none", "title": { "ru": "Без папок", "en": "No folders" } },
+              { "value": "location", "title": { "ru": "По расположению", "en": "By location" } },
+              { "value": "label", "title": { "ru": "По метке «group»", "en": "By the «group» label" } }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

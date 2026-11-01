@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.folder-storage",
+  "version": "1.0.0",
+  "title": { "ru": "Пример: хранилище-папка", "en": "Example: a folder storage" },
+  "description": {
+    "ru": "Хранилище, которое хранит файлы в папке на этом Mac: простое, но проходит весь протокол хранилища — список, чтение и запись частями, папки, переименование, удаление, проверка.",
+    "en": "A storage that keeps its files in a folder on this Mac: simple, but it goes through the whole storage protocol — listing, reading and writing in parts, folders, renames, deletes, the check."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "folder", "color": "teal" },
+  "runtime": { "kind": "process", "command": ["node", "main.ts"] },
+  "contributes": {
+    "storage": [
+      {
+        "id": "folder",
+        "title": { "ru": "Папка на этом Mac", "en": "A folder on this Mac" },
+        "icon": { "symbol": "folder" },
+        "description": {
+          "ru": "Файлы лежат в папке на этом Mac. Пример расширения: так проверяют протокол хранилища.",
+          "en": "The files are in a folder on this Mac. An example extension: a way to check the storage protocol."
+        },
+        "signIn": "none",
+        "fields": [
+          {
+            "key": "root", "type": "path",
+            "title": { "ru": "Папка", "en": "Folder" },
+            "placeholder": "/tmp/my-storage",
+            "help": { "ru": "Полный путь; папка должна существовать.", "en": "A full path; the folder must exist." }
+          }
+        ],
+        "capabilities": ["folders", "rename", "delete", "freeSpace", "check"]
+      }
+    ]
+  }
+}

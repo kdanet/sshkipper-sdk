@@ -1,7 +1,7 @@
 // The runtime of a process module (spec/protocol.md §4): JSON-RPC 2.0 over stdio, one message per line. A module
 // written with it is a map of async handlers; the app's services (exec on a server, secrets, storage) are `ctx.host`.
 
-import type { Context, ExecResult, Json, Request } from "./types.ts";
+import type { Context, ExecResult, FoundHost, Json, Request, SourceRef, StorageItem, StorageLink, StorageRef } from "./types.ts";
 
 /** A failure the app shows to the user (or gives to the model / fails the automation block with). */
 export class ModuleError extends Error {
@@ -26,6 +26,14 @@ export interface Host {
   store: { get(key: string): Promise<Json | null>; set(key: string, value: Json | null): Promise<void> };
   notify(title: string, text: string): Promise<void>;
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
+  /** A port forwarded through the SSH session of the server the user bound `node` to (a storage reached through a
+   * server): connect to the answer's 127.0.0.1:port. Permission `forward`; only for the node of a call in progress. */
+  forward(opts: { node: string; host: string; port: number }): Promise<{ host: string; port: number }>;
+  /** The browser sign-in of `node` (only while the app's `storage/signIn` for it runs): the app opens `authURL`,
+   * receives the code on 127.0.0.1 (PKCE), exchanges it at `tokenURL` and keeps the refresh token as the node's secret
+   * `oauth` (it comes back in `settings.oauth` of later calls). Permission `oauth`. */
+  oauth(opts: { node: string; authURL: string; tokenURL: string; clientID: string; clientSecret?: string; scope?: string;
+    params?: Record<string, string> }): Promise<{ accessToken: string | null }>;
 }
 
 export interface HandlerContext extends Context {
@@ -36,8 +44,20 @@ export interface HandlerContext extends Context {
 
 export type HandlerFn = (input: Record<string, Json>, ctx: HandlerContext) => Promise<Json | void> | Json | void;
 
+/** What a contribution's own method gets (spec/protocol.md §11): the app's services, the cancel signal, the locale. */
+export interface MethodContext {
+  host: Host;
+  signal: AbortSignal;
+  locale: string;
+}
+
+/** A contribution's own method (`storage/list`, `source/poll`…): its params, its JSON answer. */
+export type MethodFn = (params: Record<string, any>, ctx: MethodContext) => Promise<Json | void> | Json | void;
+
 export interface ModuleDefinition {
   handlers: Record<string, HandlerFn>;
+  /** A contribution's own methods by name (`storage/list`…): requests on the same connection as `handler/call`. */
+  methods?: Record<string, MethodFn>;
   /** Called once after initialize (the app's version, the locale). */
   setup?: (info: { app: string; locale: string; module: { id: string; version: string } }) => void | Promise<void>;
 }
@@ -118,7 +138,24 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
       },
       async notify(title, text) { await request("host/notify", { title, text }); },
       log(level, message) { send({ method: "host/log", params: { level, message } }); },
+      async forward(opts) { return (await request("host/forward", opts as unknown as Json)) as unknown as { host: string; port: number }; },
+      async oauth(opts) { return (await request("host/oauth", opts as unknown as Json)) as unknown as { accessToken: string | null }; },
     };
+  }
+
+  let locale = "en";
+
+  async function method(id: number | string, fn: MethodFn, params: Record<string, any>, abort: AbortController) {
+    try {
+      const result = await fn(params ?? {}, { host: hostFor({} as Context), signal: abort.signal, locale });
+      if (!abort.signal.aborted) send({ id, result: result === undefined ? null : result });
+    } catch (e) {
+      if (abort.signal.aborted) return;
+      const err = e instanceof ModuleError ? e : new ModuleError(e instanceof Error ? e.message : String(e));
+      send({ id, error: { code: err.code, message: err.message } });
+    } finally {
+      running.delete(String(id));
+    }
   }
 
   async function call(id: number | string, params: Request, abort: AbortController) {
@@ -153,6 +190,7 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
     switch (msg.method) {
       case "initialize":
+        locale = msg.params?.locale ?? locale;
         ready ??= (async () => {
           if (def.setup) await def.setup({ app: msg.params?.app ?? "", locale: msg.params?.locale ?? "en", module: msg.params?.module ?? { id: "", version: "" } });
         })();
@@ -179,8 +217,20 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
         send({ id: msg.id, result: null });
         setTimeout(() => exit(), 10);
         return;
-      default:
+      default: {
+        const fn = def.methods?.[msg.method];
+        if (fn && msg.id !== undefined) {
+          if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+          const abort = new AbortController();
+          running.set(String(msg.id), abort);
+          try { await ready; } catch {
+            running.delete(String(msg.id));
+            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+          }
+          return method(msg.id, fn, msg.params, abort);
+        }
         if (msg.id !== undefined) send({ id: msg.id, error: { code: Codes.methodNotFound, message: `no method ${msg.method}` } });
+      }
     }
   });
   transport.onClose(() => exit());
@@ -201,4 +251,78 @@ export function quote(s: string): string {
 export function tr(ctx: { locale: string }, t: Record<string, string>): string {
   const base = ctx.locale.split(/[-_]/)[0];
   return t[ctx.locale] ?? t[base] ?? t.en ?? Object.values(t)[0] ?? "";
+}
+
+/** A storage contribution (spec/protocol.md §11): what each `storage/*` method does. The optional ones answer only
+ * when the manifest's `capabilities` name them (`folders` → mkdir, `rename`, `delete`, `links` → link, `check`). */
+export interface StorageImpl {
+  list(path: string, storage: StorageRef, ctx: MethodContext): Promise<StorageItem[]> | StorageItem[];
+  /** null — nothing there. */
+  stat(path: string, storage: StorageRef, ctx: MethodContext): Promise<StorageItem | null> | StorageItem | null;
+  /** Up to `length` bytes from `offset`; `eof` — nothing after them. */
+  read(path: string, offset: number, length: number, storage: StorageRef, ctx: MethodContext): Promise<{ data: Uint8Array; eof: boolean }>;
+  /** An upload in parts: nothing appears at `path` before `commit`; `abort` throws the parts away. */
+  write: {
+    begin(path: string, size: number, modified: number | undefined, storage: StorageRef, ctx: MethodContext): Promise<string> | string;
+    chunk(upload: string, offset: number, data: Uint8Array, storage: StorageRef, ctx: MethodContext): Promise<void> | void;
+    commit(upload: string, storage: StorageRef, ctx: MethodContext): Promise<void> | void;
+    abort(upload: string, storage: StorageRef, ctx: MethodContext): Promise<void> | void;
+  };
+  mkdir?(path: string, storage: StorageRef, ctx: MethodContext): Promise<void> | void;
+  rename?(from: string, to: string, storage: StorageRef, ctx: MethodContext): Promise<void> | void;
+  delete?(path: string, recursive: boolean, storage: StorageRef, ctx: MethodContext): Promise<void> | void;
+  link?(path: string, action: "list" | "create" | "remove", link: { url?: string; id?: string }, storage: StorageRef, ctx: MethodContext):
+    Promise<StorageLink[] | StorageLink | void> | StorageLink[] | StorageLink | void;
+  check?(storage: StorageRef, ctx: MethodContext): Promise<{ text?: string; free?: number; account?: string }> | { text?: string; free?: number; account?: string };
+  /** The user's «Войти»: call `ctx.host.oauth({ node: storage.node, … })`, answer the account's name. */
+  signIn?(storage: StorageRef, ctx: MethodContext): Promise<{ account?: string }> | { account?: string };
+}
+
+const b64 = (u: Uint8Array) => Buffer.from(u.buffer, u.byteOffset, u.byteLength).toString("base64");
+const unb64 = (s: unknown) => new Uint8Array(Buffer.from(typeof s === "string" ? s : "", "base64"));
+
+/** The `storage/*` methods of `defineModule({ methods })` from a `StorageImpl`. */
+export function storageMethods(impl: StorageImpl): Record<string, MethodFn> {
+  const ref = (p: Record<string, any>) => p.storage as StorageRef;
+  const m: Record<string, MethodFn> = {
+    "storage/list": async (p, ctx) => ({ items: (await impl.list(p.path, ref(p), ctx)) as unknown as Json }),
+    "storage/stat": async (p, ctx) => ({ item: ((await impl.stat(p.path, ref(p), ctx)) ?? null) as unknown as Json }),
+    "storage/read": async (p, ctx) => {
+      const r = await impl.read(p.path, Number(p.offset) || 0, Number(p.length) || 1 << 20, ref(p), ctx);
+      return { data: b64(r.data), eof: r.eof };
+    },
+    "storage/write/begin": async (p, ctx) => ({ upload: await impl.write.begin(p.path, Number(p.size) || 0, p.modified, ref(p), ctx) }),
+    "storage/write/chunk": async (p, ctx) => { await impl.write.chunk(p.upload, Number(p.offset) || 0, unb64(p.data), ref(p), ctx); return {}; },
+    "storage/write/commit": async (p, ctx) => { await impl.write.commit(p.upload, ref(p), ctx); return {}; },
+    "storage/write/abort": async (p, ctx) => { await impl.write.abort(p.upload, ref(p), ctx); return {}; },
+  };
+  if (impl.mkdir) m["storage/mkdir"] = async (p, ctx) => { await impl.mkdir!(p.path, ref(p), ctx); return {}; };
+  if (impl.rename) m["storage/rename"] = async (p, ctx) => { await impl.rename!(p.from, p.to, ref(p), ctx); return {}; };
+  if (impl.delete) m["storage/delete"] = async (p, ctx) => { await impl.delete!(p.path, p.recursive === true, ref(p), ctx); return {}; };
+  if (impl.link) m["storage/link"] = async (p, ctx) => {
+    const r = await impl.link!(p.path, p.action, { url: p.url, id: p.id }, ref(p), ctx);
+    return (Array.isArray(r) ? { links: r } : r ?? {}) as unknown as Json;
+  };
+  if (impl.check) m["storage/check"] = async (p, ctx) => (await impl.check!(ref(p), ctx)) as unknown as Json;
+  if (impl.signIn) m["storage/signIn"] = async (p, ctx) => (await impl.signIn!(ref(p), ctx)) as unknown as Json;
+  return m;
+}
+
+/** A source contribution (spec/protocol.md §11): its hosts now, and the editor's «Проверить». */
+export interface SourceImpl {
+  poll(source: SourceRef, ctx: MethodContext): Promise<{ hosts: FoundHost[]; scope?: string }> | { hosts: FoundHost[]; scope?: string };
+  /** Without it, «Проверить» polls and counts the hosts. */
+  check?(source: SourceRef, ctx: MethodContext): Promise<{ text: string }> | { text: string };
+}
+
+/** The `source/*` methods of `defineModule({ methods })` from a `SourceImpl`. */
+export function sourceMethods(impl: SourceImpl): Record<string, MethodFn> {
+  return {
+    "source/poll": async (p, ctx) => (await impl.poll(p.source as SourceRef, ctx)) as unknown as Json,
+    "source/check": async (p, ctx) => {
+      if (impl.check) return (await impl.check(p.source as SourceRef, ctx)) as unknown as Json;
+      const r = await impl.poll(p.source as SourceRef, ctx);
+      return { text: `${r.hosts.length} host(s)${r.scope ? " · " + r.scope : ""}` };
+    },
+  };
 }

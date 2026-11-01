@@ -308,3 +308,51 @@ export interface ExecResult {
   stdout: string;
   stderr: string;
 }
+
+// Contributions answered by the program (spec/protocol.md §11).
+
+/** Which storage a `storage/*` call is for: the node, its kind and its settings (secret fields as text). */
+export interface StorageRef {
+  node: string;
+  kind: string;
+  settings: Record<string, Json>;
+  readOnly: boolean;
+  /** The user bound it to a server: reach it through `host.forward`. */
+  throughServer: boolean;
+}
+
+/** One entry of a storage. `modified` — seconds since 1970; `digest` — a checksum the app verifies after a download. */
+export interface StorageItem {
+  name: string;
+  type: "file" | "folder";
+  size?: number;
+  modified?: number;
+  digest?: { algorithm: "sha256" | "md5"; value: string };
+}
+
+export interface StorageLink { url: string; id?: string; expires?: number; hasPassword?: boolean }
+
+/** Which source a `source/*` call is for. */
+export interface SourceRef {
+  node: string;
+  kind: string;
+  settings: Record<string, Json>;
+}
+
+/** One host a source found. `id` is stable in the source (never the address); `jump` — a bastion by the name of a
+ * connection of the user's document. Host keys are never taken from a source. */
+export interface FoundHost {
+  id: string;
+  name: string;
+  address: string;
+  port?: number;
+  user?: string;
+  jump?: string;
+  online?: boolean;
+  os?: string;
+  tags?: string[];
+  group?: string;
+  addresses?: string[];
+  details?: string[];
+  lastSeen?: number;
+}
