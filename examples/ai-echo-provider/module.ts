@@ -26,7 +26,9 @@ function called(req: AIChatRequest): string[] {
   return req.messages.slice(start + 1).flatMap((m) => m.content).filter((b): b is ToolUse => b.type === "tool_use").map((b) => b.name);
 }
 
-const wantsTools = (text: string) => /провер|check|uptime/i.test(text);
+const wantsTools = (text: string) => /провер|check|uptime|метк|mark/i.test(text);
+/** «Поставь метку» / "leave a mark": a command that changes something (an empty file in /tmp) — the app asks first. */
+const wantsChange = (text: string) => /метк|mark/i.test(text);
 const hasTool = (req: AIChatRequest, name: string) => req.tools.some((t) => t.name === name);
 
 defineModule({
@@ -68,19 +70,23 @@ defineModule({
             await say(`${greeting}: открытых сессий нет — откройте вкладку сервера и спросите снова.`);
             return { stop: "end_turn", usage, model: req.model };
           }
-          await say(`${greeting}: выполню uptime в сессии ${first}. `);
-          return toolTurn("echo-run", "run_command", {
-            session_id: first, command: "uptime", timeout_s: 20,
-            purpose: "Посмотреть, сколько сервер работает и его нагрузку", effects: ["read"],
-          });
+          const change = wantsChange(lastUserText(req));
+          const command = change ? "touch /tmp/sshkipper-echo-mark" : "uptime";
+          await say(`${greeting}: выполню ${command} в сессии ${first}. `);
+          return toolTurn("echo-run", "run_command", change
+            ? { session_id: first, command, timeout_s: 20, purpose: "Оставить пустой файл-метку в /tmp", effects: ["write"] }
+            : { session_id: first, command, timeout_s: 20, purpose: "Посмотреть, сколько сервер работает и его нагрузку", effects: ["read"] });
         }
         const out = got[0]?.content ?? "";
         const line = out.split("\n").find((l) => /load average|up /i.test(l)) ?? out.split("\n")[0] ?? "";
-        await say(got[0]?.is_error ? `${greeting}: команда не выполнилась — ${line}` : `${greeting}: сервер ответил. ${line.trim()}`);
+        const said = got[0]?.is_error ? `${greeting}: команда не выполнилась — ${line}`
+          : wantsChange(lastUserText(req)) ? `${greeting}: метка /tmp/sshkipper-echo-mark на месте.` : `${greeting}: сервер ответил. ${line.trim()}`;
+        await say(said);
         return { stop: "end_turn", usage: { ...usage, output_tokens: 30 }, model: req.model };
       }
 
-      const question = lastUserText(req).trim();
+      // The app puts what it knows of the moment (the date, the sessions) before the question: not echoed back.
+      const question = lastUserText(req).replace(/<sshkipper_context>[\s\S]*?<\/sshkipper_context>/g, "").trim();
       const key = typeof req.secrets.api_key === "string" ? req.secrets.api_key : "";
       await say([
         `${greeting}: вы написали «${question.slice(0, 200)}».`,
