@@ -1,7 +1,7 @@
 // The runtime of a process module (spec/protocol.md §4): JSON-RPC 2.0 over stdio, one message per line. A module
 // written with it is a map of async handlers; the app's services (exec on a server, secrets, storage) are `ctx.host`.
 
-import type { Context, ExecResult, Json, Request } from "./types.ts";
+import type { Context, EventAnswer, ExecResult, Json, Op, Request, ScreenEvent } from "./types.ts";
 
 /** A failure the app shows to the user (or gives to the model / fails the automation block with). */
 export class ModuleError extends Error {
@@ -36,8 +36,15 @@ export interface HandlerContext extends Context {
 
 export type HandlerFn = (input: Record<string, Json>, ctx: HandlerContext) => Promise<Json | void> | Json | void;
 
+/** An event's context: the call's, plus `push` — ops to this screen at any time later (live data, `ui/push`). */
+export interface EventContext extends HandlerContext {
+  push(ops: Op[]): void;
+}
+
 export interface ModuleDefinition {
   handlers: Record<string, HandlerFn>;
+  /** A live screen's events (spec/protocol.md §10): what the user did → ops changing the screen (and completions). */
+  onEvent?: (event: ScreenEvent, ctx: EventContext) => EventAnswer | Promise<EventAnswer>;
   /** Called once after initialize (the app's version, the locale). */
   setup?: (info: { app: string; locale: string; module: { id: string; version: string } }) => void | Promise<void>;
 }
@@ -139,6 +146,27 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
   }
 
+  /** Ops to a screen at any time (`ui/push`): live data. The app takes them only for screens of this module. */
+  function push(screen: string, ops: Op[]) {
+    if (ops.length) send({ method: "ui/push", params: { screen, ops } });
+  }
+
+  /** A live screen's event (§10.3): `onEvent` answers with ops (and completions). */
+  async function event(id: number | string, params: { event: ScreenEvent; context: Context }, abort: AbortController) {
+    try {
+      if (!def.onEvent) return send({ id, result: null });
+      const ctx: EventContext = { ...params.context, host: hostFor(params.context), signal: abort.signal, push: (ops) => push(params.event.screen, ops) };
+      const result = await def.onEvent(params.event, ctx);
+      if (!abort.signal.aborted) send({ id, result: result === undefined ? null : result });
+    } catch (e) {
+      if (abort.signal.aborted) return;
+      const err = e instanceof ModuleError ? e : new ModuleError(e instanceof Error ? e.message : String(e));
+      send({ id, error: { code: err.code, message: err.message } });
+    } finally {
+      running.delete(String(id));
+    }
+  }
+
   transport.onLine(async (line) => {
     let msg: any;
     try { msg = JSON.parse(line); } catch { return send({ id: null, error: { code: Codes.parse, message: "not JSON" } }); }
@@ -172,6 +200,17 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
           }
           return call(msg.id, msg.params as Request, abort);
         }
+      case "ui/event":
+        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+        {
+          const abort = new AbortController();
+          running.set(String(msg.id), abort);
+          try { await ready; } catch {
+            running.delete(String(msg.id));
+            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+          }
+          return event(msg.id, msg.params, abort);
+        }
       case "cancel":
         running.get(String(msg.params?.id))?.abort();
         return;
@@ -184,7 +223,7 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
   });
   transport.onClose(() => exit());
-  return { request, running };
+  return { request, running, push };
 }
 
 /** Defines and serves a module in one line: `defineModule({ handlers: { … } })`. */

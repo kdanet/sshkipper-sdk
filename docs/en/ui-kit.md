@@ -140,3 +140,35 @@ return view([
 
 `symbol` fields take SF Symbols names from [schemas/symbols.json](../../schemas/symbols.json) — the set the app
 draws safely everywhere; another name shows a puzzle piece (the validator warns).
+
+## Live screens
+
+A page with `events` is a live screen (protocol §10): the app sends what the user does to your program and applies
+the ops it answers with — only the blocks they name change. Your program can also push ops by itself (live data).
+
+```ts
+import { datatable, defineModule, ops, screen, tree } from "./lib/sshkipper-sdk/index.ts";
+
+defineModule({
+  handlers: {
+    render: () => screen([
+      tree([{ id: "q", title: "default", expandable: true }], { id: "queues" }),
+      datatable(["id", "name"], [], { id: "jobs", total: 50_000 }),
+    ]),
+  },
+  onEvent: (e, ctx) => {
+    if (e.type === "more") return [ops.rows("jobs", e.value.offset, loadPage(e.value.offset, e.value.limit))];
+    if (e.type === "expand") return [ops.children("queues", e.value.node, childrenOf(e.value.node))];
+    if (e.type === "open") setInterval(() => ctx.push([ops.append("rate", { points: [[sample()]] })]), 1000);
+    return null;
+  },
+});
+```
+
+The screen's own blocks: `datatable` (any number of rows, a page at a time; the app sorts what's loaded and asks you
+to sort the rest), `tree` (children asked for on expand), `split`, `editor` (completion from you), `terminal` (ANSI
+colors), `toolbar`, `sheet` (a form; OK sends its values), a `chart` with an `id` (append points). Context menus
+(`menu`), drag and drop (`draggable`, `drop: ["files"]`) and editable cells (`editable` columns) send events too. An
+answer to an event overtaken by a newer one (a second selection, more typing) is dropped by the app, so answer
+quickly and don't worry about order. See [examples/screens](../../examples/screens); the app's «Инспектор экрана» (the
+page's «⋯» menu) shows the block tree and every event and patch.

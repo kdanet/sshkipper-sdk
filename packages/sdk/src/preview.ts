@@ -15,6 +15,7 @@ export function preview(view: Json, vars: Record<string, Json> = {}, components:
     lines.push(v.status.map((p: any) => (p.tone ? `${p.text} (${p.tone})` : p.text)).join(""));
   }
   if (v.state && Object.keys(v.state).length) lines.push(`state: ${JSON.stringify(v.state)}`);
+  if (v.events) lines.push(`live screen: events → ${v.events === true ? "the program (ui/event)" : `handler ${v.events}`}${v.layout === "fill" ? ", fills the area" : ""}`);
   for (const b of v.blocks ?? []) block(b, 0, lines);
   return lines.join("\n");
 }
@@ -36,6 +37,8 @@ function act(a: any): string {
   if (a.set) return `set ${JSON.stringify(a.set)}`;
   if (a.open) return `open ${a.open}`;
   if (a.ask) return `ask «${a.ask}»`;
+  if (a.event) return `event ${a.event}${a.params ? " " + JSON.stringify(a.params) : ""}`;
+  if (a.sheet) return `sheet ${a.sheet}`;
   return "?";
 }
 
@@ -80,6 +83,43 @@ function block(b: any, depth: number, out: string[]) {
     case "search": head(`[search ${b.bind}]${b.subtitle ? " " + b.subtitle : ""}`); return;
     case "button": head(`[button]${t} → ${b.action ? act(b.action) : "nothing"}`); return;
     case "field": case "toggle": case "picker": case "slider": head(`[${b.type} ${b.bind}]${t}`); return;
+    // A live screen's own blocks.
+    case "datatable": {
+      const cols = (b.columns ?? []).map((c: any) => (typeof c === "string" ? c : c.title ?? c.id));
+      const rows = b.rows ?? [];
+      head(`[datatable #${b.id ?? "?"}]${t}: ${cols.join(" | ")} — ${rows.length} of ${b.total ?? rows.length} rows${b.menu?.length ? ` ⋯ ${b.menu.map((m: any) => m.title).join(", ")}` : ""}`);
+      for (const r of rows.slice(0, 10)) {
+        const cells = Array.isArray(r) ? r : r.cells ?? (b.columns ?? []).map((c: any) => r.values?.[typeof c === "string" ? c : c.id] ?? "");
+        head(`  ${r.status ? `${dot[r.status] ?? "·"} ` : ""}${cells.map((c: any) => print(c ?? "")).join(" | ")}`);
+      }
+      if ((b.total ?? rows.length) > Math.min(rows.length, 10)) head(`  … the rest come page by page (more)`);
+      return;
+    }
+    case "tree": {
+      head(`[tree #${b.id ?? "?"}]${t}`);
+      const walk = (n: any, d: number) => {
+        head(`${"  ".repeat(d + 1)}${n.children?.length || n.expandable ? "▸ " : "· "}${n.status ? `${dot[n.status] ?? ""} ` : ""}${n.title}${n.detail ? ` — ${n.detail}` : ""}${n.expandable && !n.children ? " (asks)" : ""}`);
+        for (const c of (n.children ?? []).slice(0, 30)) walk(c, d + 1);
+      };
+      for (const n of (b.nodes ?? []).slice(0, 50)) walk(n, 0);
+      return;
+    }
+    case "split":
+      head(`[split${b.sizes?.length ? " " + b.sizes.join("/") : ""}]`);
+      for (const c of b.children ?? []) block(c, depth + 1, out);
+      return;
+    case "editor": head(`[editor #${b.id ?? "?"}${b.language ? " " + b.language : ""}${b.completion ? " completion" : ""}]${t}: ${String(b.text ?? "").split("\n").length} lines`); return;
+    case "terminal": {
+      head(`[terminal #${b.id ?? "?"}]${t}`);
+      // eslint-disable-next-line no-control-regex
+      for (const l of String(b.text ?? "").replace(/\u001b\[[0-9;]*[A-Za-z]/g, "").split("\n").filter(Boolean).slice(-8)) head(`  ${l}`);
+      return;
+    }
+    case "toolbar": head(`[toolbar] ${(b.items ?? []).map((i: any) => `[${i.title}${i.status === "bad" ? " !" : ""}]`).join(" ")}`); return;
+    case "sheet":
+      head(`[sheet #${b.id ?? "?"}]${t} — OK: ${b.subtitle ?? "Готово"}`);
+      for (const c of b.children ?? []) block(c, depth + 1, out);
+      return;
     default: head(`[${b.type ?? "?"}]${t}`);
   }
 }

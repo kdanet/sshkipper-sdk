@@ -1,0 +1,24 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.screens",
+  "version": "1.0.0",
+  "title": { "ru": "Очереди (пример экрана)", "en": "Queues (a screen example)" },
+  "description": {
+    "ru": "Живой экран модуля-программы: дерево очередей с раскрытием по запросу, таблица в 50 000 задач с подгрузкой и сортировкой, фильтр с автодополнением, вывод, график, который программа дополняет сама, лист новой задачи. Данные выдуманные — модуль ничего не делает на сервере.",
+    "en": "A process module's live screen: a tree of queues expanded on demand, a 50 000-job table loaded page by page and sorted by the program, a filter with completion, output, a chart the program adds points to, a new-job sheet. The data is made up — the module does nothing on the server."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "tray.full", "color": "indigo" },
+  "runtime": { "kind": "process", "command": ["node", "module.ts"] },
+  "permissions": [],
+  "service": { "detect": "detect", "page": "main" },
+  "pages": [
+    { "id": "main", "title": { "ru": "Очереди", "en": "Queues" }, "render": "render" }
+  ],
+  "handlers": {
+    "detect": { "timeout": 5 },
+    "render": { "timeout": 10 }
+  }
+}

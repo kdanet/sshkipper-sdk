@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sshkipper.dev/schemas/view-1.json",
   "title": "SSHKipper view (UI-Kit), SDK 1",
-  "description": "A page of a module: blocks the app draws natively (AppKit/SwiftUI), in the look of its own service pages. The same format as the app's canvas_view, plus module blocks, styles, templates and module actions.",
+  "description": "A page of a module: blocks the app draws natively (AppKit/SwiftUI), in the look of its own service pages. The same format as the app's canvas_view, plus module blocks, styles, templates and module actions. A page with `events` is a live screen (spec/protocol.md §10): its own blocks (datatable, tree, split, editor, terminal, toolbar, sheet) read too, and what the user does goes to the module as `ui/event`.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -39,6 +39,24 @@
       "items": {
         "$ref": "#/$defs/node"
       }
+    },
+    "events": {
+      "description": "A live screen: true — the program answers its events (`ui/event`, a process module); a handler's name — that handler of a server module, with the event as its input `event`.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,59}$"
+        }
+      ]
+    },
+    "layout": {
+      "enum": [
+        "fill"
+      ],
+      "description": "fill: the screen takes the whole area (a split, a big table to the bottom edge) instead of scrolling."
     }
   },
   "$defs": {
@@ -176,6 +194,16 @@
         "ask": {
           "type": "string",
           "maxLength": 2000
+        },
+        "event": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "A live screen: a `press` event with this name (and `params`) goes to the program."
+        },
+        "sheet": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "A live screen: opens its sheet block of this id."
         }
       }
     },
@@ -268,7 +296,10 @@
           "maxItems": 1000,
           "description": "null is a gap: the line breaks there (a check that got no answer).",
           "items": {
-            "type": ["number", "null"]
+            "type": [
+              "number",
+              "null"
+            ]
           }
         },
         "formula": {
@@ -393,7 +424,14 @@
             "field",
             "toggle",
             "picker",
-            "button"
+            "button",
+            "datatable",
+            "tree",
+            "split",
+            "editor",
+            "terminal",
+            "toolbar",
+            "sheet"
           ]
         },
         "id": {
@@ -410,8 +448,8 @@
         },
         "text": {
           "type": "string",
-          "maxLength": 12000,
-          "description": "Text (Markdown) — drawn up to 4 000 characters; code blocks up to 12 000."
+          "maxLength": 1000000,
+          "description": "Text (Markdown) — drawn up to 4 000 characters; code blocks up to 12 000; an editor's text up to 1 000 000, a terminal's up to 200 000 (ANSI colors kept)."
         },
         "symbol": {
           "type": "string",
@@ -427,9 +465,21 @@
           ]
         },
         "columns": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 6
+          "description": "grid: how many columns (1–6); datatable: the columns.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            },
+            {
+              "type": "array",
+              "maxItems": 40,
+              "items": {
+                "$ref": "#/$defs/column"
+              }
+            }
+          ]
         },
         "children": {
           "type": "array",
@@ -489,19 +539,27 @@
         },
         "rows": {
           "type": "array",
-          "maxItems": 300,
+          "maxItems": 2000,
           "items": {
-            "type": "array",
-            "maxItems": 12,
-            "items": {
-              "type": [
-                "string",
-                "number",
-                "boolean",
-                "null"
-              ]
-            }
-          }
+            "oneOf": [
+              {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              {
+                "$ref": "#/$defs/row"
+              }
+            ]
+          },
+          "description": "table: up to 300 rows of cells. datatable: the first rows (cells, or {id, cells | values, status, data}); the rest come page by page."
         },
         "items": {
           "type": "array",
@@ -578,6 +636,111 @@
         },
         "style": {
           "$ref": "#/$defs/style"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000,
+          "description": "datatable: how many rows there are (the first `rows` are given, the rest asked for with `more`)."
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 2000,
+          "description": "datatable: rows per `more` (200 by default)."
+        },
+        "sort": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "column"
+          ],
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "ascending": {
+              "type": "boolean"
+            }
+          },
+          "description": "datatable: how the rows given are sorted (the header shows it)."
+        },
+        "selection": {
+          "enum": [
+            "none",
+            "single",
+            "multiple"
+          ],
+          "description": "datatable, tree: how many rows may be selected (multiple by default)."
+        },
+        "menu": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/menuItem"
+          },
+          "description": "datatable, tree: the context menu of rows (nodes) — a `menu` event."
+        },
+        "draggable": {
+          "type": "boolean",
+          "description": "datatable: rows may be dragged to another place — a `move` event."
+        },
+        "drop": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "files",
+              "rows"
+            ]
+          },
+          "description": "datatable, tree: what may be dropped — paths of files (Finder, the file panel) or rows of another block — a `drop` event."
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "$ref": "#/$defs/treeNode"
+          },
+          "description": "tree: the nodes; a node with `expandable` and no `children` gets them when expanded (`expand`)."
+        },
+        "sizes": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 80,
+            "maximum": 2000
+          },
+          "description": "split: widths of the panes but the last, in points (the user's widths are remembered over them)."
+        },
+        "completion": {
+          "type": "boolean",
+          "description": "editor: ask the program to complete what is typed (`complete` events)."
+        },
+        "editable": {
+          "type": "boolean",
+          "description": "editor: false — read only."
+        },
+        "keywords": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "description": "editor: words colored as keywords (sql, sh, python, js have their own)."
+        },
+        "maxLines": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 100000,
+          "description": "terminal: lines kept (5 000 by default)."
+        },
+        "window": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 5000,
+          "description": "chart of a live screen: points kept as new ones are appended (300 by default)."
         }
       }
     },
@@ -744,6 +907,358 @@
             "props": {
               "type": "object",
               "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "column": {
+      "description": "A column of a datatable: a name, or its fields.",
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 64
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "width": {
+              "type": "number",
+              "minimum": 30,
+              "maximum": 1200
+            },
+            "kind": {
+              "enum": [
+                "text",
+                "number",
+                "date"
+              ]
+            },
+            "sortable": {
+              "type": "boolean"
+            },
+            "editable": {
+              "type": "boolean",
+              "description": "A double click edits the cell — an `edit` event."
+            }
+          }
+        }
+      ]
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A row of a datatable: its id (what events name) and its cells, in order or by column id.",
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "cells": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Given back with the row's events."
+        }
+      }
+    },
+    "treeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "badge": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/treeNode"
+          }
+        },
+        "expandable": {
+          "type": "boolean",
+          "description": "Its children are asked for when it is expanded."
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "menuItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "danger": {
+          "type": "boolean",
+          "description": "Red, last, after a line."
+        }
+      }
+    },
+    "op": {
+      "description": "One op of a `ui/patch` (an answer to `ui/event`, or `ui/push`): spec/protocol.md §10.4.",
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "enum": [
+            "replace",
+            "insert",
+            "remove",
+            "set",
+            "state",
+            "title",
+            "rows",
+            "update_rows",
+            "insert_rows",
+            "remove_rows",
+            "children",
+            "append",
+            "clear",
+            "text",
+            "select",
+            "sheet",
+            "close_sheet",
+            "notice"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "after": {
+          "type": "string"
+        },
+        "block": {
+          "$ref": "#/$defs/block"
+        },
+        "props": {
+          "type": "object"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reset": {
+          "type": "boolean"
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "oneOf": [
+              {
+                "type": "array"
+              },
+              {
+                "$ref": "#/$defs/row"
+              }
+            ]
+          }
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "node": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/treeNode"
+          }
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "answer": {
+      "description": "What `ui/event` returns and `ui/push` sends: ops, and for a `complete` event the completions.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/op"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "screen": {
+              "type": "string"
+            },
+            "ops": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "$ref": "#/$defs/op"
+              }
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "title"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "insert": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }

@@ -37,6 +37,7 @@ with each call and leave nothing behind.
 | [packages/mcp](../../packages/mcp) | The MCP server for AI agents writing modules |
 | [examples/processes](../../examples/processes) | A server module: load, memory, the busiest processes, signals |
 | [examples/http-checks](../../examples/http-checks) | A process module in TypeScript: URL checks, history, notifications, an AI tool |
+| [examples/screens](../../examples/screens) | A live screen (protocol §10): a 50 000-row table loaded by pages, a tree expanded on demand, a split, an editor with completion, a terminal, a chart the program pushes points to, a sheet |
 
 ## Guides
 
