@@ -136,11 +136,29 @@ const NAME = /^[a-z][a-z0-9_]{0,39}$/;
 const isInside = (p: string) => !p.startsWith("/") && !p.split("/").includes("..") && !p.includes("\0");
 const norm = (p: string) => p.replace(/^(\.\/)+/, "");
 
+/** The manifest names a package folder may hold: an extension's first (spec/protocol.md §10). */
+export const MANIFEST_FILES = ["sshkipper-extension.json", "sshkipper-module.json"] as const;
+
+/** Which manifest a folder has; an error when it has none or both (the app refuses both too). */
+export function manifestFile(dir: string): string {
+  const present = MANIFEST_FILES.filter((f) => { try { return statSync(join(dir, f)).isFile(); } catch { return false; } });
+  if (present.length > 1) throw new Error("the folder has both sshkipper-extension.json and sshkipper-module.json — keep one");
+  if (!present.length) throw new Error("no sshkipper-extension.json or sshkipper-module.json");
+  return present[0];
+}
+
+/** The contributions the app knows (spec/protocol.md §10). */
+export const CONTRIBUTION_KINDS = ["service", "tools", "automation", "database", "storage", "source", "nodeType", "screen", "import", "console", "ai"] as const;
+
 /** What's wrong with a manifest: the schema, then the checks the app makes. `files` — relative paths of the folder. */
 export function validateManifest(m: Manifest, files?: Set<string>): Issue[] {
   const out = checkSchema(m, schema("module"));
+  // A module's own contributions written under `contributes` are checked where the app reads them: at the top level.
+  const c = m.contributes;
+  const merged: Manifest = c ? { ...m, service: m.service ?? c.service, tools: m.tools ?? c.tools, automation: m.automation ?? c.automation } : m;
   // The app's checks too, as far as the shape lets them run: a wrong type the schema named may stop them.
-  try { semantic(m, files, out); } catch { /* the schema's errors say it */ }
+  try { semantic(merged, files, out); } catch { /* the schema's errors say it */ }
+  try { contributions(m, files, out); } catch { /* the schema's errors say it */ }
   const seen = new Set<string>();
   return out.filter((i) => { const k = `${i.path}|${i.message}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
@@ -289,6 +307,81 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
   });
 }
 
+// MARK: Extensions
+
+const BUILT_IN = {
+  database: new Set(["mysql", "redis", "clickhouse", "postgres", "sqlite", "mongodb"]),
+  storage: new Set(["s3", "webdav", "gdrive", "yadisk", "dropbox"]),
+  source: new Set(["tailscale", "lan"]),
+};
+const CONTRIBUTION_ID = /^[a-z][a-z0-9_-]{0,39}$/;
+/** Run by a program on this Mac: a server script can't answer for them (as the app checks). */
+const NEEDS_PROGRAM = new Set(["database", "storage", "source", "import", "console", "ai"]);
+
+/** The app's checks of `contributes` (its ModuleKit `contributionIssues`). */
+function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
+  const c = m.contributes;
+  if (!c) return;
+  const schemaErrors = new Set(out.filter((i) => i.severity === "error"));
+  const err = (path: string, message: string) => {
+    for (let i = out.length - 1; i >= 0; i--) if (schemaErrors.has(out[i]) && out[i].path === path) out.splice(i, 1);
+    out.push({ severity: "error", path, message });
+  };
+  const warn = (path: string, message: string) => out.push({ severity: "warning", path, message });
+  const perms = new Set(m.permissions ?? []);
+  const handlers = m.handlers ?? {};
+  const server = m.runtime.kind === "server";
+  const known = CONTRIBUTION_KINDS as readonly string[];
+  for (const k of Object.keys(c)) {
+    if (!known.includes(k)) err(`contributes.${k}`, `unknown kind of contribution «${k}» — this version of SSHKipper knows: ${known.join(", ")}`);
+  }
+  for (const k of ["service", "tools", "automation"] as const) {
+    if (c[k] !== undefined && m[k] !== undefined) err(`contributes.${k}`, `«${k}» is both in contributes and at the top level — keep one`);
+  }
+  const handler = (path: string, n?: string) => { if (n !== undefined && !(n in handlers)) err(path, `no handler «${n}» in handlers`); };
+  const fields = (at: string, fs?: { key: string; type: string; choices?: unknown[] }[]) => {
+    const keys = new Set<string>();
+    (fs ?? []).forEach((f, j) => {
+      if (keys.has(f.key)) err(`${at}.fields[${j}].key`, `«${f.key}» repeats`);
+      keys.add(f.key);
+      if (f.type === "choice" && !(f.choices ?? []).length) err(`${at}.fields[${j}].choices`, "a choice without choices");
+      if (f.type === "secret" && !perms.has("secrets")) err(`${at}.fields[${j}]`, "a secret field — add «secrets» to permissions");
+    });
+  };
+  const screens = new Set((c.screen ?? []).map((s) => s.id));
+  for (const kind of ["database", "storage", "source", "nodeType", "screen", "import", "console", "ai"] as const) {
+    const ids = new Set<string>();
+    ((c[kind] ?? []) as any[]).forEach((x, i) => {
+      const at = `contributes.${kind}[${i}]`;
+      if (!CONTRIBUTION_ID.test(x.id ?? "")) err(`${at}.id`, `«${x.id}»: lowercase latin, digits, _ and -, starting with a letter, up to 40`);
+      if (ids.has(x.id)) err(`${at}.id`, `«${x.id}» repeats`);
+      ids.add(x.id);
+      if (NEEDS_PROGRAM.has(kind) && server && !(kind === "database" && x.command)) err(at, `«${kind}» runs as a program on this Mac — it needs the «process» runtime`);
+      if (kind in BUILT_IN && BUILT_IN[kind as keyof typeof BUILT_IN].has(x.id)) err(`${at}.id`, `«${x.id}» is built into SSHKipper — an extension doesn't replace it`);
+      switch (kind) {
+        case "database":
+          if (x.command?.[0]?.includes("/")) {
+            if (!isInside(x.command[0])) err(`${at}.command`, `«${x.command[0]}» leaves the extension folder`);
+            else if (files && !files.has(norm(x.command[0]))) err(`${at}.command`, `no program «${x.command[0]}» in the extension`);
+          }
+          break;
+        case "storage":
+          if (x.signIn === "browser" && !perms.has("oauth")) err(`${at}.signIn`, "sign-in through the browser — add «oauth» to permissions");
+          fields(at, x.fields);
+          break;
+        case "source": fields(at, x.fields); break;
+        case "nodeType":
+          fields(at, x.fields);
+          if (x.screen !== undefined && !screens.has(x.screen)) err(`${at}.screen`, `no screen «${x.screen}» in contributes.screen`);
+          if (x.screen === undefined) warn(at, "an item without a screen opens only its settings card");
+          break;
+        case "screen": handler(`${at}.render`, x.render); break;
+        default: handler(`${at}.handler`, x.handler);
+      }
+    });
+  }
+}
+
 // MARK: Views
 
 /** What's wrong with a view: the schema, block symbols, the template (with `vars`, when given). */
@@ -347,10 +440,11 @@ export function validateFolder(dir: string): { manifest?: Manifest; files: strin
   try { files = listFiles(dir); } catch (e) { return { files, issues: [{ severity: "error", path: "(folder)", message: (e as Error).message }] }; }
   const size = files.reduce((a, f) => a + statSync(join(dir, f)).size, 0);
   if (files.length > 2000 || size > 64 << 20) issues.push({ severity: "error", path: "(folder)", message: "more than 2000 files or 64 MB" });
-  if (!files.includes("sshkipper-module.json")) return { files, issues: [...issues, { severity: "error", path: "(folder)", message: "no sshkipper-module.json" }] };
+  let name: string;
+  try { name = manifestFile(dir); } catch (e) { return { files, issues: [...issues, { severity: "error", path: "(folder)", message: (e as Error).message }] }; }
   let manifest: Manifest;
-  try { manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8")); } catch (e) {
-    return { files, issues: [...issues, { severity: "error", path: "sshkipper-module.json", message: `not JSON: ${(e as Error).message}` }] };
+  try { manifest = JSON.parse(readFileSync(join(dir, name), "utf8")); } catch (e) {
+    return { files, issues: [...issues, { severity: "error", path: name, message: `not JSON: ${(e as Error).message}` }] };
   }
   issues.push(...validateManifest(manifest, new Set(files)));
   for (const [i, p] of (manifest.pages ?? []).entries()) {

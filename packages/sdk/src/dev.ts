@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Json, Manifest, Request } from "./types.ts";
 import { quote } from "./module.ts";
+import { manifestFile } from "./validate.ts";
 
 export const PRELUDE = readFileSync(fileURLToPath(new URL("../../../spec/prelude.sh", import.meta.url)), "utf8");
 
@@ -127,7 +128,7 @@ function answer(output: string, kind: "json" | "text" | "lines"): Json {
 
 /** Runs a handler of the module in `dir`. */
 export async function call(dir: string, handler: string, o: CallOptions = {}): Promise<CallResult> {
-  const m: Manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8"));
+  const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
   const h = m.handlers?.[handler];
   if (!h) return { ok: false, error: `no handler «${handler}» in handlers`, stdout: "", stderr: "", log: [] };
   const timeout = o.timeout ?? h.timeout ?? 30;

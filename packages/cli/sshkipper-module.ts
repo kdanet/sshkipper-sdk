@@ -9,7 +9,7 @@ import { call } from "../sdk/src/dev.ts";
 import { preview } from "../sdk/src/preview.ts";
 import { scaffold, vendorFiles, type Kind } from "../sdk/src/scaffold.ts";
 import type { Json, Manifest } from "../sdk/src/types.ts";
-import { formatIssue, listFiles, validateFolder } from "../sdk/src/validate.ts";
+import { formatIssue, listFiles, MANIFEST_FILES, manifestFile, validateFolder } from "../sdk/src/validate.ts";
 
 const HELP = `sshkipper-module — build modules for SSHKipper (SDK 1)
 
@@ -23,7 +23,7 @@ const HELP = `sshkipper-module — build modules for SSHKipper (SDK 1)
   preview [folder] <page> [--data JSON] [--item JSON] [--settings JSON] [--run] [--ssh user@host]
                          the page as text: its template with --data (or, with --run, with what its handlers return)
   pack [folder] [-o file.sshkmod]
-                         validate, then zip the module for «Install module…»
+                         validate, then zip the module for «Install extension…» (.sshkext for sshkipper-extension.json)
   vendor [folder]        copy the SDK runtime into lib/sshkipper-sdk/ (process modules)
   mcp [--allow-changes]  the MCP server for AI agents (stdio); --allow-changes lets module_run_local run handlers that
                          change things (stop, delete, restart) on this machine — your decision, not the agent's
@@ -69,8 +69,8 @@ function jsonFlag(f: Flags, k: string): Json | undefined {
 
 /** [folder, ...rest]: the first argument is the folder when it has a manifest, else the current folder. */
 function folderAnd(args: string[]): [string, string[]] {
-  if (args[0] && existsSync(join(args[0], "sshkipper-module.json"))) return [resolve(args[0]), args.slice(1)];
-  if (!existsSync("sshkipper-module.json")) fail("no sshkipper-module.json here: name the module folder");
+  if (args[0] && MANIFEST_FILES.some((m) => existsSync(join(args[0], m)))) return [resolve(args[0]), args.slice(1)];
+  if (!MANIFEST_FILES.some((m) => existsSync(m))) fail("no sshkipper-extension.json or sshkipper-module.json here: name the folder");
   return [resolve("."), args];
 }
 
@@ -121,7 +121,7 @@ switch (command) {
   }
   case "preview": {
     const [dir, rest] = folderAnd(args);
-    const m: Manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8"));
+    const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
     const pageID = rest[0] ?? m.service?.page ?? m.pages?.[0]?.id ?? fail("preview [folder] <page>");
     const page = m.pages?.find((p) => p.id === pageID) ?? fail(`no page «${pageID}»`);
     const opts = { settings: jsonFlag(f, "settings") as Record<string, Json>, item: jsonFlag(f, "item"), ssh: f.ssh as string | undefined, locale: (f.locale as string) ?? "en" };
@@ -149,11 +149,13 @@ switch (command) {
   case "pack": {
     const [dir] = folderAnd(args);
     if (!report(dir)) process.exit(1);
-    const m: Manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8"));
-    const out = resolve((f.out as string) ?? `${m.id}-${m.version}.sshkmod`);
+    const name = manifestFile(dir);
+    const m: Manifest = JSON.parse(readFileSync(join(dir, name), "utf8"));
+    const ext = name === "sshkipper-extension.json" ? "sshkext" : "sshkmod";
+    const out = resolve((f.out as string) ?? `${m.id}-${m.version}.${ext}`);
     if (existsSync(out)) rmSync(out);
     // Exactly the files the app hashes, at the archive's root.
-    const files = listFiles(dir).filter((p) => !p.endsWith(".sshkmod") && p !== ".sshkipper-dev-store.json");
+    const files = listFiles(dir).filter((p) => !p.endsWith(".sshkmod") && !p.endsWith(".sshkext") && p !== ".sshkipper-dev-store.json");
     const r = spawnSync("zip", ["-q", "-X", out, "-@"], { cwd: dir, input: files.join("\n") });
     if (r.status !== 0) fail(`zip: ${r.stderr?.toString().trim() || "failed"} (install zip, or use ditto -c -k on macOS)`);
     console.log(`${out} — ${files.length} files`);

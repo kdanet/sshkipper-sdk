@@ -13,7 +13,7 @@ export type Color =
   | `#${string}`;
 
 export type Risk = "read" | "change" | "danger";
-export type Permission = "exec" | "sudo" | "secrets" | "network" | "store" | "notify";
+export type Permission = "exec" | "sudo" | "secrets" | "network" | "store" | "notify" | "forward" | "oauth";
 
 export interface Setting {
   key: string;
@@ -115,6 +115,56 @@ export interface Manifest {
   tools?: Tool[];
   automation?: AutomationBlock[];
   components?: Record<string, Node>;
+  /** An extension's contributions (sshkipper-extension.json; spec/protocol.md §10). `service`, `tools` and
+   * `automation` may be written here instead of at the top level — not in both places. */
+  contributes?: Contributes;
+}
+
+// MARK: Extensions (spec/protocol.md §10)
+
+export type ContributionKind = "service" | "tools" | "automation" | "database" | "storage" | "source" | "nodeType" | "screen" | "import" | "console" | "ai";
+
+interface Contribution { id: string; title: Text; icon?: { symbol: string; color?: Color } }
+
+export interface DatabaseContribution extends Contribution {
+  description?: Text;
+  /** "si:<slug>" of a logo bundled with the app. */
+  logo?: string;
+  model: "sql" | "keyValue" | "document";
+  defaultPort?: number;
+  isFile?: boolean;
+  hasSchemas?: boolean;
+  hasEditorTransactions?: boolean;
+  identifierQuote?: string;
+  keywords?: string[];
+  functions?: string[];
+  /** Its own program speaking the database protocol; else the extension's runtime. */
+  command?: string[];
+}
+export interface StorageContribution extends Contribution {
+  description?: Text;
+  signIn?: "keys" | "login" | "browser" | "none";
+  fields?: Setting[];
+  capabilities?: string[];
+}
+export interface SourceContribution extends Contribution { description?: Text; fields?: Setting[]; refresh?: number }
+export interface NodeTypeContribution extends Contribution { description?: Text; fields?: Setting[]; screen?: string }
+export interface ScreenContribution extends Contribution { placement: "tab" | "section" | "panel"; render: string }
+export interface ImportContribution extends Contribution { fileExtensions: string[]; handler: string }
+export interface HandlerContribution extends Contribution { handler: string }
+
+export interface Contributes {
+  service?: Manifest["service"];
+  tools?: Tool[];
+  automation?: AutomationBlock[];
+  database?: DatabaseContribution[];
+  storage?: StorageContribution[];
+  source?: SourceContribution[];
+  nodeType?: NodeTypeContribution[];
+  screen?: ScreenContribution[];
+  import?: ImportContribution[];
+  console?: HandlerContribution[];
+  ai?: HandlerContribution[];
 }
 
 // MARK: Views (UI-Kit)

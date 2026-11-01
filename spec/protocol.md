@@ -226,8 +226,11 @@ Limits: 400 blocks after expansion, 32 levels of JSON nesting (the app draws 8 l
 
 - `sdk` in the manifest is the major version of this protocol. The app runs modules of the SDK versions it knows and
   refuses others with a clear message.
-- A `.sshkmod` is a ZIP of the module folder (the manifest at its root). Installing records the SHA-256 of every
-  file; a changed file disables the module until it is approved again. A module linked from a folder (development)
+- A `.sshkmod` is a ZIP of the module folder (the manifest at its root); a `.sshkext` is the same for an extension
+  (§10). Before unpacking, the app reads the archive's table of contents: more than 2 000 files or 64 MB unpacked, a
+  path with `..` or a leading `/`, or a symbolic link refuses the archive; `__MACOSX` is left out. Installing records
+  the SHA-256 of every file; a changed file disables the module until it is approved again, and a program's files are
+  hashed again **before every start** — a file changed, added or removed since stops it from starting. A module linked from a folder (development)
   is reloaded when its files change and is marked «из папки».
 - Files a package may hold: the manifest, `views/*.json`, `scripts/**`, `assets/**`, the program and its files.
   At most 2 000 files and 64 MB. Every file is hashed (`node_modules` too); only `.git` folders and `.DS_Store`
@@ -265,3 +268,36 @@ prompt cache holds.
 - The answer is the handler's JSON (or text), with secrets masked, cut to what a model reads.
 - `description` is what the model reads to choose the tool: say what it does, what it returns and when to use it.
 
+## 10. Extensions
+
+A module is one kind of **extension**. An extension package is a folder (or a `.sshkext` archive of it) with
+`sshkipper-extension.json` at its root. The manifest is the module manifest (`schemas/module.schema.json`, the same
+fields, the same `sdk`) plus `contributes` — what it adds to the app. A folder holds one manifest: both
+`sshkipper-extension.json` and `sshkipper-module.json` is an error. `sshkipper-module.json` and `.sshkmod` stay valid
+and read as extensions unchanged.
+
+| Contribution | Manifest | Used by the app since |
+|---|---|---|
+| `service`, `tools`, `automation` | `contributes.*` or the top level (not both) | modules (§1–§9) |
+| `database[]` | `id` (engine, never a built-in one), `title`, `model` (`sql` / `keyValue` / `document`), `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote`, `keywords`, `functions`, `logo` (`si:<slug>`), `command` (its own program speaking the database protocol; else `runtime`) | stage 2 |
+| `storage[]` | `id` (kind), `title`, `signIn` (`keys` / `login` / `browser` — needs `oauth` / `none`), `fields` (settings, §3.3 kinds), `capabilities` | stage 4 |
+| `source[]` | `id` (kind), `title`, `fields`, `refresh` (s, 60…86400) | stage 4 |
+| `nodeType[]` | `id`, `title`, `icon`, `fields`, `screen` (an id of `contributes.screen`) | stage 3 |
+| `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | stage 3 |
+| `import[]` | `id`, `title`, `fileExtensions`, `handler` | stage 6 |
+| `console[]`, `ai[]` | `id`, `title`, `handler` | stage 6 |
+
+- Every contribution has an `id` (`^[a-z][a-z0-9_-]{0,39}$`, unique within its kind), a `title` (text or per
+  language) and an optional `icon`. Built-in kinds and engines (`mysql`, `s3`, `tailscale`…) are never replaced.
+- `database`, `storage`, `source`, `import`, `console` and `ai` are answered by a program on this Mac: they need the
+  `process` runtime (a `database` may name its own `command`).
+- A key of `contributes` this app doesn't know is an error (with the list of known ones); a manifest of a newer `sdk`
+  is refused before its fields are read.
+- Permissions add `forward` (`host/forward`: a port forwarded through the app's SSH session of a server) and `oauth`
+  (`host/oauth`: a sign-in through the browser, the token kept as the node's secret); both are answered from stage 4.
+- An update that adds a contribution, like one that adds a permission, is installed **switched off** until the user
+  switches it on.
+- Trust: an extension installed from any file is shown as «Автор не проверен»; extensions of SSHKipper's library
+  (signed, stage 5) as «Проверено SSHKipper».
+- A program serves every contribution of its extension: handlers through `handler/call` (§4.2), a contribution's own
+  methods (`ui/event`, a storage's `list`…, defined by their stages) as JSON-RPC requests on the same connection.

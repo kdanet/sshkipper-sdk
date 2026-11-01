@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sshkipper.dev/schemas/module-1.json",
-  "title": "SSHKipper module manifest (sshkipper-module.json), SDK 1",
+  "title": "SSHKipper module or extension manifest (sshkipper-module.json, sshkipper-extension.json), SDK 1",
   "type": "object",
   "required": ["sdk", "id", "version", "title", "runtime"],
   "additionalProperties": false,
@@ -50,8 +50,8 @@
     },
     "permissions": {
       "type": "array", "uniqueItems": true,
-      "items": { "enum": ["exec", "sudo", "secrets", "network", "store", "notify"] },
-      "description": "What the module uses, shown on install. exec — commands on servers; sudo — through sudo -n where the server allows it; secrets — its secret settings; network — its own connections from this Mac; store — its own storage; notify — notifications."
+      "items": { "enum": ["exec", "sudo", "secrets", "network", "store", "notify", "forward", "oauth"] },
+      "description": "What the module uses, shown on install. exec — commands on servers; sudo — through sudo -n where the server allows it; secrets — its secret settings; network — its own connections from this Mac; store — its own storage; notify — notifications; forward — ports forwarded through the app's SSH sessions (host/forward); oauth — sign-in through the browser, the token kept as the node's secret (host/oauth)."
     },
     "settings": {
       "type": "array", "maxItems": 40,
@@ -87,6 +87,23 @@
       "type": "object", "maxProperties": 60,
       "propertyNames": { "$ref": "#/$defs/name" },
       "additionalProperties": { "type": "object", "description": "A block (UI-Kit, view.schema.json) with {{ props.* }} placeholders, used as {\"use\": \"name\", \"props\": {…}}." }
+    },
+    "contributes": {
+      "type": "object", "additionalProperties": false,
+      "description": "What an extension adds to the app (spec/protocol.md §10). service, tools and automation are a module's own: here or at the top level, not both.",
+      "properties": {
+        "service": { "$ref": "#/$defs/service" },
+        "tools": { "type": "array", "maxItems": 40, "items": { "$ref": "#/$defs/tool" } },
+        "automation": { "type": "array", "maxItems": 40, "items": { "$ref": "#/$defs/automationBlock" } },
+        "database": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/databaseContribution" } },
+        "storage": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/storageContribution" } },
+        "source": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/sourceContribution" } },
+        "nodeType": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/nodeTypeContribution" } },
+        "screen": { "type": "array", "maxItems": 40, "items": { "$ref": "#/$defs/screenContribution" } },
+        "import": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/importContribution" } },
+        "console": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/handlerContribution" } },
+        "ai": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/handlerContribution" } }
+      }
     }
   },
   "$defs": {
@@ -224,6 +241,91 @@
         "risk": { "$ref": "#/$defs/risk" },
         "params": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/param" } },
         "returns": { "enum": ["none", "text", "number", "list", "json"], "description": "What goes to the next block." }
+      }
+    },
+    "contributionId": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$", "description": "Unique within its kind; never a built-in engine or kind (mysql, s3, tailscale…)." },
+    "fields": { "type": "array", "maxItems": 40, "items": { "$ref": "#/$defs/setting" }, "description": "Settings of the node, in its card (the same kinds as a module's settings)." },
+    "databaseContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "model"],
+      "description": "A database engine the extension's program drives (the database protocol, Packages/DatabaseProtocol).",
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "description": { "$ref": "#/$defs/text" },
+        "logo": { "type": "string", "pattern": "^si:[a-z0-9-]+$", "description": "A logo bundled with the app." },
+        "model": { "enum": ["sql", "keyValue", "document"], "description": "Which screens the app shows: tables and SQL, keys, documents." },
+        "defaultPort": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "isFile": { "type": "boolean" },
+        "hasSchemas": { "type": "boolean" },
+        "hasEditorTransactions": { "type": "boolean" },
+        "identifierQuote": { "type": "string", "minLength": 1, "maxLength": 1 },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "functions": { "type": "array", "items": { "type": "string" } },
+        "command": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Its own program; else the extension's runtime." }
+      }
+    },
+    "storageContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "description": { "$ref": "#/$defs/text" },
+        "signIn": { "enum": ["keys", "login", "browser", "none"], "description": "browser needs the oauth permission." },
+        "fields": { "$ref": "#/$defs/fields" },
+        "capabilities": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "sourceContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "description": { "$ref": "#/$defs/text" },
+        "fields": { "$ref": "#/$defs/fields" },
+        "refresh": { "type": "number", "minimum": 60, "maximum": 86400, "description": "Seconds between polls by default." }
+      }
+    },
+    "nodeTypeContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "description": { "$ref": "#/$defs/text" },
+        "fields": { "$ref": "#/$defs/fields" },
+        "screen": { "$ref": "#/$defs/contributionId", "description": "The screen of contributes.screen the node opens." }
+      }
+    },
+    "screenContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "placement", "render"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "placement": { "enum": ["tab", "section", "panel"] },
+        "render": { "$ref": "#/$defs/name", "description": "The handler that builds the screen's view." }
+      }
+    },
+    "importContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "fileExtensions", "handler"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "fileExtensions": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Za-z0-9]{1,16}$" } },
+        "handler": { "$ref": "#/$defs/name" }
+      }
+    },
+    "handlerContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "handler"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "handler": { "$ref": "#/$defs/name" }
       }
     }
   }

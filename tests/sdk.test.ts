@@ -108,6 +108,41 @@ test("scaffolds validate and their handlers run", async () => {
   }
 });
 
+test("extensions: sshkipper-extension.json with contributions, checked as the app checks them (protocol §10)", () => {
+  const manifest = {
+    sdk: 1, id: "dev.test.multi", version: "1.0.0", title: "Multi",
+    runtime: { kind: "process", command: ["node", "main.ts"] }, permissions: ["exec", "secrets", "oauth", "forward"],
+    handlers: { status: {}, board: {}, rtsx: {} },
+    pages: [{ id: "main", title: "Main", render: "status" }],
+    contributes: {
+      service: { page: "main" },
+      database: [{ id: "duckdb", title: "DuckDB", model: "sql", isFile: true }],
+      storage: [{ id: "box", title: "Box", signIn: "browser", fields: [{ key: "token", title: "Token", type: "secret" }] }],
+      source: [{ id: "hetzner", title: "Hetzner Cloud", refresh: 300 }],
+      nodeType: [{ id: "board", title: "Board", screen: "board" }],
+      screen: [{ id: "board", title: "Board", placement: "tab", render: "board" }],
+      import: [{ id: "royal", title: "Royal TSX", fileExtensions: ["rtsx"], handler: "rtsx" }],
+    },
+  };
+  const dir = write({ "sshkipper-extension.json": JSON.stringify(manifest), "main.ts": "" });
+  try {
+    const r = validateFolder(dir);
+    assert.deepEqual(r.issues.filter((i) => i.severity === "error"), []);
+    assert.equal(r.manifest?.contributes?.database?.[0].id, "duckdb");
+    // Both manifests: which one is meant?
+    writeFileSync(join(dir, "sshkipper-module.json"), JSON.stringify(manifest));
+    assert.match(validateFolder(dir).issues.map((i) => i.message).join("\n"), /keep one/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  const errors = (contributes: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    validateManifest({ ...manifest, ...extra, contributes } as unknown as Manifest).filter((i) => i.severity === "error").map((i) => `${i.path}: ${i.message}`).join("\n");
+  assert.match(errors({ widgets: [{ id: "w", title: "W" }] }), /contributes\.widgets: unknown kind of contribution «widgets»/);
+  assert.match(errors({ database: [{ id: "mysql", title: "M", model: "sql" }] }), /built into SSHKipper/);
+  assert.match(errors({ storage: [{ id: "box", title: "Box", signIn: "browser" }] }, { permissions: ["exec"] }), /oauth/);
+  assert.match(errors({ nodeType: [{ id: "n", title: "N", screen: "nope" }] }), /no screen «nope»/);
+  assert.match(errors({ storage: [{ id: "ftp", title: "FTP" }] }, { runtime: { kind: "server" } }), /process/);
+  assert.match(errors({ service: { page: "main" } }, { service: { page: "main" } }), /both in contributes and at the top level/);
+});
+
 test("server calls: request on stdin, variables, sk_file, secrets, failures", async () => {
   const dir = write({
     "sshkipper-module.json": JSON.stringify({ sdk: 1, id: "dev.test.echo", version: "1.0.0", title: "E", runtime: { kind: "server" }, permissions: ["secrets"],

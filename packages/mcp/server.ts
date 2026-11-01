@@ -12,7 +12,7 @@ import { preview } from "../sdk/src/preview.ts";
 import { scaffold } from "../sdk/src/scaffold.ts";
 import { expand } from "../sdk/src/template.ts";
 import type { Json, Manifest } from "../sdk/src/types.ts";
-import { formatIssue, schema, symbols, validateFolder, validateManifest, validateView } from "../sdk/src/validate.ts";
+import { formatIssue, manifestFile, schema, symbols, validateFolder, validateManifest, validateView } from "../sdk/src/validate.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const VERSION = "1.0.0";
@@ -139,10 +139,12 @@ async function tool(name: string, a: Record<string, any>) {
       return text(JSON.stringify(expand(a.view, a.vars ?? {}, a.components ?? {}), null, 2));
     case "module_run_local": {
       const dir = resolve(a.folder);
-      const m: Manifest = JSON.parse(readFileSync(join(dir, "sshkipper-module.json"), "utf8"));
+      const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
       // What changes things isn't run on the agent's machine (a kill handler would kill a local PID) unless the person
       // started the server with --allow-changes: a parameter the agent sets itself would be no one's consent.
-      const changes = [...(m.actions ?? []), ...(m.tools ?? []), ...(m.automation ?? [])].filter((x) => x.handler === a.handler && x.risk !== "read");
+      // An extension may write its tools and blocks under `contributes`: they change things the same way.
+      const changes = [...(m.actions ?? []), ...(m.tools ?? []), ...(m.automation ?? []), ...(m.contributes?.tools ?? []), ...(m.contributes?.automation ?? [])]
+        .filter((x) => x.handler === a.handler && x.risk !== "read");
       if (changes.length && !options.allowChanges) {
         return text(`«${a.handler}» is the handler of ${changes.map((x) => ("id" in x ? x.id : (x as { name: string }).name) + ` (${x.risk})`).join(", ")}: it changes things. ` +
           "It would run on this machine — not allowed: the person who started this MCP server can restart it with `sshkipper-module mcp --allow-changes`.", true);
