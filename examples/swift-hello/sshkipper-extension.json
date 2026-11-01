@@ -1,0 +1,27 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.swift-hello",
+  "version": "1.0.0",
+  "title": { "ru": "Привет из Swift (пример)", "en": "Hello from Swift (an example)" },
+  "description": {
+    "ru": "Расширение на Swift с пакетом SSHKipperSDK: служба сервера с живым экраном — сводка сервера через host/exec, «Обновить» на панели инструментов, график нагрузки этого Mac, который программа дополняет сама. Собрать: ./build.sh.",
+    "en": "An extension in Swift with the SSHKipperSDK package: a service of servers with a live screen — the server's summary through host/exec, «Refresh» on the toolbar, a chart of this Mac's load the program adds points to. Build: ./build.sh."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "speedometer", "color": "orange" },
+  "runtime": { "kind": "process", "command": ["bin/swift-hello"] },
+  "permissions": ["exec"],
+  "handlers": {
+    "detect": { "timeout": 10 },
+    "summary": { "timeout": 15 },
+    "render": { "timeout": 20 }
+  },
+  "contributes": {
+    "service": { "detect": "detect", "summary": "summary", "page": "main" }
+  },
+  "pages": [
+    { "id": "main", "title": { "ru": "Привет из Swift", "en": "Hello from Swift" }, "render": "render" }
+  ]
+}

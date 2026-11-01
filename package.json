@@ -1,7 +1,7 @@
 {
   "name": "sshkipper-sdk",
-  "version": "1.0.0",
-  "description": "SDK for SSHKipper modules: protocol, JSON Schemas, TypeScript runtime and UI-Kit, CLI, MCP server for agents",
+  "version": "1.1.0",
+  "description": "SDK for SSHKipper extensions: protocol, JSON Schemas, TypeScript and Swift runtimes, UI-Kit, CLI, MCP server for agents",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -9,12 +9,14 @@
     "node": ">=24"
   },
   "bin": {
+    "sshkipper-ext": "packages/cli/sshkipper-ext.ts",
     "sshkipper-module": "packages/cli/sshkipper-module.ts"
   },
   "scripts": {
     "test": "node --test tests/*.test.ts",
-    "validate": "node packages/cli/sshkipper-module.ts validate examples/processes && node packages/cli/sshkipper-module.ts validate examples/http-checks && node packages/cli/sshkipper-module.ts validate examples/example-folder-storage && node packages/cli/sshkipper-module.ts validate examples/example-hetzner-source && node packages/cli/sshkipper-module.ts validate examples/db-sqlite-node",
-    "mcp": "node packages/cli/sshkipper-module.ts mcp",
+    "validate": "node scripts/check-examples.ts",
+    "swift": "sh scripts/swift-check.sh",
+    "mcp": "node packages/cli/sshkipper-ext.ts mcp",
     "docs": "node scripts/gen-docs.ts"
   }
 }
