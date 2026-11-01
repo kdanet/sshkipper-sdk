@@ -43,13 +43,41 @@
     "render_url": { "timeout": 30 },
     "check": { "timeout": 60 },
     "clear": { "timeout": 5 },
-    "check_url": { "timeout": 20 }
+    "check_url": { "timeout": 20 },
+    "check_list": { "timeout": 60 },
+    "check_list_mac": { "timeout": 60 }
   },
   "actions": [
     { "id": "check", "title": { "ru": "Проверить сейчас", "en": "Check now" }, "symbol": "arrow.clockwise", "handler": "check", "risk": "read" },
     {
       "id": "clear", "title": { "ru": "Очистить историю…", "en": "Clear history…" }, "symbol": "trash", "handler": "clear", "risk": "change",
       "confirm": { "ru": "Удалить историю проверок «{{ server.name }}»?", "en": "Delete the check history of “{{ server.name }}”?" }
+    }
+  ],
+  "automation": [
+    {
+      "id": "check_urls", "handler": "check_list", "risk": "read", "server": true, "symbol": "globe", "returns": "json",
+      "title": { "ru": "Проверить адреса с сервера", "en": "Check URLs from the server" },
+      "description": {
+        "ru": "curl с сервера через сессии автоматизации: код ответа и время каждого адреса — список в итог.",
+        "en": "curl from the server over the automation's sessions: each URL's code and time — a list for the summary."
+      },
+      "params": [
+        { "key": "urls", "type": "text", "required": true, "title": { "ru": "Адреса через запятую", "en": "URLs, comma-separated" } },
+        { "key": "slow_ms", "type": "number", "default": 800, "title": { "ru": "Медленно — дольше, мс", "en": "Slow above, ms" } }
+      ]
+    },
+    {
+      "id": "check_urls_mac", "handler": "check_list_mac", "risk": "read", "symbol": "globe", "returns": "json",
+      "title": { "ru": "Проверить адреса с этого Mac", "en": "Check URLs from this Mac" },
+      "description": {
+        "ru": "Запросы с этого Mac, без сервера: код ответа и время каждого адреса — список в итог.",
+        "en": "Requests from this Mac, no server: each URL's code and time — a list for the summary."
+      },
+      "params": [
+        { "key": "urls", "type": "text", "required": true, "title": { "ru": "Адреса через запятую", "en": "URLs, comma-separated" } },
+        { "key": "slow_ms", "type": "number", "default": 800, "title": { "ru": "Медленно — дольше, мс", "en": "Slow above, ms" } }
+      ]
     }
   ],
   "tools": [

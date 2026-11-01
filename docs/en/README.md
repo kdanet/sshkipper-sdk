@@ -37,6 +37,7 @@ with each call and leave nothing behind.
 | [packages/mcp](../../packages/mcp) | The MCP server for AI agents writing modules |
 | [examples/processes](../../examples/processes) | A server module: load, memory, the busiest processes, signals |
 | [examples/http-checks](../../examples/http-checks) | A process module in TypeScript: URL checks, history, notifications, an AI tool |
+| [examples/ai-echo-provider](../../examples/ai-echo-provider) | A model provider (protocol §12): streaming, tool calls, cancel — deterministic, no network |
 | [examples/screens](../../examples/screens) | A live screen (protocol §11): a 50 000-row table loaded by pages, a tree expanded on demand, a split, an editor with completion, a terminal, a chart the program pushes points to, a sheet |
 
 ## Guides
@@ -46,7 +47,7 @@ with each call and leave nothing behind.
 3. [UI-Kit](ui-kit.md) — views, blocks, styles, templates ([reference](ui-kit-reference.md))
 4. [Server modules](server-modules.md) — scripts, the environment, the prelude, sudo, containers
 5. [Process modules](process-modules.md) — the TypeScript runtime and the host API
-6. [AI tools and automation blocks](ai-and-automation.md)
+6. [AI tools, automation blocks, model providers](ai-and-automation.md)
 7. [Publishing](publishing.md) — packing, installing, versions
 8. [Security](security.md) — what a module can and can't do, what the user approves
 9. [For AI agents](agents.md) — the MCP server

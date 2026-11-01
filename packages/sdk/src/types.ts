@@ -86,6 +86,8 @@ export interface AutomationBlock {
   risk: Risk;
   params?: Param[];
   returns?: "none" | "text" | "number" | "list" | "json";
+  /** A program's block takes a server: its host.exec runs there through the automation's sessions. */
+  server?: boolean;
 }
 
 export interface Manifest {
@@ -152,6 +154,7 @@ export interface NodeTypeContribution extends Contribution { description?: Text;
 export interface ScreenContribution extends Contribution { placement: "tab" | "section" | "panel"; render: string }
 export interface ImportContribution extends Contribution { fileExtensions: string[]; handler: string }
 export interface HandlerContribution extends Contribution { handler: string }
+export interface AIContribution extends Contribution { description?: Text; fields?: Setting[]; reasoning?: string[]; handler?: string }
 
 export interface Contributes {
   service?: Manifest["service"];
@@ -164,7 +167,7 @@ export interface Contributes {
   screen?: ScreenContribution[];
   import?: ImportContribution[];
   console?: HandlerContribution[];
-  ai?: HandlerContribution[];
+  ai?: AIContribution[];
 }
 
 // MARK: Views (UI-Kit)
@@ -415,3 +418,50 @@ export interface ExecResult {
   stdout: string;
   stderr: string;
 }
+
+// MARK: Model providers (spec/protocol.md §12)
+
+/** A block of a message, as the app keeps a chat: text, a tool call, a tool's result, a provider's own block. */
+export type AIBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: Record<string, Json> }
+  | { type: "tool_result"; id: string; content: string; is_error: boolean }
+  | { type: "opaque"; value: Json };
+
+export interface AIMessage { role: "user" | "assistant" | "system"; content: AIBlock[] }
+
+export interface AITool { name: string; description: string; input_schema: Json }
+
+/** What `ai/chat` gets: the request as every provider of the app gets it (already masked), the profile's settings. */
+export interface AIChatRequest {
+  /** The stream's id: every `ai/delta` of this answer carries it. */
+  id: string;
+  /** The contribution's id (`contributes.ai[].id`): one program may provide several. */
+  provider: string;
+  model: string;
+  system: string;
+  messages: AIMessage[];
+  tools: AITool[];
+  max_tokens: number;
+  effort?: string;
+  settings: Record<string, Json>;
+  secrets: Record<string, string>;
+}
+
+/** A piece of a streamed answer (`ai/delta`, without the id — the runtime adds it). */
+export type AIDelta =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; toolId: string; name: string; input?: Record<string, Json> }
+  | { type: "tool_input"; toolId: string; json: string }
+  | { type: "progress"; text: string }
+  | { type: "usage"; input: number; output: number; model?: string };
+
+/** What `ai/chat` answers: why it stopped, the usage; `message` — the whole answer (a program that doesn't stream). */
+export interface AIChatResult {
+  stop?: "end_turn" | "tool_use" | "max_tokens" | "refusal";
+  usage?: { input_tokens: number; output_tokens: number };
+  model?: string;
+  message?: { content: AIBlock[] };
+}
+
+export interface AIModel { id: string; title?: string }

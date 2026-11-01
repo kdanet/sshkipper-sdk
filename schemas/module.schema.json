@@ -102,7 +102,7 @@
         "screen": { "type": "array", "maxItems": 40, "items": { "$ref": "#/$defs/screenContribution" } },
         "import": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/importContribution" } },
         "console": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/handlerContribution" } },
-        "ai": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/handlerContribution" } }
+        "ai": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/aiContribution" } }
       }
     }
   },
@@ -240,7 +240,8 @@
         "handler": { "$ref": "#/$defs/name" },
         "risk": { "$ref": "#/$defs/risk" },
         "params": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/param" } },
-        "returns": { "enum": ["none", "text", "number", "list", "json"], "description": "What goes to the next block." }
+        "returns": { "enum": ["none", "text", "number", "list", "json"], "description": "What goes to the next block." },
+        "server": { "type": "boolean", "description": "A program's block takes a server: its host.exec runs there through the automation's sessions (needs «exec»). A server module's block always runs on its server." }
       }
     },
     "contributionId": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$", "description": "Unique within its kind; never a built-in engine or kind (mysql, s3, tailscale…)." },
@@ -317,6 +318,19 @@
         "icon": { "$ref": "#/$defs/icon" },
         "fileExtensions": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Za-z0-9]{1,16}$" } },
         "handler": { "$ref": "#/$defs/name" }
+      }
+    },
+    "aiContribution": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title"],
+      "description": "A model provider (spec/protocol.md §12): the program answers ai/models, ai/chat (pieces as ai/delta) and ai/cancel.",
+      "properties": {
+        "id": { "$ref": "#/$defs/contributionId" },
+        "title": { "$ref": "#/$defs/text" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "description": { "$ref": "#/$defs/text" },
+        "fields": { "$ref": "#/$defs/fields", "description": "The profile's settings in Settings → AI; secret fields are kept in the Mac's keychain like an API key." },
+        "reasoning": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/name" }, "description": "Reasoning levels its models take (low, medium, high…)." },
+        "handler": { "$ref": "#/$defs/name", "description": "Not used (stage 1 manifests)." }
       }
     },
     "handlerContribution": {
