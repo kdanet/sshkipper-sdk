@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.import-csv",
+  "version": "1.0.0",
+  "title": { "ru": "Импорт из CSV (пример)", "en": "Import from CSV (an example)" },
+  "description": {
+    "ru": "Читает таблицу серверов «имя,адрес,порт,пользователь,папка» (и, если есть, «бастион», «заметка», «теги», «пароль») и отдаёт папки и подключения. Файл читает приложение и передаёт программе его содержимое — путь к файлу и доступ к диску программе не нужны.",
+    "en": "Reads a server table «name,host,port,user,folder» (and, when present, «bastion», «note», «tags», «password») into folders and connections. The app reads the file and hands its contents over — the program needs neither its path nor the disk."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "doc.text", "color": "green" },
+  "runtime": { "kind": "process", "command": ["node", "module.ts"] },
+  "permissions": [],
+  "contributes": {
+    "import": [
+      {
+        "id": "csv",
+        "title": { "ru": "Таблица серверов (CSV)", "en": "Server table (CSV)" },
+        "description": { "ru": "CSV или TSV: имя, адрес, порт, пользователь, папка", "en": "CSV or TSV: name, host, port, user, folder" },
+        "icon": { "symbol": "doc.text" },
+        "fileExtensions": ["csv", "tsv", "txt"],
+        "maxSizeMB": 2
+      }
+    ]
+  }
+}

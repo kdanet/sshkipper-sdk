@@ -34,7 +34,7 @@ test("templates: the conformance cases the app runs too", () => {
 });
 
 test("validate: the examples are clean", () => {
-  for (const ex of ["processes", "http-checks", "screens"]) {
+  for (const ex of ["processes", "http-checks", "screens", "import-csv", "console-echo"]) {
     const r = validateFolder(join(root, "examples", ex));
     assert.deepEqual(r.issues.filter((i) => i.severity === "error"), [], ex);
   }
@@ -317,4 +317,121 @@ test("live screens: ui/event answered by onEvent; push goes to the screen", asyn
   // Later, by itself: a notification for that screen.
   pushLater!([ops.append("rate", { points: [[5]] })]);
   assert.deepEqual(await next(), { jsonrpc: "2.0", method: "ui/push", params: { screen: "s1", ops: [{ op: "append", id: "rate", points: [[5]] }] } });
+});
+
+// MARK: Import and consoles (spec/protocol.md §12, §13)
+
+/** A module served over an in-memory transport: send lines, take what it wrote. */
+function harness(def: Parameters<typeof serve>[0]) {
+  const fromModule: string[] = [];
+  let lineCb: (l: string) => void = () => {};
+  const transport: Transport = { write: (l) => fromModule.push(l), onLine: (cb) => { lineCb = cb; }, onClose: () => {}, exit: () => {} };
+  serve(def, transport);
+  const send = (m: Record<string, unknown>) => lineCb(JSON.stringify({ jsonrpc: "2.0", ...m }));
+  const next = async () => { for (let i = 0; i < 200 && !fromModule.length; i++) await new Promise((r) => setTimeout(r, 5)); return JSON.parse(fromModule.shift()!); };
+  const drain = async (ms = 60) => { await new Promise((r) => setTimeout(r, ms)); return fromModule.splice(0).map((l) => JSON.parse(l)); };
+  return { send, next, drain };
+}
+
+test("import: import/parse gives the file's bytes to the importer; the example reads a table", async () => {
+  const { parseTable } = await import("../examples/import-csv/csv.ts");
+  const h = harness({ handlers: {}, importers: { csv: (file) => parseTable(file.text(), { ru: true }) } });
+  h.send({ id: 1, method: "initialize", params: { sdk: 1, app: "t", locale: "ru", module: { id: "x", version: "1" } } });
+  await h.next();
+  const csv = readFileSync(join(root, "examples/import-csv/samples/servers.csv"));
+  h.send({ id: 2, method: "import/parse", params: { importer: "csv", name: "servers.csv", size: csv.length, data: csv.toString("base64"), locale: "ru" } });
+  const r = (await h.next()).result;
+  const names = (n: any[]): string[] => n.flatMap((x) => (x.type === "folder" ? [`${x.name}/`, ...names(x.children ?? [])] : [x.name]));
+  assert.deepEqual(names(r.nodes), ["Инфраструктура/", "jump", "Production/", "Web/", "web-1", "web-2", "DB/", "db-1", "Staging/", "stage"]);
+  const db = r.nodes[1].children[1].children[0];
+  assert.deepEqual([db.host, db.port, db.user, db.bastion, db.tags], ["10.0.2.21", 5022, "postgres", "jump", ["prod", "db"]]);
+  assert.match(db.note, /Основная база\nреплика/);
+  assert.equal(r.warnings.length, 1);
+  assert.match(r.warnings[0], /Строка 8: нет адреса/);
+  // Another importer: «method not found» in its words.
+  h.send({ id: 3, method: "import/parse", params: { importer: "nope", name: "a", data: "" } });
+  assert.equal((await h.next()).error.code, -32601);
+});
+
+test("import: a password in the table comes apart, as a secret of its own credential", async () => {
+  const { parseTable } = await import("../examples/import-csv/csv.ts");
+  const r = parseTable("name;host;user;password\nweb;10.0.0.5;deploy;s3cr3t\nbad port;10.0.0.6;;\n");
+  assert.deepEqual(r.credentials, [{ id: "cred-2", name: "deploy @ web", user: "deploy" }]);
+  assert.deepEqual(r.secrets, [{ credential: "cred-2", kind: "password", value: "s3cr3t" }]);
+  assert.equal((r.nodes[0] as any).credential, "cred-2");
+  assert.ok(!JSON.stringify(r.nodes).includes("s3cr3t"));
+  // No header: the fixed order «name,host,port,user,folder».
+  const plain = parseTable("a,1.2.3.4,2200,root,X\n");
+  assert.deepEqual((plain.nodes[0] as any).children[0], { type: "connection", id: "row-1", name: "a", host: "1.2.3.4", port: 2200, user: "root" });
+});
+
+test("console: open, data both ways, resize, close from either side", async () => {
+  let seen: any;
+  const typed: string[] = [];
+  const sizes: string[] = [];
+  let closed = 0;
+  const h = harness({
+    handlers: {},
+    consoles: {
+      echo: (s) => {
+        seen = s;
+        s.onInput((d) => { typed.push(new TextDecoder().decode(d)); s.write(d); });
+        s.onResize((c, r) => sizes.push(`${c}x${r}`));
+        s.onClose(() => { closed++; });
+        s.write("hello\r\n");
+      },
+    },
+  });
+  h.send({ id: 1, method: "initialize", params: { sdk: 1, app: "t", locale: "en", module: { id: "x", version: "1" } } });
+  await h.next();
+  h.send({ id: 2, method: "console/open", params: { console: "echo", session: "s1", cols: 100, rows: 30, node: { id: "n", name: "target" }, context: { settings: {}, locale: "en", sdk: 1, app: "t" } } });
+  const [data, opened] = await h.drain();
+  assert.deepEqual(data, { jsonrpc: "2.0", method: "console/data", params: { session: "s1", data: Buffer.from("hello\r\n").toString("base64") } });
+  assert.deepEqual(opened, { jsonrpc: "2.0", id: 2, result: {} });
+  assert.equal(seen.node.name, "target");
+  assert.equal(`${seen.cols}x${seen.rows}`, "100x30");
+  h.send({ method: "console/input", params: { session: "s1", data: Buffer.from("ls\r").toString("base64") } });
+  h.send({ method: "console/resize", params: { session: "s1", cols: 80, rows: 24 } });
+  const echoed = await h.drain();
+  assert.deepEqual(typed, ["ls\r"]);
+  assert.equal(Buffer.from(echoed[0].params.data, "base64").toString(), "ls\r");
+  assert.deepEqual(sizes, ["80x24"]);
+  assert.equal(`${seen.cols}x${seen.rows}`, "80x24");
+  // A big write goes in chunks the app takes.
+  seen.write("x".repeat(100_000));
+  const chunks = await h.drain();
+  assert.equal(chunks.length, 3);
+  assert.ok(chunks.every((c: any) => Buffer.from(c.params.data, "base64").length <= 48 * 1024));
+  // The tab closed: the console's onClose runs, its writes go nowhere.
+  h.send({ method: "console/close", params: { session: "s1" } });
+  await h.drain();
+  assert.equal(closed, 1);
+  assert.ok(seen.signal.aborted);
+  seen.write("late");
+  assert.deepEqual(await h.drain(), []);
+  // The program closes another one: `console/closed` with the reason.
+  h.send({ id: 3, method: "console/open", params: { console: "echo", session: "s2", cols: 80, rows: 24, node: { id: "n" } } });
+  await h.drain();
+  seen.close("bye");
+  assert.deepEqual((await h.drain())[0], { jsonrpc: "2.0", method: "console/closed", params: { session: "s2", reason: "bye" } });
+  assert.equal(closed, 2);
+});
+
+test("console example: a pretend device echoes, edits its line, answers commands and leaves on Ctrl-D", async () => {
+  const { Device } = await import("../examples/console-echo/device.ts");
+  let out = "";
+  let closedWith: string | undefined;
+  const d = new Device({ write: (t: string) => { out += t; }, close: (r?: string) => { closedWith = r; }, size: () => ({ cols: 90, rows: 20 }) }, "box", false);
+  d.boot(true);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.match(out, /Welcome to box/);
+  out = "";
+  d.input(new TextEncoder().encode("sizz\u007fe\r"));
+  assert.match(out, /sizz\x08 \x08e\r\n90x20\r\n/);
+  out = "";
+  d.input(new TextEncoder().encode("\u001b[Auname\r"));
+  assert.match(out, /PretendOS 1\.0 box/);
+  d.input(new TextEncoder().encode("\u0004"));
+  assert.equal(closedWith, "Ctrl-D");
+  d.stop();
 });
