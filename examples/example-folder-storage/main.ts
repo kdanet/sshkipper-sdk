@@ -3,7 +3,7 @@
 // parts (an upload goes to a part file in SK_DATA and appears only on commit), folders, renames, deletes, the check.
 
 import { constants } from "node:fs";
-import { copyFile, lstat, mkdir, open, readdir, rename, rm, statfs, unlink } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, open, readdir, rename, rm, statfs, unlink } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { defineModule, ModuleError, storageMethods, tr, type StorageItem, type StorageRef } from "./lib/sshkipper-sdk/index.ts";
@@ -106,6 +106,8 @@ defineModule({
         const u = uploads.get(upload);
         if (!u) throw new ModuleError(`No upload ${upload}`);
         uploads.delete(upload);
+        // The part was private to SK_DATA; in the folder it reads like any file there.
+        await chmod(u.file, 0o644);
         await place(u.file, u.target);
       },
       async abort(upload) {
