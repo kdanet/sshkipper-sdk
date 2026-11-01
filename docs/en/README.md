@@ -50,6 +50,7 @@ with each call and leave nothing behind.
 7. [Publishing](publishing.md) — packing, installing, versions
 8. [Security](security.md) — what a module can and can't do, what the user approves
 9. [For AI agents](agents.md) — the MCP server
+10. [Storages and sources](storage-and-sources.md) — an extension's kind of storage and live folder of servers
 
 Requirements: SSHKipper with modules (Settings → Extensions → Modules); Node.js 24+ for the CLI and for TypeScript
 modules.

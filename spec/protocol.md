@@ -296,7 +296,7 @@ and read as extensions unchanged.
 - A key of `contributes` this app doesn't know is an error (with the list of known ones); a manifest of a newer `sdk`
   is refused before its fields are read.
 - Permissions add `forward` (`host/forward`: a port forwarded through the app's SSH session of a server) and `oauth`
-  (`host/oauth`: a sign-in through the browser, the token kept as the node's secret); both are answered from stage 4.
+  (`host/oauth`: a sign-in through the browser, the token kept as the node's secret) — §12.3.
 - An update that adds a contribution, like one that adds a permission, is installed **switched off** until the user
   switches it on.
 - Trust: an extension installed from any file is shown as «Автор не проверен»; extensions of SSHKipper's library
@@ -396,3 +396,93 @@ loaded — pages far from sight are forgotten and asked again), 50 000 nodes a t
 `{"screen": "<event.screen>", "ops": [...]}` — the same ops. The app applies pushes only to screens of the module
 that sends them, gathers those coming faster than it draws (applied together, at most 5 000 waiting), and drops them
 once the screen is closed. A program learns a screen's id from its events (`open` first).
+  methods (`ui/event`, a storage's `storage/list`… — §11–12) as JSON-RPC requests on the same connection.
+
+## 12. Storage and source contributions
+
+A program answers a contribution's own methods as JSON-RPC requests on the connection of §4 (the SDK:
+`defineModule({ handlers: {}, methods: { ...storageMethods(impl), ...sourceMethods(impl) } })`). They come after
+`initialize`, can be cancelled like `handler/call` (`cancel` with the request's id), and fail with the errors of §4.4
+(the `message` is shown to the user). The app never sends a method a contribution doesn't declare (`capabilities`).
+
+### 12.1 Storage («Вклад storage»)
+
+Every call carries `storage` — which storage node it is for:
+
+```json
+{"node": "<uuid>", "kind": "folder", "settings": {"root": "/tmp/x", "token": "…"}, "readOnly": false, "throughServer": false}
+```
+
+`settings` holds every field of the contribution's `fields` (its value, else its `default`); a `secret` field comes as
+text — the program is trusted with its own node's secrets, and only with a record that is that node's field and
+nothing else's. A browser sign-in's token comes as `settings.oauth`. Paths are `/`-rooted inside the storage (`/`,
+`/a/b.txt`); the app drops entries whose names have `/`, or are `.` / `..`. An item:
+
+```json
+{"name": "b.txt", "type": "file" | "folder", "size": 11, "modified": 1767225600, "digest": {"algorithm": "sha256" | "md5", "value": "<hex>"}}
+```
+
+`modified` — seconds since 1970 (or an ISO 8601 string); `digest` — optional: the app checks the downloaded file
+against it and fails the download on a mismatch.
+
+| Method | Params (besides `storage`) | Result | Capability |
+|---|---|---|---|
+| `storage/list` | `path` | `{"items": [item…]}`; a missing folder is an error | — |
+| `storage/stat` | `path` | `{"item": item \| null}` (null — nothing there) | — |
+| `storage/read` | `path`, `offset`, `length` (1 MiB) | `{"data": "<base64, ≤ length>", "eof": bool}` | — |
+| `storage/write/begin` | `path`, `size`, `modified`? | `{"upload": "<id>"}` | — |
+| `storage/write/chunk` | `upload`, `offset`, `data` (base64, ≤ 1 MiB) | `{}` | — |
+| `storage/write/commit` | `upload` | `{}` — the file appears at `path` now, whole | — |
+| `storage/write/abort` | `upload` | `{}` — the parts go; an unknown id is not an error | — |
+| `storage/mkdir` | `path` | `{}` | `folders` |
+| `storage/rename` | `from`, `to` | `{}` (the app checks that `to` is free first) | `rename` |
+| `storage/delete` | `path`, `recursive` | `{}` | `delete` |
+| `storage/link` | `path`, `action` (`list` / `create` / `remove`), `url`?, `id`? | `list` — `{"links": [{"url", "id"?, "expires"?, "hasPassword"?}]}`; `create` — one link; `remove` — `{}` | `links` |
+| `storage/check` | — | `{"text"?, "free"?, "account"?}` — «Проверить» in the card, `free` in bytes | `check` (`free` for `freeSpace`) |
+| `storage/signIn` | — | `{"account"?}` — the user pressed «Войти через браузер…» | `signIn: "browser"` |
+
+- **Reading** goes part by part: the app asks the next `offset` until `eof` (or an empty `data`). A transfer that is
+  paused continues from its offset. A part more than twice `length` fails the download.
+- **Writing** is an upload in parts: `begin`, `chunk` in order (offsets grow), `commit`. Nothing may appear at `path`
+  before `commit`. On any error, a cancel or a paused transfer the app sends `abort` (a new upload starts over).
+- A storage opened `readOnly` gets no write calls from the panel; the program should refuse them too.
+- **Not done by the app for an extension's kind:** a direct copy between a server and the storage (the server would
+  need the storage's protocol), an automation's upload «на сервере» by the server's cron (refused with the reason).
+  Automations upload from this Mac: the stream is spooled to a private temporary file, then written in parts.
+
+### 12.2 Source («Вклад source»)
+
+Every call carries `source`: `{"node": "<uuid>", "kind": "hetzner-cloud", "settings": {…}}` (settings as for a storage).
+
+| Method | Params | Result |
+|---|---|---|
+| `source/poll` | `source` | `{"hosts": [host…], "scope"?: "api.hetzner.cloud"}` |
+| `source/check` | `source` | `{"text": "…"}` — «Проверить» in the source's card (the SDK polls and counts by default) |
+
+A host: `{"id", "name", "address", "port"?, "user"?, "jump"?, "online"? (true), "os"?, "tags"?, "group"?, "addresses"?,
+"details"?, "lastSeen"?}`. `id` must be stable in the source (not the address): the app derives the tree node's id
+from the source and it, so open tabs, settings the user gave the host and its expansion survive polls. `group` — a
+folder under the source; `jump` — a bastion **by the name of a connection of the user's document** (a name that
+isn't there, or names two, is ignored). Hosts are never written into the document; the user's own settings for a
+host are kept in the source by its `id`. **Host keys are never taken from an extension**: the first connection shows
+the server's key for checking, as for any new server. At most 5000 hosts; text fields are cut to one line.
+
+The source is polled every `refresh` seconds of the manifest (60…86400; the user may change it in the card), not on
+the app's activation.
+
+### 12.3 `host/forward` and `host/oauth`
+
+| Method | Params | Result | Permission |
+|---|---|---|---|
+| `host/forward` | `{"node": "<storage.node>", "host": "db.internal", "port": 5432}` | `{"host": "127.0.0.1", "port": 50123}` | `forward` |
+| `host/oauth` | `{"node", "authURL", "tokenURL", "clientID", "clientSecret"?, "scope"?, "params"?}` | `{"accessToken": "…" \| null, "stored": true}` | `oauth` |
+
+- **`host/forward`** — a port forwarded through the SSH session of the server the user bound the node to («Через
+  сервер» in a storage's card; bastions and 2FA as for any session). It listens on 127.0.0.1 of this Mac only. The
+  same node and target share one forward; it closes when the program stops and when the node's panes and transfers
+  are gone. Only the node of a call **in progress** may be named; a node not reached through a server is an error.
+- **`host/oauth`** — only while the app's `storage/signIn` for that node runs (the user pressed «Войти»). The app
+  opens `authURL` in the browser (PKCE, `redirect_uri` on 127.0.0.1 of a one-shot listener), exchanges the code at
+  `tokenURL` (https, or http on 127.0.0.1 for a stand-in), keeps the refresh token as the node's secret `oauth` once the
+  card is saved, and gives the program the access token. Later calls bring the refresh token in `settings.oauth`:
+  the program refreshes its access token itself.

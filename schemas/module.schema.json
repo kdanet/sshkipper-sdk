@@ -274,7 +274,10 @@
         "description": { "$ref": "#/$defs/text" },
         "signIn": { "enum": ["keys", "login", "browser", "none"], "description": "browser needs the oauth permission." },
         "fields": { "$ref": "#/$defs/fields" },
-        "capabilities": { "type": "array", "items": { "type": "string" } }
+        "capabilities": {
+          "type": "array", "items": { "type": "string" },
+          "description": "What it does beyond list, stat, read and write (spec/protocol.md §12): folders (storage/mkdir), rename, delete, links (storage/link), freeSpace (free in storage/check), check (storage/check answers «Проверить»). Unknown names are warned about and ignored."
+        }
       }
     },
     "sourceContribution": {

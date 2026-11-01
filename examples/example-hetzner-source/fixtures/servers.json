@@ -1,0 +1,31 @@
+{
+  "servers": [
+    {
+      "id": 4711, "name": "web-1", "status": "running",
+      "public_net": { "ipv4": { "ip": "127.0.0.1" }, "ipv6": { "ip": "2001:db8:1::/64" } },
+      "private_net": [{ "ip": "10.0.0.2" }],
+      "labels": { "env": "prod", "group": "web", "ssh-port": "2234", "ssh-user": "svc" },
+      "server_type": { "name": "cx22" },
+      "datacenter": { "name": "fsn1-dc14", "location": { "name": "fsn1", "city": "Falkenstein" } },
+      "image": { "os_flavor": "ubuntu", "os_version": "24.04" }
+    },
+    {
+      "id": 4712, "name": "db-1", "status": "running",
+      "public_net": { "ipv4": { "ip": "203.0.113.10" }, "ipv6": null },
+      "private_net": [{ "ip": "10.0.0.3" }],
+      "labels": { "env": "prod", "group": "db", "sshkipper-jump": "bastion1" },
+      "server_type": { "name": "cx32" },
+      "datacenter": { "name": "nbg1-dc3", "location": { "name": "nbg1", "city": "Nuremberg" } },
+      "image": { "os_flavor": "debian", "os_version": "13" }
+    },
+    {
+      "id": 4713, "name": "old-build", "status": "off",
+      "public_net": { "ipv4": { "ip": "203.0.113.11" }, "ipv6": null },
+      "private_net": [],
+      "labels": { "env": "ci" },
+      "server_type": { "name": "cx22" },
+      "datacenter": { "name": "hel1-dc2", "location": { "name": "hel1", "city": "Helsinki" } },
+      "image": null
+    }
+  ]
+}
