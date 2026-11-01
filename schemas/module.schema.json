@@ -141,14 +141,19 @@
         "key": { "$ref": "#/$defs/name" },
         "title": { "$ref": "#/$defs/text" },
         "help": { "$ref": "#/$defs/text" },
-        "type": { "enum": ["text", "number", "bool", "choice", "secret", "path", "list"] },
+        "type": { "enum": ["text", "number", "bool", "choice", "secret", "path", "list", "node"],
+                  "description": "node — a link to another node of the document (a server to go through): only in a node type's fields." },
         "default": {},
         "choices": {
           "type": "array", "maxItems": 40,
           "items": { "type": "object", "additionalProperties": false, "required": ["value", "title"],
                      "properties": { "value": { "type": "string" }, "title": { "$ref": "#/$defs/text" } } }
         },
-        "placeholder": { "type": "string", "maxLength": 200 }
+        "placeholder": { "type": "string", "maxLength": 200 },
+        "nodeKinds": {
+          "type": "array", "maxItems": 8, "items": { "type": "string", "pattern": "^(connection|database|storage|tunnel|terminal|folder|ext:[a-z][a-z0-9_-]{0,39})$" },
+          "description": "A node field: what it may point at — kinds of the document or ext:<type> of this extension. None — a server (connection)."
+        }
       }
     },
     "service": {

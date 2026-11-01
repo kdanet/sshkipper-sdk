@@ -74,7 +74,9 @@ every server in it has it.
 ```
 
 Types: `text`, `number`, `bool`, `choice`, `path`, `list` (strings), `secret` (stored encrypted in the document,
-never in `context.settings`). Handlers read them as `SK_SETTING_<KEY>` (server) or `ctx.settings` (process).
+never in `context.settings`). Handlers read them as `SK_SETTING_<KEY>` (server) or `ctx.settings` (process). A node
+type's fields (`contributes.nodeType[].fields`) may also be `node` — a link to another node of the document, with
+`nodeKinds` ([node types](node-types.md)).
 
 ## Service
 

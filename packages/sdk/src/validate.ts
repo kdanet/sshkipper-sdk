@@ -151,6 +151,9 @@ export function manifestFile(dir: string): string {
 }
 
 /** The contributions the app knows (spec/protocol.md §10). */
+/** What a `node` field may name besides `ext:<own type>` (the app's `ModuleSetting.linkableKinds`). */
+export const LINKABLE = new Set(["connection", "database", "storage", "tunnel", "terminal", "folder"]);
+
 export const CONTRIBUTION_KINDS = ["service", "tools", "automation", "database", "storage", "source", "nodeType", "screen", "import", "console", "ai"] as const;
 
 /** What's wrong with a manifest: the schema, then the checks the app makes. `files` — relative paths of the folder. */
@@ -221,6 +224,7 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     settingKeys.add(s.key);
     if (s.type === "choice" && !(s.choices ?? []).length) err(`settings[${i}].choices`, "a choice without choices");
     if (s.type === "secret" && !perms.has("secrets")) err(`settings[${i}]`, "a secret setting — add «secrets» to permissions");
+    if (s.type === "node") err(`settings[${i}].type`, "a link to a node — only in a node type's fields (contributes.nodeType)");
   });
 
   const pageIDs = new Set<string>();
@@ -352,9 +356,17 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
     if (c[k] !== undefined && m[k] !== undefined) err(`contributes.${k}`, `«${k}» is both in contributes and at the top level — keep one`);
   }
   const handler = (path: string, n?: string) => { if (n !== undefined && !(n in handlers)) err(path, `no handler «${n}» in handlers`); };
-  const fields = (at: string, fs?: { key: string; type: string; choices?: unknown[] }[]) => {
+  const ownTypes = new Set((c.nodeType ?? []).map((t) => t.id));
+  const fields = (at: string, fs?: { key: string; type: string; choices?: unknown[]; nodeKinds?: string[] }[], links = false) => {
     const keys = new Set<string>();
     (fs ?? []).forEach((f, j) => {
+      if (f.type === "node") {
+        if (!links) err(`${at}.fields[${j}].type`, "a link to a node — only in a node type's fields (contributes.nodeType)");
+        for (const k of f.nodeKinds ?? ["connection"]) {
+          if (LINKABLE.has(k) || (k.startsWith("ext:") && ownTypes.has(k.slice(4)))) continue;
+          err(`${at}.fields[${j}].nodeKinds`, `«${k}»: ${[...LINKABLE].sort().join(", ")} or ext:<own type>`);
+        }
+      } else if (f.nodeKinds !== undefined) warn(`${at}.fields[${j}].nodeKinds`, "nodeKinds is read only for a field of type «node»");
       if (keys.has(f.key)) err(`${at}.fields[${j}].key`, `«${f.key}» repeats`);
       keys.add(f.key);
       if (f.type === "choice" && !(f.choices ?? []).length) err(`${at}.fields[${j}].choices`, "a choice without choices");
@@ -394,7 +406,7 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
           break;
         case "source": fields(at, x.fields); break;
         case "nodeType":
-          fields(at, x.fields);
+          fields(at, x.fields, true);
           if (x.screen !== undefined && !screens.has(x.screen)) err(`${at}.screen`, `no screen «${x.screen}» in contributes.screen`);
           if (x.screen === undefined) warn(at, "an item without a screen opens only its settings card");
           break;

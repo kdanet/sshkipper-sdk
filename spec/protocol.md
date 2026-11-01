@@ -305,8 +305,8 @@ and read as extensions unchanged.
 | `database[]` | `id` (engine, never a built-in one), `title`, `model` (`sql` / `keyValue` / `document`), `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote` (`"` or `` ` ``), `keywords`, `functions`, `readCommands` (trusted only for library extensions), `logo` (`si:<slug>`), `command` (its own program; else `runtime`, started apart with `SK_ROLE=database`). The driver speaks the database protocol — [database.md](database.md) | stage 2 |
 | `storage[]` | `id` (kind), `title`, `signIn` (`keys` / `login` / `browser` — needs `oauth` / `none`), `fields` (settings, §3.3 kinds), `capabilities` | stage 4 |
 | `source[]` | `id` (kind), `title`, `fields`, `refresh` (s, 60…86400) | stage 4 |
-| `nodeType[]` | `id`, `title`, `icon`, `fields`, `screen` (an id of `contributes.screen`) | stage 3 |
-| `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | stage 3 |
+| `nodeType[]` | `id`, `title`, `icon`, `fields` (settings and `node` links, §14), `screen` (an id of `contributes.screen`) | stage 3 (§14) |
+| `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | stage 3 (§14) |
 | `import[]` | `id`, `title`, `fileExtensions`, `handler` | stage 6 |
 | `console[]` | `id`, `title`, `handler` | stage 6 |
 | `ai[]` | `id`, `title`, `icon`, `description`, `fields` (the profile's settings; `secret` ones kept in the keychain), `reasoning` (levels) — §13 | stage 6 |
@@ -552,3 +552,77 @@ The program answers three methods of its own (on the same connection as its hand
 
 In TypeScript: `defineModule({ handlers: {}, ai: { models(req), async chat(req, ctx) { ctx.delta({type: "text",
 text: "…"}); return { stop: "end_turn" }; } } })` — `examples/ai-echo-provider`.
+## 14. Node types and screens
+
+An extension may add **a node of its own** to the user's document (`contributes.nodeType`) and **screens** the app
+draws from blocks (`contributes.screen`). The app keeps the node; the extension describes it.
+
+### 14.1 The node
+
+A node of a type is stored in the document as kind `extension` with `{"extension": "<id>", "type": "<type id>",
+"values", "secrets", "links"}`; protocol and review name a type `ext:<extension>/<type>`. The card the user fills is
+drawn from the type's `fields` (settings, §3.3 kinds, plus `node`):
+
+- `secret` fields are secrets of the document, owned by the node (copied and deleted with it). They are never in
+  `settings`; the program asks for them (§14.3).
+- `node` fields point at another node of the document — `nodeKinds`: `connection` (the default), `database`,
+  `storage`, `tunnel`, `terminal`, `folder`, or `ext:<type>` of the same extension. A `node` field outside a node type
+  (a module's settings, a storage's fields) is an error.
+- Without the extension installed and on, the node stays as it is (a puzzle piece, «нужно расширение»): every value is
+  kept, values of kinds the app doesn't read and keys it doesn't know too.
+
+`context.node` — in every call made for a node's screen (the `render` and `ui/event`):
+
+```json
+{ "id": "D66F…", "name": "Сайты стенда", "type": "ext:dev.example.sites/checks",
+  "settings": { "interval": 5, "urls": ["http://127.0.0.1:8080/health"] },
+  "links": { "server": { "id": "6F1C…", "name": "web-1", "kind": "connection", "host": "10.0.0.5", "user": "deploy" } },
+  "secrets": ["token"] }
+```
+
+`settings` — the type's fields but secrets and links, defaults filled in; `secrets` — keys of the secret fields that
+are set. When the node points at a server, `context.server` is the first such server: `host/exec` works there as in a
+module's call.
+
+### 14.2 Screens
+
+`screen[].placement`:
+
+- `tab` — a tab of its own. Opened by a double click (Enter, the palette) on a node whose type names it
+  (`nodeType.screen`), by `host/open {screen}`, or — a tab screen no node type names — from the palette by its title.
+  One tab per screen and node: opening it again brings it forward.
+- `section` — a section of a server's services tab, next to modules' sections, on the servers where the extension is
+  switched on in «Службы» of the card (or its `service` is shown there). `context.server` is that server.
+- `panel` — reserved; not opened yet.
+
+The app calls the screen's `render` handler with input `{"screen": "<id>", "node": <context.node>}` and draws the
+view it returns (a live screen, §11 — `screen(...)` of the SDK). Then the screen lives as every live screen: `open`,
+events, ops, `ui/push`. The app builds it **anew** (render, then `close`/`open`) when the extension is updated or
+switched on again, when the node's settings change, after the document is unlocked again, and when the program was
+restarted (stopped, crashed) — a new program never saw the screen, so the event that found it gone isn't sent. Tabs
+of a document open again when it is unlocked, after a relaunch too (the app remembers them on this Mac).
+
+A program with a screen on screen isn't stopped as idle (it pushes to it).
+
+### 14.3 What a program sees
+
+Only what its screens on screen show: **the node a screen is open for, the nodes that node points at, the server of
+a section** — between calls too (a timer pushing live data). Anything else — another node's id, a guessed one,
+another extension's node — is refused (`-32001`).
+
+| Method | Params | Result | Permission |
+|---|---|---|---|
+| `host/secret` | `{"node": "<id>", "key": "<secret field>"}` — a node of **its own type** it sees | `{"value": "…"}` | `secrets` |
+| `host/exec` | as §4.3; `server` — a call's server or one it sees | as §4.3 | `exec` |
+| `host/open` | `{"node": "<id>"}` — as a double click; `{"screen": "<id>", "node"?: "<id>"}` — its tab screen; `{"screen": "<id>", "server": "<id>"}` — its section; `{"terminal": {"server": "<id>", "command"?: "…", "title"?: "…"}}` | `{"opened": true \| false}` | — |
+| `host/ask` | `{"title", "text"?, "buttons"?: [≤ 4], "risk"?: "info" \| "warn" \| "danger", "cancel"?: <index>}` | `{"button": <index>}` | — |
+
+- `host/secret` with `node`: never a secret of another extension's node, never a password, key or 2FA of the
+  document (a record shared with one is refused).
+- `host/open terminal`: a command (one line, ≤ 2000 characters) is typed into a new terminal of that server only after
+  the user says yes in a question that shows it, who sent it, and what the command policy finds in it (red when it
+  changes the system or the server is Production); `{"opened": false}` — the user said no. At most 5 opens in 10 s.
+- `host/ask`: the app's dialog says which extension asks. `buttons[0]` is the main one; `risk: danger` makes it red
+  and never the Return default; Esc answers `cancel` (the last button by default). One question of an extension on
+  screen at a time, at most 8 waiting; with no window to ask over (closed to the menu bar, everything locked) a
+  question waits for one.
