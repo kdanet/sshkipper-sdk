@@ -16,7 +16,8 @@ defineModule({
         size: () => ({ cols: session.cols, rows: session.rows }),
       }, session.node.name ?? "device", ctx.locale.startsWith("ru"));
       session.onInput((d) => device.input(d));
-      session.onClose(() => device.stop());
+      // The tab closed (or the app stops the program): the device stops; stderr is the extension's log in the app.
+      session.onClose(() => { device.stop(); console.error(`console ${session.id} closed`); });
       device.boot();
     },
   },
