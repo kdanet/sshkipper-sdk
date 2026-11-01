@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.db-sqlite",
+  "version": "1.0.0",
+  "title": { "ru": "SQLite на Node", "en": "SQLite on Node" },
+  "description": {
+    "ru": "Пример драйвера базы данных: файлы SQLite на этом Mac через встроенный в Node модуль node:sqlite. Вкладку — редактор, таблицы, структуру, правку — рисует SSHKipper.",
+    "en": "An example database driver: SQLite files on this Mac through Node's built-in node:sqlite. SSHKipper draws the tab — the editor, tables, structure, edits."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "cylinder.split.1x2", "color": "blue" },
+  "runtime": { "kind": "process", "command": ["node", "--disable-warning=ExperimentalWarning", "driver.ts"] },
+  "permissions": [],
+  "contributes": {
+    "database": [
+      {
+        "id": "example-sqlite",
+        "title": { "ru": "SQLite (Node, пример)", "en": "SQLite (Node, example)" },
+        "description": { "ru": "Файл SQLite на этом Mac", "en": "A SQLite file on this Mac" },
+        "logo": "si:sqlite",
+        "model": "sql",
+        "isFile": true,
+        "hasEditorTransactions": true,
+        "identifierQuote": "\"",
+        "keywords": ["SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "TABLE", "PRAGMA", "EXPLAIN"],
+        "functions": ["count", "sum", "avg", "min", "max", "length", "lower", "upper", "coalesce", "date", "datetime", "json_extract"],
+        "readCommands": ["select", "explain"]
+      }
+    ]
+  }
+}

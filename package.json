@@ -13,7 +13,7 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.ts",
-    "validate": "node packages/cli/sshkipper-module.ts validate examples/processes && node packages/cli/sshkipper-module.ts validate examples/http-checks",
+    "validate": "node packages/cli/sshkipper-module.ts validate examples/processes && node packages/cli/sshkipper-module.ts validate examples/http-checks && node packages/cli/sshkipper-module.ts validate examples/db-sqlite-node",
     "mcp": "node packages/cli/sshkipper-module.ts mcp",
     "docs": "node scripts/gen-docs.ts"
   }
