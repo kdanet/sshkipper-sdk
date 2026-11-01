@@ -61,6 +61,21 @@ export const BLOCKS: BlockDoc[] = [
     example: { type: "picker", bind: "range", title: "Range", options: [{ title: "1 h", value: 60 }, { title: "1 d", value: 1440 }] } },
   { type: "slider", group: "input", use: "A number bound to a state variable.", fields: "bind, title, min, max, step?, unit?",
     example: { type: "slider", bind: "workers", title: "Workers", min: 1, max: 16 } },
+  // A live screen's own (view with "events": true; spec/protocol.md §10)
+  { type: "datatable", group: "screen", use: "Any number of rows, loaded a page at a time (`more` events); sorting, editable cells, a row menu, drops.", fields: "id, columns [{id, title?, kind?, editable?}], rows, total, pageSize?, sort?, selection?, menu?, draggable?, drop?",
+    example: { type: "datatable", id: "jobs", total: 50000, columns: [{ id: "id", kind: "number" }, "name"], rows: [[1, "send-mail"]], menu: [{ id: "retry", title: "Retry" }] } },
+  { type: "tree", group: "screen", use: "Nodes whose children you give when one is expanded (`expand`).", fields: "id, nodes [{id, title, children?, expandable?}], menu?, drop?",
+    example: { type: "tree", id: "queues", nodes: [{ id: "q", title: "default", expandable: true }] } },
+  { type: "split", group: "screen", use: "Two or three panes side by side; the user's widths are remembered.", fields: "children (2–3), sizes?",
+    example: { type: "split", sizes: [240], children: [{ type: "tree", id: "t", nodes: [] }, { type: "text", id: "details", text: "—" }] } },
+  { type: "editor", group: "screen", use: "A code editor: colors, `change` and `complete` events.", fields: "id, text, language?, keywords?, completion?, editable?",
+    example: { type: "editor", id: "q", language: "sql", text: "select 1", completion: true } },
+  { type: "terminal", group: "screen", use: "Output as it comes, ANSI colors kept; append with ops.", fields: "id, text, maxLines?",
+    example: { type: "terminal", id: "out", text: "ready\n" } },
+  { type: "toolbar", group: "screen", use: "Buttons with symbols; each press is a `press` event.", fields: "items [{id, title, symbol?, status: bad?, action?}]",
+    example: { type: "toolbar", items: [{ id: "refresh", title: "Refresh", symbol: "arrow.clockwise" }] } },
+  { type: "sheet", group: "screen", use: "A form shown as a sheet; OK sends `submit` with its values.", fields: "id, title, text?, subtitle (OK), children (fields)",
+    example: { type: "sheet", id: "new", title: "New job", subtitle: "Add", children: [{ type: "field", bind: "name", title: "Name" }] } },
 ];
 
 export const STYLE = {
@@ -81,14 +96,14 @@ Limits: 400 blocks, 32 levels of JSON (8 levels of blocks are drawn), 2 MB.`;
 
 /** The catalog as text for a model. */
 export function catalogText(symbols: string[]): string {
-  const groups = ["layout", "content", "service", "input"];
+  const groups = ["layout", "content", "service", "input", "screen"];
   let s = "# SSHKipper UI-Kit (SDK 1)\n\nA view is {title?, status?: [{text, tone?}], state?: {var: value}, blocks: [...]}. The app draws every block natively (AppKit/SwiftUI, no web views).\n";
   for (const g of groups) {
     s += `\n## ${g}\n`;
     for (const b of BLOCKS.filter((x) => x.group === g)) s += `\n### ${b.type}\n${b.use}\nFields: ${b.fields}\nExample: ${JSON.stringify(b.example)}\n`;
   }
   s += `\n## Style (any block)\n${STYLE.fields}\nTones: ${STYLE.tones.join(", ")}\nColors: ${STYLE.colors.join(", ")}\nStatuses: ${STYLE.statuses.join(", ")}\n`;
-  s += `\n## Actions\n{run: "<action id>", params?} · {page: "<page id>"} · {refresh: true} · {set: {var: value | "= formula"}} · {open: "node:<id>"} · {ask: "question for the AI panel"}\n`;
+  s += `\n## Actions\n{run: "<action id>", params?} · {page: "<page id>"} · {refresh: true} · {set: {var: value | "= formula"}} · {open: "node:<id>"} · {ask: "question for the AI panel"} · live screens: {event: "<name>", params?} · {sheet: "<sheet id>"}\n`;
   s += `\n## Templates\n${TEMPLATES}\n`;
   s += `\n## Symbols (SF Symbols the app draws; any other shows a puzzle piece)\n${symbols.join(", ")}\n`;
   return s;

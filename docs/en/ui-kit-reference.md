@@ -147,6 +147,43 @@ A number bound to a state variable.
 Fields: bind, title, min, max, step?, unit?
 Example: {"type":"slider","bind":"workers","title":"Workers","min":1,"max":16}
 
+## screen
+
+### datatable
+Any number of rows, loaded a page at a time (`more` events); sorting, editable cells, a row menu, drops.
+Fields: id, columns [{id, title?, kind?, editable?}], rows, total, pageSize?, sort?, selection?, menu?, draggable?, drop?
+Example: {"type":"datatable","id":"jobs","total":50000,"columns":[{"id":"id","kind":"number"},"name"],"rows":[[1,"send-mail"]],"menu":[{"id":"retry","title":"Retry"}]}
+
+### tree
+Nodes whose children you give when one is expanded (`expand`).
+Fields: id, nodes [{id, title, children?, expandable?}], menu?, drop?
+Example: {"type":"tree","id":"queues","nodes":[{"id":"q","title":"default","expandable":true}]}
+
+### split
+Two or three panes side by side; the user's widths are remembered.
+Fields: children (2–3), sizes?
+Example: {"type":"split","sizes":[240],"children":[{"type":"tree","id":"t","nodes":[]},{"type":"text","id":"details","text":"—"}]}
+
+### editor
+A code editor: colors, `change` and `complete` events.
+Fields: id, text, language?, keywords?, completion?, editable?
+Example: {"type":"editor","id":"q","language":"sql","text":"select 1","completion":true}
+
+### terminal
+Output as it comes, ANSI colors kept; append with ops.
+Fields: id, text, maxLines?
+Example: {"type":"terminal","id":"out","text":"ready\n"}
+
+### toolbar
+Buttons with symbols; each press is a `press` event.
+Fields: items [{id, title, symbol?, status: bad?, action?}]
+Example: {"type":"toolbar","items":[{"id":"refresh","title":"Refresh","symbol":"arrow.clockwise"}]}
+
+### sheet
+A form shown as a sheet; OK sends `submit` with its values.
+Fields: id, title, text?, subtitle (OK), children (fields)
+Example: {"type":"sheet","id":"new","title":"New job","subtitle":"Add","children":[{"type":"field","bind":"name","title":"Name"}]}
+
 ## Style (any block)
 style: {tone, color, background (card|well|none|<color>), font (title|headline|body|callout|caption|mono), weight, padding, radius, align, width, grow}
 Tones: plain, secondary, tertiary, good, warning, attention, bad, accent, info
@@ -154,12 +191,12 @@ Colors: blue, green, orange, red, yellow, purple, pink, teal, indigo, cyan, mint
 Statuses: ok, warn, bad, off, info
 
 ## Actions
-{run: "<action id>", params?} · {page: "<page id>"} · {refresh: true} · {set: {var: value | "= formula"}} · {open: "node:<id>"} · {ask: "question for the AI panel"}
+{run: "<action id>", params?} · {page: "<page id>"} · {refresh: true} · {set: {var: value | "= formula"}} · {open: "node:<id>"} · {ask: "question for the AI panel"} · live screens: {event: "<name>", params?} · {sheet: "<sheet id>"}
 
 ## Templates
 Templates are expanded by the app before drawing (spec/protocol.md §6):
 - "{{ data.x }}" alone keeps the value's type; inside text it's printed. Roots: data, item, settings, server, props, index.
-- Filters: default:"—", upper, lower, json, count, number (2.55 → «2,55» in Russian; number:1 — at most one digit), bytes, duration, ago.
+- Filters: default:"—", upper, lower, json, count, bytes, duration, ago.
 - {"each": "data.units", "as": "u", "where": "u.state == 'failed'", "limit": 50, "block": {...}} — once per element.
 - {"if": "item.failed", "block": {...}, "else": {...}}.
 - {"use": "component", "props": {...}} — a component of the manifest's "components".
