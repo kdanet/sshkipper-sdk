@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.sitechecks",
+  "version": "1.0.0",
+  "title": { "ru": "Проверки сайтов (пример своего узла)", "en": "Site checks (a node type example)" },
+  "description": {
+    "ru": "Свой тип узла со своим экраном: адреса, интервал, токен (секрет документа) и сервер в карточке; вкладка — проверки слева, живой график и история справа; «Проверить сейчас», «Очистить историю…» с вопросом, терминал на сервере с подтверждением. В сеть не ходит: проверяет только адреса этого Mac и сам их обслуживает.",
+    "en": "A node type with its own screen: addresses, interval, a token (a document secret) and a server in the card; the tab — checks on the left, a live chart and history on the right; «Check now», «Clear history…» with a question, a terminal on the server after you confirm. No network: it checks this Mac's addresses only and serves them itself."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "checkmark.shield", "color": "green" },
+  "runtime": { "kind": "process", "command": ["node", "extension.ts"] },
+  "permissions": ["secrets", "store"],
+  "contributes": {
+    "nodeType": [
+      {
+        "id": "checks",
+        "title": { "ru": "Проверки сайтов", "en": "Site checks" },
+        "icon": { "symbol": "checkmark.shield", "color": "green" },
+        "description": {
+          "ru": "Адреса проверяются по очереди раз в интервал, пока вкладка открыта. Без адресов — адреса подставного сервера примера.",
+          "en": "The addresses are checked one by one every interval while the tab is open. Without addresses — those of the example's own server."
+        },
+        "screen": "checks",
+        "fields": [
+          { "key": "urls", "title": { "ru": "Адреса", "en": "Addresses" }, "type": "list",
+            "placeholder": "http://127.0.0.1:8080/health",
+            "help": { "ru": "Через запятую. Пример проверяет только адреса этого Mac (127.0.0.1, localhost).", "en": "Comma-separated. The example checks addresses of this Mac only (127.0.0.1, localhost)." } },
+          { "key": "interval", "title": { "ru": "Интервал, с", "en": "Interval, s" }, "type": "number", "default": 5 },
+          { "key": "expect", "title": { "ru": "Хороший ответ", "en": "A good answer" }, "type": "choice", "default": "2xx",
+            "choices": [
+              { "value": "2xx", "title": { "ru": "Любой 2xx", "en": "Any 2xx" } },
+              { "value": "200", "title": "200" },
+              { "value": "2xx3xx", "title": { "ru": "2xx или 3xx", "en": "2xx or 3xx" } }
+            ] },
+          { "key": "demo", "title": { "ru": "Подставной сервер примера", "en": "The example's own server" }, "type": "bool", "default": true,
+            "help": { "ru": "Без своих адресов — /ok, /slow, /flaky, /down и /auth подставного сервера на 127.0.0.1.", "en": "Without addresses of your own — /ok, /slow, /flaky, /down and /auth of its own server on 127.0.0.1." } },
+          { "key": "token", "title": { "ru": "Токен (заголовок Authorization)", "en": "Token (the Authorization header)" }, "type": "secret",
+            "help": { "ru": "Секрет документа: программа берёт его через host/secret, в настройках его нет. /auth примера ждёт «demo-token».", "en": "A secret of the document: the program asks for it with host/secret, it isn't in the settings. The example's /auth expects «demo-token»." } },
+          { "key": "server", "title": { "ru": "Сервер", "en": "Server" }, "type": "node", "nodeKinds": ["connection"],
+            "help": { "ru": "«Терминал на сервере» открывает его с curl выбранного адреса — после вашего подтверждения.", "en": "«Terminal on the server» opens it with curl of the selected address — after you confirm." } }
+        ]
+      }
+    ],
+    "screen": [
+      { "id": "checks", "title": { "ru": "Проверки сайтов", "en": "Site checks" }, "icon": { "symbol": "checkmark.shield", "color": "green" },
+        "placement": "tab", "render": "render" }
+    ]
+  },
+  "handlers": {
+    "render": { "timeout": 10 }
+  }
+}

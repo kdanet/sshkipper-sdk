@@ -1,7 +1,7 @@
 // The runtime of a process module (spec/protocol.md §4): JSON-RPC 2.0 over stdio, one message per line. A module
 // written with it is a map of async handlers; the app's services (exec on a server, secrets, storage) are `ctx.host`.
 
-import type { Context, EventAnswer, ExecResult, Json, Op, Request, ScreenEvent } from "./types.ts";
+import type { Context, EventAnswer, ExecResult, Json, Op, OpenTarget, Question, Request, ScreenEvent } from "./types.ts";
 
 /** A failure the app shows to the user (or gives to the model / fails the automation block with). */
 export class ModuleError extends Error {
@@ -26,6 +26,13 @@ export interface Host {
   store: { get(key: string): Promise<Json | null>; set(key: string, value: Json | null): Promise<void> };
   notify(title: string, text: string): Promise<void>;
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
+  /** A secret field of an extension's node (§12.2): the call's node by default, or a node it points at — of this
+   * extension's own types only, while its screen is open. Needs the `secrets` permission. */
+  nodeSecret(key: string, node?: string): Promise<string>;
+  /** Opens a node, a screen of the extension, or a terminal (§12.3); `false` — the user said no to the command. */
+  open(target: OpenTarget): Promise<boolean>;
+  /** Asks the user (§12.4): the index of the button pressed. */
+  ask(q: Question): Promise<number>;
 }
 
 export interface HandlerContext extends Context {
@@ -125,6 +132,18 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
       },
       async notify(title, text) { await request("host/notify", { title, text }); },
       log(level, message) { send({ method: "host/log", params: { level, message } }); },
+      async nodeSecret(key, node) {
+        const r = (await request("host/secret", { node: node ?? ctx.node?.id ?? null, key })) as { value: string };
+        return r.value;
+      },
+      async open(target) {
+        const r = (await request("host/open", target as unknown as Json)) as { opened?: boolean } | null;
+        return r?.opened !== false;
+      },
+      async ask(q) {
+        const r = (await request("host/ask", q as unknown as Json)) as { button: number };
+        return r.button;
+      },
     };
   }
 

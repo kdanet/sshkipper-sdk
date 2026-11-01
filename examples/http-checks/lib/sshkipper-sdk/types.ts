@@ -19,10 +19,14 @@ export interface Setting {
   key: string;
   title: Text;
   help?: Text;
-  type: "text" | "number" | "bool" | "choice" | "secret" | "path" | "list";
+  /** `node` — a link to another node of the document (a server to go through): only in `contributes.nodeType[].fields`. */
+  type: "text" | "number" | "bool" | "choice" | "secret" | "path" | "list" | "node";
   default?: Json;
   choices?: { value: string; title: Text }[];
   placeholder?: string;
+  /** A `node` field: what it may point at — `connection` (the default), `database`, `storage`, `tunnel`, `terminal`,
+   * `folder`, or `ext:<type>` — a node of one of this extension's own types. */
+  nodeKinds?: string[];
 }
 
 export interface Param {
@@ -394,14 +398,56 @@ export interface Server {
   user?: string;
 }
 
+/** A node the program sees (spec/protocol.md §12): the extension's node of its screen, or one it points at. */
+export interface NodeLink {
+  id: string;
+  name: string;
+  /** `connection`, `database`… or `ext:<extension>/<type>`. */
+  kind: string;
+  /** A server's address and user (a `connection`). */
+  host?: string;
+  user?: string;
+}
+
+/** `context.node`: the extension's node a screen is open for — its settings by the type's fields (defaults filled
+ * in), the nodes its `node` fields point at, the keys of its secret fields that are set (`host.nodeSecret`). */
+export interface NodeContext {
+  id: string;
+  name: string;
+  /** `ext:<extension>/<type>`. */
+  type: string;
+  settings: Record<string, Json>;
+  links: Record<string, NodeLink>;
+  secrets: string[];
+}
+
 export interface Context {
   server?: Server;
   container?: string;
   settings: Record<string, Json>;
   item?: Json;
+  /** An extension node's screen: the node (§12). */
+  node?: NodeContext;
   locale: string;
   sdk: 1;
   app: string;
+}
+
+/** `host/open` (§12.3): a node the program sees, a tab screen of its own (`server` — a `section` screen on a server's
+ * services tab), or a terminal on a server it sees with a command the user is asked about first. */
+export type OpenTarget =
+  | { node: string }
+  | { screen: string; node?: string; server?: string }
+  | { terminal: { server: string; command?: string; title?: string } };
+
+/** `host/ask` (§12.4): a question in the app's dialog. `buttons[0]` is the main one; `risk: "danger"` makes it red
+ * and never the Return default; Esc answers `cancel` (the last button by default). */
+export interface Question {
+  title: string;
+  text?: string;
+  buttons?: string[];
+  risk?: "info" | "warn" | "danger";
+  cancel?: number;
 }
 
 export interface Request {
