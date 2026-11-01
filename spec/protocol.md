@@ -154,8 +154,10 @@ module's log. Both sides MAY send requests; ids are unique per sender. A line lo
 
 The app starts the program on first use and keeps it while the module is used; it stops it (`shutdown`, stdin closed,
 then SIGTERM to its process group after 3 s and SIGKILL to what is left 2 s later; at quit at once) when the module is
-disabled, updated or removed, after ten minutes without calls, when any document locks, or when the app quits.
-A program that exits is started again on the next call.
+disabled, updated or removed, after ten minutes without calls, when a document locks and the program worked for
+one of its servers (it may hold that document's secrets or output), when no unlocked document is left, or when the
+app quits. A program serving only other open documents keeps running when one document locks. A program that exits
+is started again on the next call.
 
 ### 4.2 App → module
 

@@ -2,7 +2,8 @@
 
 `"runtime": {"kind": "process", "command": ["node", "module.ts"]}` — a program of the module on this Mac. The app
 starts it on first use, talks JSON-RPC 2.0 over its stdin/stdout (one message per line), keeps it while the module
-is used and stops it when the module is turned off or updated, all documents lock, or the app quits. Any language
+is used and stops it when the module is turned off or updated, a document it worked for locks (all of them once no
+document is open), or the app quits. Any language
 works ([spec/protocol.md §4](../../spec/protocol.md)); the SDK ships a TypeScript runtime for Node 24, which runs
 `.ts` files as they are.
 

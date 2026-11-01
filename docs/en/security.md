@@ -30,7 +30,8 @@ work, and the user sees what that is before installing it.
   without `exec`, `host.secret` without `secrets`, `host.store` without `store` fail; secret settings without
   `secrets` aren't offered. `network` is not checked: it is the author's declaration.
 - **Programs end with their children.** A process module's program runs in its own process group: switched off,
-  updated, removed, idle for ten minutes, any document locked or the app quitting — SIGTERM to the group, SIGKILL to
+  updated, removed, idle for ten minutes, a document locked that it worked for (every program once no document is
+  left open), or the app quitting — SIGTERM to the group, SIGKILL to
   what is left a few seconds later. `runtime.env` can't set variables that load code from outside the module
   (`NODE_OPTIONS`, `DYLD_*`, `LD_*`, `PYTHONSTARTUP`, `*_OPTIONS`…).
 - **Limits.** Timeouts stop the whole process group on the server; output is capped (8 MB from a script, 16 MB a
