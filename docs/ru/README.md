@@ -34,4 +34,5 @@ SSHKipper — нативный SSH-менеджер для macOS. **Модуль
 [AI и автоматизации](../en/ai-and-automation.md), [публикация](../en/publishing.md),
 [безопасность](../en/security.md), [MCP для агентов](../en/agents.md). Протокол — [spec/protocol.md](../../spec/protocol.md).
 
-По-русски: [быстрый старт](getting-started.md).
+По-русски: [быстрый старт](getting-started.md), [импорт и консоли](importers-and-consoles.md) (примеры —
+[import-csv](../../examples/import-csv), [console-echo](../../examples/console-echo)).
