@@ -92,9 +92,9 @@ Open a «Только чтение» node read-only yourself (`connection.readOn
 ## 5. Try it
 
 ```sh
-node packages/cli/sshkipper-module.ts validate examples/db-sqlite-node
+node packages/cli/sshkipper-ext.ts validate examples/db-sqlite-node
 node --test tests/database.test.ts          # the example end to end over the protocol
 ```
 
-In SSHKipper: Settings → Extensions → «Установить из файла…» (or `sshkipper-module pack` for a `.sshkext`), then
+In SSHKipper: Settings → Extensions → «Установить расширение…» (or `sshkipper-ext pack` for a `.sshkext`), then
 File → «Новая база данных…», engine «SQLite (Node, пример)», a `.sqlite` file on this Mac.

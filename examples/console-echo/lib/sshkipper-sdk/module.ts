@@ -37,12 +37,12 @@ export interface Host {
    * `oauth` (it comes back in `settings.oauth` of later calls). Permission `oauth`. */
   oauth(opts: { node: string; authURL: string; tokenURL: string; clientID: string; clientSecret?: string; scope?: string;
     params?: Record<string, string> }): Promise<{ accessToken: string | null }>;
-  /** A secret field of an extension's node (§14.2): the call's node by default, or a node it points at — of this
+  /** A secret field of an extension's node (§14.3): the call's node by default, or a node it points at — of this
    * extension's own types only, while its screen is open. Needs the `secrets` permission. */
   nodeSecret(key: string, node?: string): Promise<string>;
   /** Opens a node, a screen of the extension, or a terminal (§14.3); `false` — the user said no to the command. */
   open(target: OpenTarget): Promise<boolean>;
-  /** Asks the user (§14.4): the index of the button pressed. */
+  /** Asks the user (§14.3): the index of the button pressed. */
   ask(q: Question): Promise<number>;
 }
 

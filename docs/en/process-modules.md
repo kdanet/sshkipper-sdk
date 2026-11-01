@@ -10,7 +10,7 @@ works ([spec/protocol.md §4](../../spec/protocol.md)); the SDK ships a TypeScri
 ## A module in TypeScript
 
 ```sh
-sshkipper-module new queues --process --id dev.acme.queues
+sshkipper-ext new queues --process --id dev.acme.queues
 ```
 
 ```ts
@@ -36,7 +36,7 @@ defineModule({
 });
 ```
 
-`lib/sshkipper-sdk/` is the SDK runtime copied into the module (`sshkipper-module vendor` refreshes it): a module is
+`lib/sshkipper-sdk/` is the SDK runtime copied into the module (`sshkipper-ext vendor` refreshes it): a module is
 self-contained and needs no `npm install` on the user's Mac. Declare every handler in the manifest's `handlers`
 (`{}` or `{"timeout": 20}`).
 
@@ -78,9 +78,9 @@ approved by their hashes, and anything written there (a cache, a log, `__pycache
 ## Trying it
 
 ```sh
-sshkipper-module call render --settings '{"…": "…"}'           # host.exec runs here
-sshkipper-module call render --ssh deploy@web-1                # host.exec runs there, over your ssh
-sshkipper-module preview main --ssh deploy@web-1               # the rendered page as text
+sshkipper-ext run render --settings '{"…": "…"}'           # host.exec runs here
+sshkipper-ext run render --ssh deploy@web-1                # host.exec runs there, over your ssh
+sshkipper-ext preview main --ssh deploy@web-1               # the rendered page as text
 ```
 
 The stand-in host keeps `host.store` in `.sshkipper-dev-store.json` and prints notifications and logs.

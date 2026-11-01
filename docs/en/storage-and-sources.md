@@ -3,7 +3,7 @@
 An extension can add a **kind of storage** — files in the app's file panel, the transfer queue and automations — and a
 **kind of source** — a live folder of servers in the tree. Both are answered by the extension's program on this Mac
 (`runtime: process`); the app draws everything itself. The normative description is
-[spec/protocol.md §11](../../spec/protocol.md); two working examples are in `examples/`:
+[spec/protocol.md §12](../../spec/protocol.md); two working examples are in `examples/`:
 
 | Example | What it shows |
 |---|---|
@@ -86,6 +86,6 @@ defineModule({
 
 ## Checking it
 
-`node packages/cli/sshkipper-module.ts validate <folder>` checks the manifest like the app. In the app (debug build,
+`node packages/cli/sshkipper-ext.ts validate <folder>` checks the manifest like the app. In the app (debug build,
 review instance): `extinstall <folder>`, then «Файл → Новое хранилище «…»…» or «Новый источник «…»…». The tests in
 `tests/contributions.test.ts` speak to both examples as the app does — a good start for your own.

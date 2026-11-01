@@ -362,7 +362,7 @@ test("node types: host.nodeSecret, host.open, host.ask send what the app reads",
 });
 
 
-// MARK: Import and consoles (spec/protocol.md §12, §13)
+// MARK: Import and consoles (spec/protocol.md §15, §16)
 
 /** A module served over an in-memory transport: send lines, take what it wrote. */
 function harness(def: Parameters<typeof serve>[0]) {

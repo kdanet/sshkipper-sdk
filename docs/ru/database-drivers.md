@@ -90,9 +90,9 @@ await serveDatabase({
 ## 5. Попробовать
 
 ```sh
-node packages/cli/sshkipper-module.ts validate examples/db-sqlite-node
+node packages/cli/sshkipper-ext.ts validate examples/db-sqlite-node
 node --test tests/database.test.ts          # пример целиком по протоколу
 ```
 
-В SSHKipper: Настройки → Расширения → «Установить из файла…» (или `sshkipper-module pack` → `.sshkext`), затем
+В SSHKipper: Настройки → Расширения → «Установить расширение…» (или `sshkipper-ext pack` → `.sshkext`), затем
 Файл → «Новая база данных…», СУБД «SQLite (Node, пример)», файл `.sqlite` на этом Mac.

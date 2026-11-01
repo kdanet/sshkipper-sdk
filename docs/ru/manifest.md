@@ -1,7 +1,10 @@
 # Манифест
 
-`sshkipper-module.json` в корне модуля. Схема — [schemas/module.schema.json](../../schemas/module.schema.json)
-(укажите её в `$schema`, и редактор будет дополнять и проверять ключи); остальное проверяет `sshkipper-ext validate`.
+`sshkipper-extension.json` в корне расширения — или `sshkipper-module.json` у модуля (только служба, инструменты AI и
+блоки автоматизаций; читается так же, упаковывается в `.sshkmod`). В папке — один из двух. Схема у обоих —
+[schemas/module.schema.json](../../schemas/module.schema.json) (укажите её в `$schema`, и редактор будет дополнять и
+проверять ключи); остальное проверяет `sshkipper-ext validate`. Что расширение добавляет кроме службы — `contributes` —
+в конце страницы.
 
 ```json
 {
@@ -57,6 +60,10 @@
 | `network` | Объявление: программа сама открывает соединения с этого Mac (модули-программы). Не ограничивается — у модуля-программы нет песочницы |
 | `store` | `host.store` — данные модуля в JSON на этом Mac |
 | `notify` | `host.notify` — уведомления |
+| `forward` | `host.forward` — проброс порта через SSH-сессию приложения к серверу, к которому привязано хранилище (или база) |
+| `oauth` | `host.oauth` — вход через браузер, пока пользователь нажимает «Войти»; токен хранится секретом узла |
+
+Обновление, которое добавляет право (или вклад), ставится выключенным, пока пользователь его не включит.
 
 ## Настройки
 
@@ -155,3 +162,25 @@
   "kpi": { "type": "metric", "title": "{{ props.title }}", "value": "{{ props.value }}", "status": "{{ props.status }}" }
 }
 ```
+
+## Вклады (`contributes`)
+
+Расширение перечисляет, что оно добавляет в приложение, в `contributes`: каждый вид — массив вкладов с `id`
+(`^[a-z][a-z0-9_-]{0,39}$`, уникален внутри вида), `title` и необязательной `icon`. `service`, `tools` и
+`automation` можно писать и там, и на верхнем уровне (но не в обоих местах). Протокол — [spec/protocol.md](../../spec/protocol.md) §10.
+
+| Вид | Свои ключи | Кто отвечает | Руководство |
+|---|---|---|---|
+| `service`, `tools`, `automation` | как выше | обработчики | [на сервере](server-modules.md), [программы](process-modules.md), [AI и автоматизации](ai-and-automation.md) |
+| `database` | `model`, `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote`, `keywords`, `functions`, `readCommands`, `logo`, `command` | драйвер, [spec/database.md](../../spec/database.md) | [драйверы баз данных](database-drivers.md) |
+| `storage` | `signIn`, `fields`, `capabilities` | `storage/*` (§12.1) | [хранилища и источники](storage-and-sources.md) |
+| `source` | `fields`, `refresh` | `source/*` (§12.2) | [хранилища и источники](storage-and-sources.md) |
+| `nodeType` | `fields` (со ссылками `node`), `screen` | `render` его экрана (§14) | [свой тип узла](node-types.md) |
+| `screen` | `placement` (`tab`, `section`), `render` | `render`, затем `ui/event` (§11, §14.2) | [свой тип узла](node-types.md), [UI-Kit](ui-kit.md) |
+| `import` | `fileExtensions`, `maxSizeMB` | `import/parse` (§15) | [импорт и консоли](importers-and-consoles.md) |
+| `console` | `appliesTo` | `console/*` (§16) | [импорт и консоли](importers-and-consoles.md) |
+| `ai` | `fields`, `reasoning` | `ai/models`, `ai/chat` (§13) | [AI и автоматизации](ai-and-automation.md) |
+
+Всё, кроме `service`, `tools`, `automation`, `nodeType` и `screen`, требует способа выполнения `process` (у
+`database` может быть своя `command`). Встроенные id (`mysql`, `s3`, `tailscale`…) расширение не заменяет; вид,
+которого эта версия приложения не знает, — ошибка.

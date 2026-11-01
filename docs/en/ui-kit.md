@@ -110,7 +110,7 @@ A page with `view` + `data` is a template the app expands before drawing:
   handler (`"status": "bad"`), not in the template.
 - Limits: 400 blocks after expansion, 32 levels of JSON (8 levels of blocks are drawn), 2 MB.
 
-Check without the app: `sshkipper-module preview <page> --data data.json` or `--run`.
+Check without the app: `sshkipper-ext preview <page> --data data.json` or `--run`.
 
 ## Components
 

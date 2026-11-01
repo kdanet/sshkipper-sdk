@@ -1,6 +1,6 @@
-// «Очереди» — an example live screen (spec/protocol.md §10): the page is a screen with `events`, and the program
+// «Очереди» — an example live screen (spec/protocol.md §11): the page is a screen with `events`, and the program
 // answers what the user does with ops that change only the blocks they name. Nothing here touches a server: the
-// queues and jobs are made up, so the example runs anywhere (`sshkipper-module call` or a development folder).
+// queues and jobs are made up, so the example runs anywhere (`sshkipper-ext run` or a development folder).
 
 import {
   card, datatable, defineModule, editor, field, liveChart, ops, picker, screen, sheet, split, terminal, text, toolbar, tr, tree,

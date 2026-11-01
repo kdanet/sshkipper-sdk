@@ -83,9 +83,9 @@ a handler that needs one fails with a message.
 ## Trying them
 
 ```sh
-sshkipper-module call list --settings '{"artisan": "/var/www/app/artisan"}'            # here
-sshkipper-module call list --ssh deploy@web-1                                            # on a server (your ssh)
-sshkipper-module call restart --ssh deploy@web-1 --item '{"id": "mail"}' --secret token=…
+sshkipper-ext run list --settings '{"artisan": "/var/www/app/artisan"}'            # here
+sshkipper-ext run list --ssh deploy@web-1                                            # on a server (your ssh)
+sshkipper-ext run restart --ssh deploy@web-1 --item '{"id": "mail"}' --secret token=…
 ```
 
 The examples: [examples/processes](../../examples/processes) — load, memory, the busiest processes, a process page,
