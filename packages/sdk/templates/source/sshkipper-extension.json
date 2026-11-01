@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "A live folder of servers in the tree: the app polls the program and shows what it found. This start reads them from the card — put your inventory's API in source.ts.",
+  "icon": { "symbol": "antenna.radiowaves.left.and.right", "color": "indigo" },
+  "runtime": { "kind": "process", "command": ["node", "source.ts"] },
+  "permissions": [],
+  "contributes": {
+    "source": [
+      {
+        "id": "__SLUG__",
+        "title": "__TITLE__",
+        "icon": { "symbol": "antenna.radiowaves.left.and.right" },
+        "description": { "en": "Servers of your inventory, as a folder that updates itself.", "ru": "Серверы вашего учёта — папкой, которая обновляется сама." },
+        "refresh": 300,
+        "fields": [
+          {
+            "key": "hosts", "type": "list",
+            "title": { "en": "Servers", "ru": "Серверы" },
+            "placeholder": "web-1 10.0.0.5:22 deploy",
+            "help": { "en": "One per item: name, address[:port], user, group (optional).", "ru": "По одному: имя, адрес[:порт], пользователь, группа (необязательно)." }
+          },
+          { "key": "user", "type": "text", "default": "root", "title": { "en": "User by default", "ru": "Пользователь по умолчанию" } }
+        ]
+      }
+    ]
+  }
+}

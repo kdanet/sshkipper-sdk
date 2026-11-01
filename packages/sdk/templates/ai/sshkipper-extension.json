@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "A model provider: a profile in Settings → AI, chosen wherever a profile is. This start echoes the question in pieces — call your model's API in provider.ts.",
+  "icon": { "symbol": "bolt.fill", "color": "purple" },
+  "runtime": { "kind": "process", "command": ["node", "provider.ts"] },
+  "permissions": ["secrets"],
+  "contributes": {
+    "ai": [
+      {
+        "id": "model",
+        "title": "__TITLE__",
+        "icon": { "symbol": "bolt.fill", "color": "purple" },
+        "description": { "en": "Answers with your model", "ru": "Отвечает вашей моделью" },
+        "fields": [
+          { "key": "endpoint", "type": "text", "default": "https://api.example.com/v1", "title": { "en": "API address", "ru": "Адрес API" } },
+          { "key": "api_key", "type": "secret", "title": { "en": "API key", "ru": "Ключ API" } }
+        ],
+        "reasoning": ["low", "medium", "high"]
+      }
+    ]
+  }
+}

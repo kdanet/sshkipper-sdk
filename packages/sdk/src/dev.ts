@@ -16,6 +16,8 @@ export const PRELUDE = readFileSync(fileURLToPath(new URL("../../../spec/prelude
 
 export interface CallOptions {
   input?: Record<string, Json>;
+  /** `context.node` — an extension node's screen (spec/protocol.md §14.1): `{id, name, type, settings, links, secrets}`. */
+  node?: Json;
   settings?: Record<string, Json>;
   item?: Json;
   locale?: string;
@@ -42,7 +44,8 @@ export function request(m: Manifest, handler: string, o: CallOptions): Request {
       ...(o.ssh ? { server: { id: "dev", name: o.ssh, host: o.ssh.split("@").pop()!, user: o.ssh.includes("@") ? o.ssh.split("@")[0] : undefined } } : {}),
       ...(o.container ? { container: o.container } : {}),
       settings: o.settings ?? {}, ...(o.item !== undefined ? { item: o.item } : {}),
-      locale: o.locale ?? "en", sdk: 1, app: "sshkipper-module",
+      ...(o.node !== undefined ? { node: o.node } : {}),
+      locale: o.locale ?? "en", sdk: 1, app: "sshkipper-ext",
     },
   } as Request;
 }
@@ -151,82 +154,169 @@ export async function call(dir: string, handler: string, o: CallOptions = {}): P
   return processCall(dir, m, handler, o, timeout);
 }
 
-/** A process module: its program started in `dir`, initialize, one handler/call, the host's methods answered here. */
-function processCall(dir: string, m: Manifest, handler: string, o: CallOptions, timeout: number): Promise<CallResult> {
+/** A process module's handler: its program started in `dir`, initialize, one handler/call. */
+async function processCall(dir: string, m: Manifest, handler: string, o: CallOptions, timeout: number): Promise<CallResult> {
+  const p = startProgram(dir, m, o);
+  const r = await p.request("handler/call", request(m, handler, o) as unknown as Json, timeout);
+  return { ...r, stdout: "", stderr: await p.close(), log: p.log };
+}
+
+/** A notification the program sent (`ui/push`, `ai/delta`, `console/data`…), in order. */
+export interface Notice { method: string; params: Json }
+
+/** What a contribution's own method answered, with the notifications that came meanwhile. */
+export interface MethodResult extends CallResult { notices: Notice[] }
+
+/** A contribution's own method (`storage/list`, `source/poll`, `import/parse`, `ai/models`, `ai/chat`, `ui/event`…)
+ * of a process extension in `dir`: its program started, initialize, the one request, the host's methods answered here. */
+export async function callMethod(dir: string, method: string, params: Json, o: CallOptions = {}): Promise<MethodResult> {
+  const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
+  if (m.runtime.kind !== "process") return { ok: false, error: "a server module has no methods of its own: run a handler", stdout: "", stderr: "", log: [], notices: [] };
+  const p = startProgram(dir, m, o);
+  const r = await p.request(method, params, o.timeout ?? 60);
+  return { ...r, stdout: "", stderr: await p.close(), log: p.log, notices: p.notices };
+}
+
+/** A program kept running for several requests (a screen's render, then its events). */
+export interface ProgramSession {
+  /** One request; the host's methods it asks meanwhile are answered here (exec here or on `ssh`, a store file…). */
+  request(method: string, params: Json, timeout?: number): Promise<{ ok: boolean; value?: Json; error?: string }>;
+  /** Notifications of the program so far, in order (`ui/push`, `ai/delta`, `console/data`…). */
+  notices: Notice[];
+  log: string[];
+  /** Ends the program (`shutdown`, stdin closed); its stderr. */
+  close(): Promise<string>;
+}
+
+/** Starts a process extension's program as the app does (a clean environment, `SK_DATA`, the package folder) and
+ * initializes it. The host's methods are answered by a stand-in: exec here or on `o.ssh`, a store in a file,
+ * notifications and logs collected, `host/forward` gives the target as is, `host/open` answers «not opened» and
+ * `host/ask` its cancel button — there is no person here. */
+export function startProgram(dir: string, m: Manifest, o: CallOptions = {}): ProgramSession {
   if (m.runtime.kind !== "process") throw new Error("not a process module");
   const [cmd, ...args] = m.runtime.command;
   const perms = new Set(m.permissions ?? []);
   const log: string[] = [];
+  const notices: Notice[] = [];
   const storeFile = o.storeFile ?? join(dir, ".sshkipper-dev-store.json");
   const store: Record<string, Json> = existsSync(storeFile) ? JSON.parse(readFileSync(storeFile, "utf8")) : {};
-  return new Promise((resolve) => {
-    // The environment the app gives a program: a clean one (no SSH agent, nothing of yours), SK_DATA its own folder.
-    const data = join(tmpdir(), "sshkipper-dev", m.id);
-    mkdirSync(data, { recursive: true, mode: 0o700 });
-    const own = Object.fromEntries(Object.entries(m.runtime.kind === "process" ? m.runtime.env ?? {} : {}).filter(([k]) => !k.startsWith("SK_") && k !== "PATH"));
-    const found = cmd.includes("/") ? dirname(join(dir, cmd)) : (process.env.PATH ?? "").split(":").find((d) => existsSync(join(d, cmd))) ?? "";
-    const env = {
-      PATH: [found, "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin", "/usr/local/bin"].filter(Boolean).join(":"),
-      HOME: process.env.HOME ?? "", TMPDIR: process.env.TMPDIR ?? "/tmp", LANG: "en_US.UTF-8",
-      SK_SDK: "1", SK_MODULE: m.id, SK_DATA: data, PYTHONPYCACHEPREFIX: join(data, "pycache"), ...own,
-    };
-    const p = spawn(cmd, args, { cwd: dir, env, stdio: ["pipe", "pipe", "pipe"] });
-    let buf = "", stderr = "", done = false;
-    const finish = (r: Omit<CallResult, "stderr" | "log" | "stdout">) => {
-      if (done) return;
-      done = true;
-      clearTimeout(t);
-      p.stdin.end();
-      setTimeout(() => p.kill(), 500);
-      if (perms.has("store")) writeFileSync(storeFile, JSON.stringify(store, null, 2));
-      resolve({ ...r, stdout: "", stderr, log });
-    };
-    const t = setTimeout(() => finish({ ok: false, error: `no answer in ${timeout} s` }), timeout * 1000);
-    const send = (msg: object) => p.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\n");
-    const need = (perm: string, id: unknown) => { if (perms.has(perm as never)) return true; send({ id, error: { code: -32001, message: `permission «${perm}» isn't in the manifest` } }); return false; };
-    p.stderr.on("data", (d) => (stderr += d));
-    p.on("error", (e) => finish({ ok: false, error: `${cmd}: ${e.message}` }));
-    p.on("close", (code) => finish({ ok: false, error: `the program exited (${code})${stderr ? ": " + stderr.trim().split("\n").pop() : ""}` }));
-    p.stdout.on("data", async (d) => {
-      buf += d;
-      let nl: number;
-      while ((nl = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
-        if (!line.trim()) continue;
-        let msg: any;
-        // As the app: a stray line (a console.log) is logged, the conversation goes on.
-        try { msg = JSON.parse(line); } catch { log.push(`not JSON-RPC (stdout is the protocol — log to stderr): ${line.slice(0, 120)}`); continue; }
-        if (msg.method === undefined) {
-          if (msg.id === 1) send({ id: 2, method: "handler/call", params: request(m, handler, o) });
-          else if (msg.id === 2) finish(msg.error ? { ok: false, error: msg.error.message } : { ok: true, value: msg.result ?? null });
-          continue;
-        }
-        const pr = msg.params ?? {};
-        switch (msg.method) {
-          case "host/log": log.push(`${pr.level}: ${pr.message}`); break;
-          case "host/exec": {
-            if (!need("exec", msg.id) || (pr.sudo && !need("sudo", msg.id))) break;
-            const r = await shell(pr.sudo ? `sudo -n sh -c ${quote(pr.command)}` : pr.command, { ssh: o.ssh, stdin: pr.stdin, timeout: pr.timeout ?? 30, container: pr.container });
-            log.push(`exec${o.ssh ? " on " + o.ssh : " here"}: ${pr.command} → ${r.code}`);
-            send({ id: msg.id, result: { exitCode: r.code, stdout: r.stdout, stderr: r.stderr } });
-            break;
-          }
-          case "host/secret":
-            if (!need("secrets", msg.id)) break;
-            if (o.secrets?.[pr.key] === undefined) send({ id: msg.id, error: { code: -32000, message: `no secret «${pr.key}» (pass --secret ${pr.key}=…)` } });
-            else send({ id: msg.id, result: { value: o.secrets[pr.key] } });
-            break;
-          case "host/store/get": if (need("store", msg.id)) send({ id: msg.id, result: { value: store[pr.key] ?? null } }); break;
-          case "host/store/set":
-            if (!need("store", msg.id)) break;
-            if (pr.value === null) delete store[pr.key]; else store[pr.key] = pr.value;
-            send({ id: msg.id, result: null });
-            break;
-          case "host/notify": if (need("notify", msg.id)) { log.push(`notify: ${pr.title} — ${pr.text}`); send({ id: msg.id, result: null }); } break;
-          default: if (msg.id !== undefined) send({ id: msg.id, error: { code: -32601, message: `no method ${msg.method}` } });
-        }
+  // The environment the app gives a program: a clean one (no SSH agent, nothing of yours), SK_DATA its own folder.
+  const data = join(tmpdir(), "sshkipper-dev", m.id);
+  mkdirSync(data, { recursive: true, mode: 0o700 });
+  const own = Object.fromEntries(Object.entries(m.runtime.env ?? {}).filter(([k]) => !k.startsWith("SK_") && k !== "PATH"));
+  const found = cmd.includes("/") ? dirname(join(dir, cmd)) : (process.env.PATH ?? "").split(":").find((d) => existsSync(join(d, cmd))) ?? "";
+  const env = {
+    PATH: [found, "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin", "/usr/local/bin"].filter(Boolean).join(":"),
+    HOME: process.env.HOME ?? "", TMPDIR: process.env.TMPDIR ?? "/tmp", LANG: "en_US.UTF-8",
+    SK_SDK: "1", SK_MODULE: m.id, SK_DATA: data, PYTHONPYCACHEPREFIX: join(data, "pycache"), ...own,
+  };
+  const p = spawn(cmd.includes("/") ? join(dir, cmd) : cmd, args, { cwd: dir, env, stdio: ["pipe", "pipe", "pipe"] });
+  let buf = "", stderr = "", exited: string | null = null, nextID = 1;
+  const waiting = new Map<number, (r: { ok: boolean; value?: Json; error?: string }) => void>();
+  const send = (msg: object) => { if (!exited) p.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\n"); };
+  const need = (perm: string, id: unknown) => {
+    if (perms.has(perm as never)) return true;
+    send({ id, error: { code: -32001, message: `permission «${perm}» isn't in the manifest` } });
+    return false;
+  };
+  const end = (why: string) => {
+    if (exited) return;
+    exited = why;
+    for (const [, w] of waiting) w({ ok: false, error: why });
+    waiting.clear();
+  };
+  const closed = new Promise<void>((resolve) => p.on("close", () => resolve()));
+  p.stderr.on("data", (d) => (stderr += d));
+  p.stdin.on("error", () => { /* the program is gone: its close says why */ });
+  p.on("error", (e) => end(`${cmd}: ${e.message}`));
+  p.on("close", (code) => end(`the program exited (${code})${stderr ? ": " + stderr.trim().split("\n").pop() : ""}`));
+  p.stdout.on("data", async (d) => {
+    buf += d;
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+      if (!line.trim()) continue;
+      let msg: any;
+      // As the app: a stray line (a console.log) is logged, the conversation goes on.
+      try { msg = JSON.parse(line); } catch { log.push(`not JSON-RPC (stdout is the protocol — log to stderr): ${line.slice(0, 120)}`); continue; }
+      if (msg.method === undefined) {
+        const w = waiting.get(msg.id);
+        if (w) { waiting.delete(msg.id); w(msg.error ? { ok: false, error: msg.error.message } : { ok: true, value: msg.result ?? null }); }
+        continue;
       }
-    });
-    send({ id: 1, method: "initialize", params: { sdk: 1, app: "sshkipper-module", module: { id: m.id, version: m.version }, locale: o.locale ?? "en" } });
+      const pr = msg.params ?? {};
+      switch (msg.method) {
+        case "host/log": log.push(`${pr.level}: ${pr.message}`); break;
+        case "host/exec": {
+          if (!need("exec", msg.id) || (pr.sudo && !need("sudo", msg.id))) break;
+          const r = await shell(pr.sudo ? `sudo -n sh -c ${quote(pr.command)}` : pr.command, { ssh: o.ssh, stdin: pr.stdin, timeout: pr.timeout ?? 30, container: pr.container });
+          log.push(`exec${o.ssh ? " on " + o.ssh : " here"}: ${pr.command} → ${r.code}`);
+          send({ id: msg.id, result: { exitCode: r.code, stdout: r.stdout, stderr: r.stderr } });
+          break;
+        }
+        case "host/secret": {
+          if (!need("secrets", msg.id)) break;
+          const value = o.secrets?.[pr.key];
+          if (value === undefined) send({ id: msg.id, error: { code: -32000, message: `no secret «${pr.key}» (pass --secret ${pr.key}=…)` } });
+          else send({ id: msg.id, result: { value } });
+          break;
+        }
+        case "host/store/get": if (need("store", msg.id)) send({ id: msg.id, result: { value: store[pr.key] ?? null } }); break;
+        case "host/store/set":
+          if (!need("store", msg.id)) break;
+          if (pr.value === null) delete store[pr.key]; else store[pr.key] = pr.value;
+          send({ id: msg.id, result: null });
+          break;
+        case "host/notify": if (need("notify", msg.id)) { log.push(`notify: ${pr.title} — ${pr.text}`); send({ id: msg.id, result: null }); } break;
+        case "host/forward":
+          // No SSH session here: the target as is (a service on this machine, a stand-in).
+          if (need("forward", msg.id)) { log.push(`forward: ${pr.host}:${pr.port} (as is — no SSH session here)`); send({ id: msg.id, result: { host: pr.host, port: pr.port } }); }
+          break;
+        case "host/open":
+          log.push(`open: ${JSON.stringify(pr)} — answered «not opened» (no app here)`);
+          send({ id: msg.id, result: { opened: false } });
+          break;
+        case "host/ask": {
+          const buttons: string[] = Array.isArray(pr.buttons) && pr.buttons.length ? pr.buttons : ["OK"];
+          const cancel = typeof pr.cancel === "number" ? pr.cancel : buttons.length - 1;
+          log.push(`ask: «${pr.title}» [${buttons.join(" / ")}] — answered «${buttons[cancel] ?? cancel}», the cancel button (no person here)`);
+          send({ id: msg.id, result: { button: cancel } });
+          break;
+        }
+        default:
+          if (msg.id !== undefined) send({ id: msg.id, error: { code: -32601, message: `${msg.method}: not available without the app` } });
+          else notices.push({ method: msg.method, params: pr });
+      }
+    }
   });
+  const ask = (method: string, params: Json, timeout: number) => new Promise<{ ok: boolean; value?: Json; error?: string }>((resolve) => {
+    if (exited) return resolve({ ok: false, error: exited });
+    const id = nextID++;
+    const t = setTimeout(() => {
+      waiting.delete(id);
+      send({ method: "cancel", params: { id } });
+      resolve({ ok: false, error: `no answer in ${timeout} s` });
+    }, timeout * 1000);
+    waiting.set(id, (r) => { clearTimeout(t); resolve(r); });
+    send({ id, method, params });
+  });
+  const ready = ask("initialize", { sdk: 1, app: "sshkipper-ext", module: { id: m.id, version: m.version }, locale: o.locale ?? "en" }, 30);
+  return {
+    async request(method, params, timeout = 30) {
+      const init = await ready;
+      return init.ok ? ask(method, params, timeout) : init;
+    },
+    notices, log,
+    async close() {
+      if (!exited) {
+        await ask("shutdown", {}, 3);
+        p.stdin.end();
+        const kill = setTimeout(() => p.kill(), 1500);
+        await closed;
+        clearTimeout(kill);
+      }
+      if (perms.has("store")) writeFileSync(storeFile, JSON.stringify(store, null, 2));
+      return stderr;
+    },
+  };
 }

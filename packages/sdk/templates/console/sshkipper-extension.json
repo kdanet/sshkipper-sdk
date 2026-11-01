@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "A text console in the app's terminal tab (a provider's serial console, IPMI SoL): the program streams bytes both ways. This start echoes what you type — relay the bytes to your provider in console.ts.",
+  "icon": { "symbol": "terminal", "color": "indigo" },
+  "runtime": { "kind": "process", "command": ["node", "console.ts"] },
+  "permissions": [],
+  "contributes": {
+    "console": [
+      {
+        "id": "serial",
+        "title": "__TITLE__",
+        "description": { "en": "The server's serial console", "ru": "Серийная консоль сервера" },
+        "icon": { "symbol": "terminal" },
+        "appliesTo": ["connection"]
+      }
+    ]
+  }
+}

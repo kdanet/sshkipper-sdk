@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "A database engine of your own with the app's whole database tab. This start reads tables from a JSON file on this Mac — talk to your engine in driver.ts.",
+  "icon": { "symbol": "cylinder.split.1x2", "color": "blue" },
+  "runtime": { "kind": "process", "command": ["node", "driver.ts"] },
+  "permissions": [],
+  "contributes": {
+    "database": [
+      {
+        "id": "__SLUG__",
+        "title": "__TITLE__",
+        "description": { "en": "Tables of a JSON file on this Mac", "ru": "Таблицы JSON-файла на этом Mac" },
+        "model": "sql",
+        "isFile": true,
+        "identifierQuote": "\"",
+        "keywords": ["SELECT", "FROM", "LIMIT"],
+        "functions": []
+      }
+    ]
+  }
+}

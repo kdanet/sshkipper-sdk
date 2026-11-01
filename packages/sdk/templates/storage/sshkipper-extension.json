@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kdanet/sshkipper-sdk/main/schemas/module.schema.json",
+  "sdk": 1,
+  "id": "__ID__",
+  "version": "0.1.0",
+  "title": "__TITLE__",
+  "description": "A kind of storage for the file panel: list, read and write in parts, folders, rename, delete, the check. This start keeps the files in the extension's own data folder — put your service's API in storage.ts.",
+  "icon": { "symbol": "externaldrive", "color": "teal" },
+  "runtime": { "kind": "process", "command": ["node", "storage.ts"] },
+  "permissions": [],
+  "contributes": {
+    "storage": [
+      {
+        "id": "__SLUG__",
+        "title": "__TITLE__",
+        "icon": { "symbol": "externaldrive" },
+        "description": { "en": "Files of this storage, in the file panel and transfers.", "ru": "Файлы этого хранилища — в панели файлов и передачах." },
+        "signIn": "none",
+        "fields": [
+          {
+            "key": "bucket", "type": "text", "default": "default",
+            "title": { "en": "Bucket", "ru": "Корзина" },
+            "help": { "en": "A name: storages with the same one share their files.", "ru": "Имя: хранилища с одинаковым именем видят одни файлы." }
+          }
+        ],
+        "capabilities": ["folders", "rename", "delete", "check"]
+      }
+    ]
+  }
+}

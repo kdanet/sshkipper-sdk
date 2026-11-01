@@ -95,8 +95,8 @@ defineModule({
           card(tr(ctx, { ru: "Подробности", en: "Details" }), [text("—", { id: "details" }),
             liveChart("line", [{ name: tr(ctx, { ru: "в секунду", en: "per second" }), values: [] }], { id: "rate", title: tr(ctx, { ru: "Задач в секунду", en: "Jobs per second" }), height: 160, window: 60 })]),
         ], { id: "main", sizes: [220, 520], height: 420 }),
-        editor("state = 'failed'", { id: "filter", title: tr(ctx, { ru: "Фильтр", en: "Filter" }), language: "sql", completion: true, keywords: FIELDS, height: 80 }),
-        terminal("\u001b[32m✓\u001b[0m ready\n", { id: "out", title: tr(ctx, { ru: "Вывод", en: "Output" }), height: 140 }),
+        editor("state = 'failed'", { id: "filter", title: tr(ctx, { ru: "Фильтр", en: "Filter" }), language: "sql", completion: true, keywords: FIELDS, height: 160 }),
+        terminal("\u001b[32m✓\u001b[0m ready\n", { id: "out", title: tr(ctx, { ru: "Вывод", en: "Output" }), height: 160 }),
         sheet("create", tr(ctx, { ru: "Новая задача", en: "New job" }), [
           field("job_name", tr(ctx, { ru: "Имя", en: "Name" })),
           picker("job_queue", tr(ctx, { ru: "Очередь", en: "Queue" }), [{ title: "default", value: "default" }, { title: "mail", value: "mail" }]),
