@@ -89,8 +89,33 @@ const ago = (ctx: HandlerContext, at: number) => {
   return s < 60 ? tr(ctx, { ru: "только что", en: "just now" }) : tr(ctx, { ru: `${Math.floor(s / 60)} мин назад`, en: `${Math.floor(s / 60)} min ago` });
 };
 
+/** An automation block (spec/protocol.md §8): the card's URLs checked once, a list for the run's summary. */
+async function checkList(input: Record<string, Json>, ctx: HandlerContext, from: "server" | "mac") {
+  const list = String(input.urls ?? "").split(/[\s,]+/).map((u) => u.trim()).filter((u) => /^https?:\/\/[^\s'"\\]+$/.test(u));
+  if (!list.length) throw new ModuleError(tr(ctx, { ru: "Нет адресов: укажите http:// или https://", en: "No URLs: give http:// or https://" }), -32602);
+  if (from === "server" && !ctx.server) throw new ModuleError(tr(ctx, { ru: "Блоку нужен сервер", en: "The block needs a server" }), -32602);
+  const slow = typeof input.slow_ms === "number" ? input.slow_ms : 800;
+  const checks = await Promise.all(list.map((u) => probe(u, ctx, from)));
+  const up = checks.filter((c) => c.ok).length;
+  const ms = tr(ctx, { ru: "мс", en: "ms" });
+  return {
+    status: up < checks.length ? "error" : checks.some((c) => c.ms > slow) ? "warn" : "ok",
+    summary: sentence(checks, ctx).text,
+    value: up,
+    items: checks.map((c) => ({
+      label: short(c.url),
+      ...(c.code > 0 ? { value: c.ms, unit: ms } : {}),
+      status: !c.ok ? "error" : c.ms > slow ? "warn" : "ok",
+      detail: c.error ?? `HTTP ${c.code}`,
+    })),
+  };
+}
+
 defineModule({
   handlers: {
+    check_list: (input, ctx) => checkList(input, ctx, "server"),
+    check_list_mac: (input, ctx) => checkList(input, ctx, "mac"),
+
     detect: (_input, ctx) => ({ found: urls(ctx).length > 0 }),
 
     async summary(_input, ctx) {

@@ -2,7 +2,8 @@
 // written with it is a map of async handlers; the app's services (exec on a server, secrets, storage) are `ctx.host`.
 
 import type {
-  Context, EventAnswer, ExecResult, FoundHost, Json, Op, Request, ScreenEvent, SourceRef, StorageItem, StorageLink, StorageRef,
+  AIChatRequest, AIChatResult, AIDelta, AIModel, Context, EventAnswer, ExecResult, FoundHost, Json, Op, Request, ScreenEvent,
+  SourceRef, StorageItem, StorageLink, StorageRef,
 } from "./types.ts";
 
 /** A failure the app shows to the user (or gives to the model / fails the automation block with). */
@@ -61,8 +62,23 @@ export interface MethodContext {
 /** A contribution's own method (`storage/list`, `source/poll`…): its params, its JSON answer. */
 export type MethodFn = (params: Record<string, any>, ctx: MethodContext) => Promise<Json | void> | Json | void;
 
+/** An answer of a model provider streaming: `delta` sends a piece now (`ai/delta`); `signal` — the user stopped it. */
+export interface AIChatContext {
+  delta(d: AIDelta): void;
+  signal: AbortSignal;
+  log(level: "debug" | "info" | "warn" | "error", message: string): void;
+}
+
+/** A model provider (`contributes.ai`, spec/protocol.md §13). */
+export interface AIProviderDefinition {
+  models(request: { provider: string; settings: Record<string, Json>; secrets: Record<string, string> }): AIModel[] | string[] | Promise<AIModel[] | string[]>;
+  chat(request: AIChatRequest, ctx: AIChatContext): AIChatResult | void | Promise<AIChatResult | void>;
+}
+
 export interface ModuleDefinition {
   handlers: Record<string, HandlerFn>;
+  /** A model provider: `ai/models`, `ai/chat` (with `ai/delta`), `ai/cancel`. */
+  ai?: AIProviderDefinition;
   /** A live screen's events (spec/protocol.md §11): what the user did → ops changing the screen (and completions). */
   onEvent?: (event: ScreenEvent, ctx: EventContext) => EventAnswer | Promise<EventAnswer>;
   /** A contribution's own methods by name (`storage/list`…): requests on the same connection as `handler/call`. */
@@ -206,6 +222,35 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
   }
 
+  /** `ai/models`, `ai/chat` (§13): answered by `def.ai`; `ai/cancel` aborts a chat by its stream id. */
+  const chats = new Map<string, AbortController>();
+  async function ai(id: number | string, method: string, params: any, abort: AbortController) {
+    try {
+      if (!def.ai) return send({ id, error: { code: Codes.methodNotFound, message: "no model provider" } });
+      if (method === "ai/models") {
+        const list = await def.ai.models({ provider: params?.provider ?? "", settings: params?.settings ?? {}, secrets: params?.secrets ?? {} });
+        if (!abort.signal.aborted) send({ id, result: { models: list as Json } });
+        return;
+      }
+      const stream = String(params?.id ?? "");
+      chats.set(stream, abort);
+      const ctx: AIChatContext = {
+        delta: (d) => { if (!abort.signal.aborted) send({ method: "ai/delta", params: { ...d, id: stream } }); },
+        signal: abort.signal,
+        log: (level, message) => send({ method: "host/log", params: { level, message } }),
+      };
+      const result = await def.ai.chat(params as AIChatRequest, ctx);
+      if (!abort.signal.aborted) send({ id, result: (result ?? {}) as Json });
+    } catch (e) {
+      if (abort.signal.aborted) return;
+      const err = e instanceof ModuleError ? e : new ModuleError(e instanceof Error ? e.message : String(e));
+      send({ id, error: { code: err.code, message: err.message } });
+    } finally {
+      running.delete(String(id));
+      if (params?.id !== undefined && chats.get(String(params.id)) === abort) chats.delete(String(params.id));
+    }
+  }
+
   transport.onLine(async (line) => {
     let msg: any;
     try { msg = JSON.parse(line); } catch { return send({ id: null, error: { code: Codes.parse, message: "not JSON" } }); }
@@ -251,6 +296,21 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
           }
           return event(msg.id, msg.params, abort);
         }
+      case "ai/models":
+      case "ai/chat":
+        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+        {
+          const abort = new AbortController();
+          running.set(String(msg.id), abort);
+          try { await ready; } catch {
+            running.delete(String(msg.id));
+            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+          }
+          return ai(msg.id, msg.method, msg.params, abort);
+        }
+      case "ai/cancel":
+        chats.get(String(msg.params?.id))?.abort();
+        return;
       case "cancel":
         running.get(String(msg.params?.id))?.abort();
         return;

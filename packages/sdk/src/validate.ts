@@ -300,7 +300,9 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     handler(`${at}.handler`, b.handler);
     params(at, b.params);
     symbol(`${at}.symbol`, b.symbol);
-    if (!server) warn(at, "automation blocks run only for server modules so far");
+    // A program's block runs on this Mac; with a server its host.exec goes there (as the app checks).
+    if (!server && b.server === true && !(m.permissions ?? []).includes("exec")) err(`${at}.server`, "a block with a server — add «exec» to permissions");
+    if (server && b.server === false) warn(`${at}.server`, "a server module's block always runs on the server");
     for (const [j, p] of (b.params ?? []).entries()) {
       // In automations the pattern is checked by grep -E on the server: POSIX ERE.
       if (p.pattern && /\\[dDwWsSbB]|\(\?|\\[pP]\{/.test(p.pattern)) {
@@ -397,6 +399,10 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
           if (x.screen === undefined) warn(at, "an item without a screen opens only its settings card");
           break;
         case "screen": handler(`${at}.render`, x.render); break;
+        case "ai":
+          handler(`${at}.handler`, x.handler);
+          fields(at, x.fields);
+          break;
         default: handler(`${at}.handler`, x.handler);
       }
     });

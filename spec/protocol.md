@@ -240,8 +240,9 @@ Limits: 400 blocks after expansion, 32 levels of JSON nesting (the app draws 8 l
 
 ## 8. Automation blocks
 
-An `automation` entry is a block of the automations library («Из установленных модулей»). In SDK 1 only server
-modules have them; a process module's blocks are listed with a warning and not offered.
+An `automation` entry is a block of the automations library («Из установленных модулей»). A server module's block
+runs as a script on its server (below); a **process module's block** calls its handler in the program on this Mac
+(§8.1).
 
 - The block has one input, a **server**, and the parameters of its `params` (set on the card).
 - The app makes one script of the handler: the card's values become `SK_INPUT_<KEY>` (checked as on a page:
@@ -256,6 +257,26 @@ modules have them; a process module's blocks are listed with a warning and not o
   become values the next blocks read as `{{ in.<key> }}`.
 - The block's id in graphs is derived from the module id and the block id, so an automation shared with someone who
   has the module installed finds the block.
+
+### 8.1 Blocks of a process module
+
+- The app calls the handler as a page's (`handler/call`, §4.2): `input` — the card's parameters, typed (`text`,
+  `number`, `bool`, `choice`); `context.settings` — the module's settings; no `item`.
+- `server: true` gives the block a **server** input: `context.server` is that server, and the program's `host/exec`
+  there goes through **the automation's sessions** — its server profile, its line of logins, and «without a person»
+  for a run by the schedule: a 2FA code nobody can type makes the step wait for a person (the call gets an error for
+  that `host/exec`, the step shows «нужен человек»), as a command's step would. It needs `exec`. Without `server`
+  the block has no server, and `host/exec` is refused.
+- The answer is the block's result as the server block's `$SK_RESULT` is: with `returns: json` (default) an object
+  `{status, summary, value, unit, items: [{label, value, unit, status, detail}], …}`; with `text`, `number`, `list` — a
+  string (or an object's `value` / `text` / `summary`; an array — one line per element) read as «Что вернуть». An
+  error of the handler fails the step with its message alone.
+- The approval window shows «программа расширения» on this Mac, the handler and the parameters, and the block's
+  `risk` (`read` / `change` / `danger`) from the manifest.
+- Cancelling the run cancels the call (`cancel`, §4.2 — the handler's `signal` aborts). The handler's timeout is the
+  step's.
+- «На сервере по cron» can't run it — the program is on this Mac: installing such an automation on a server is
+  refused with the block's name.
 
 ## 9. AI tools
 
@@ -287,7 +308,8 @@ and read as extensions unchanged.
 | `nodeType[]` | `id`, `title`, `icon`, `fields`, `screen` (an id of `contributes.screen`) | stage 3 |
 | `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | stage 3 |
 | `import[]` | `id`, `title`, `fileExtensions`, `handler` | stage 6 |
-| `console[]`, `ai[]` | `id`, `title`, `handler` | stage 6 |
+| `console[]` | `id`, `title`, `handler` | stage 6 |
+| `ai[]` | `id`, `title`, `icon`, `description`, `fields` (the profile's settings; `secret` ones kept in the keychain), `reasoning` (levels) — §13 | stage 6 |
 
 - Every contribution has an `id` (`^[a-z][a-z0-9_-]{0,39}$`, unique within its kind), a `title` (text or per
   language) and an optional `icon`. Built-in kinds and engines (`mysql`, `s3`, `tailscale`…) are never replaced.
@@ -486,3 +508,47 @@ the app's activation.
   `tokenURL` (https, or http on 127.0.0.1 for a stand-in), keeps the refresh token as the node's secret `oauth` once the
   card is saved, and gives the program the access token. Later calls bring the refresh token in `settings.oauth`:
   the program refreshes its access token itself.
+## 13. Model providers
+
+A `contributes.ai[]` entry is a **model provider**: Settings → AI gets a profile of it («Из расширений») — its
+`title` and `icon`, the `fields` as the profile's settings (`text`, `number`, `bool`, `choice`, `list`; `secret` ones
+kept in the Mac's keychain like a built-in provider's API key), the models the program lists, the `reasoning` levels
+it declares. The profile is chosen wherever a profile is: the AI panel, «Составить запрос», AI filters of tables and
+logs, the second model of a command's review, «AI: обработать» and the agent block of automations.
+
+The program answers three methods of its own (on the same connection as its handlers, §4):
+
+| Method | Params | Result |
+|---|---|---|
+| `ai/models` (request) | `{provider, settings, secrets}` | `{"models": [{"id", "title"?}] \| ["id"]}` in the order to show |
+| `ai/chat` (request) | `{id, provider, model, system, messages, tools, max_tokens, effort?, settings, secrets}` | `{stop?, usage?, model?, message?}` |
+| `ai/cancel` (notification) | `{id}` | — |
+
+- `id` of `ai/chat` is the **stream's id**: the answer's pieces come before the result as notifications
+  `ai/delta {id, type, …}`:
+  - `{"type": "text", "text"}` — text of the answer;
+  - `{"type": "tool_use", "toolId", "name", "input"?}` — a tool call starts (its whole input may come here);
+  - `{"type": "tool_input", "toolId", "json"}` — a piece of its input, JSON text;
+  - `{"type": "progress", "text"}` — a short note shown as a status line, not part of the answer;
+  - `{"type": "usage", "input", "output", "model"?}` — tokens so far.
+  Unknown types are skipped.
+- The result: `stop` — `end_turn`, `tool_use`, `max_tokens`, `refusal` (none: `tool_use` when the answer calls a tool);
+  `usage` — `{input_tokens, output_tokens}`; `message` — `{"content": [blocks]}`, the whole answer, for a program
+  that doesn't stream (when given, it is the answer).
+- `messages` — `[{role: "user" | "assistant" | "system", content: [blocks]}]`; a block is `{"type": "text", "text"}`,
+  `{"type": "tool_use", "id", "name", "input"}`, `{"type": "tool_result", "id", "content", "is_error"}` or
+  `{"type": "opaque", "value"}`. Tool results of one turn come in one user message. `tools` —
+  `[{name, description, input_schema}]`.
+- **What the program gets** is what every provider gets: the request after the app's masking of secrets and its
+  policy (what a session may show the model, Production, what is hidden from AI). The answer is a model's like any
+  other: a tool call goes through the AI mode's rules and the user's confirmations — the program can't run a tool
+  itself.
+- `ai/cancel` — the user stopped the answer: abort the work (the SDK aborts `ctx.signal`). The app forgets the
+  request; a late answer is dropped.
+- An error of `ai/chat` (`{"code", "message"}`) is shown as the provider's error, never retried by the app. An answer
+  over 4 MB is cut and fails.
+- `secrets` — the profile's secret fields; never put them in an answer or the log (the app masks each value in what it
+  shows anyway).
+
+In TypeScript: `defineModule({ handlers: {}, ai: { models(req), async chat(req, ctx) { ctx.delta({type: "text",
+text: "…"}); return { stop: "end_turn" }; } } })` — `examples/ai-echo-provider`.

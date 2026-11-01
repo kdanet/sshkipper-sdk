@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "sdk": 1,
+  "id": "dev.sshkipper.example.ai-echo",
+  "version": "1.0.0",
+  "title": { "ru": "Эхо-модель (пример провайдера AI)", "en": "Echo model (an AI provider example)" },
+  "description": {
+    "ru": "Подставной провайдер модели для проверки и примера: отвечает детерминированно, печатает ответ по кусочкам, на просьбу проверить сервер вызывает инструменты (list_sessions, затем run_command uptime). Никакой сети и настоящих моделей.",
+    "en": "A stand-in model provider to test with and learn from: answers deterministically, streams its answer in pieces, and when asked to check a server calls tools (list_sessions, then run_command uptime). No network, no real models."
+  },
+  "author": { "name": "SSHKipper" },
+  "license": "MIT",
+  "icon": { "symbol": "message", "color": "purple" },
+  "runtime": { "kind": "process", "command": ["node", "module.ts"] },
+  "permissions": ["secrets"],
+  "handlers": {},
+  "contributes": {
+    "ai": [
+      {
+        "id": "echo",
+        "title": { "ru": "Эхо", "en": "Echo" },
+        "icon": { "symbol": "message", "color": "purple" },
+        "description": {
+          "ru": "Повторяет ваш вопрос и говорит, что получил. Попросите «проверь сервер» — вызовет инструменты.",
+          "en": "Repeats your question and says what it got. Ask it to “check the server” — it calls tools."
+        },
+        "fields": [
+          { "key": "greeting", "type": "text", "default": "Эхо", "title": { "ru": "Приветствие", "en": "Greeting" } },
+          { "key": "delay_ms", "type": "number", "default": 30, "title": { "ru": "Пауза между кусочками, мс", "en": "Pause between pieces, ms" } },
+          {
+            "key": "api_key", "type": "secret", "title": { "ru": "Ключ API (любой)", "en": "API key (any)" },
+            "help": { "ru": "Хранится в Keychain, как ключи встроенных провайдеров. Эхо говорит только его длину.", "en": "Kept in the keychain like built-in providers' keys. Echo only says its length." }
+          }
+        ],
+        "reasoning": ["low", "medium", "high"]
+      }
+    ]
+  }
+}
