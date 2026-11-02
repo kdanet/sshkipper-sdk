@@ -3,7 +3,7 @@
   "sdk": 1,
   "id": "dev.sshkipper.example.http-checks",
   "version": "1.0.0",
-  "title": { "ru": "Проверки сайтов", "en": "Site checks" },
+  "title": { "ru": "Проверки сайтов (служба сервера)", "en": "Site checks (a server service)" },
   "description": {
     "ru": "Отвечают ли адреса сервера и как быстро: проверка с самого сервера (curl) или с этого Mac, история времени ответа, сообщение о падении.",
     "en": "Whether the server's URLs answer and how fast: checked from the server itself (curl) or from this Mac, response time history, a notification when one goes down."
