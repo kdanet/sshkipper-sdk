@@ -299,7 +299,9 @@ runs as a script on its server (below); a **process module's block** calls its h
 ### 8.1 Blocks of a process module
 
 - The app calls the handler as a page's (`handler/call`, §4.2): `input` — the card's parameters, typed (`text`,
-  `number`, `bool`, `choice`); `context.settings` — the module's settings; no `item`.
+  `number`, `bool`, `choice`) and checked as an action's are (`required`, a number, one of `choices`, `pattern` matched
+  whole, `default`; a key the block doesn't declare isn't sent, a switch never touched is `false`) — a value that
+  fails fails the step before the program is called; `context.settings` — the module's settings; no `item`.
 - `server: true` gives the block a **server** input: `context.server` is that server, and the program's `host/exec`
   there goes through **the automation's sessions** — its server profile, its line of logins, and «without a person»
   for a run by the schedule: a 2FA code nobody can type makes the step wait for a person (the call gets an error for
