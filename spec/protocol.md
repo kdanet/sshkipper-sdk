@@ -599,7 +599,7 @@ draws from blocks (`contributes.screen`). The app keeps the node; the extension 
 ### 14.1 The node
 
 A node of a type is stored in the document as kind `extension` with `{"extension": "<id>", "type": "<type id>",
-"values", "secrets", "links"}`; protocol and review name a type `ext:<extension>/<type>`. The card the user fills is
+"values", "secrets", "links"}`; the protocol names a type `ext:<extension>/<type>`. The card the user fills is
 drawn from the type's `fields` (settings, §3.3 kinds, plus `node`):
 
 - `secret` fields are secrets of the document, owned by the node (copied and deleted with it). They are never in

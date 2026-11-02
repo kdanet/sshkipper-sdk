@@ -64,6 +64,18 @@ packs it.
 A package with a binary is for your own Macs and people who trust you: SSHKipper's library accepts sources only and
 builds them in its CI.
 
+### A compiled program in a package
+
+- **Architecture.** `swift build` makes a binary for the Mac it runs on (`file bin/swift-hello` — `arm64`). For Intel
+  Macs too, build a universal one: `swift build -c release --arch arm64 --arch x86_64`.
+- **Signing.** An unsigned binary from somebody else's Mac is refused by Gatekeeper the moment it carries the
+  quarantine flag. The app installs a package without that flag (installing is the user's decision), but sign what
+  you share — `codesign --sign "Developer ID Application: …" --options runtime bin/<program>` — and notarize it when
+  you can: then it starts wherever it is copied.
+- **When it doesn't start**, the app names the reason instead of a timeout: the quarantine flag (with the
+  `xattr -d com.apple.quarantine …` command), a signal from the system, or a program that started but never answered
+  `initialize`.
+
 ## Your own extension in Swift
 
 `sshkipper-ext new … --kind …` writes TypeScript. For Swift, start from `swift-hello`: copy the folder, change `id`,

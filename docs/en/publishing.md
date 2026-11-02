@@ -11,7 +11,8 @@ A package is a ZIP of the folder with the manifest at its root: `.sshkext` for a
 (`sshkipper-extension.json`), `.sshkmod` for a module (`sshkipper-module.json`) — exactly the files the app hashes
 (everything but `.git` folders and `.DS_Store`). Limits: 2 000 files, 64 MB; no symbolic links, no paths leaving the
 folder. A compiled program (Swift, Go, Rust) goes in as its binary: build it outside the folder so the build tree
-isn't packed ([Swift](swift.md)).
+isn't packed, for both architectures, and sign it — a binary without a signature may not start on another Mac
+([Swift](swift.md#a-compiled-program-in-a-package)).
 
 ## Installing
 
