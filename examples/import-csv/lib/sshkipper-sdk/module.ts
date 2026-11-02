@@ -345,7 +345,11 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
   async function openConsole(id: number | string, params: any, state: OpenConsole) {
     const fn = def.consoles?.[params?.console];
     const session = String(params.session);
-    if (!fn) { consoles.delete(session); return send({ id, error: { code: Codes.methodNotFound, message: `no console ${params?.console}` } }); }
+    if (!fn) {
+      consoles.delete(session);
+      const known = Object.keys(def.consoles ?? {}).join(", ") || "none";
+      return send({ id, error: { code: Codes.methodNotFound, message: `console/open: no console «${params?.console ?? ""}» (params.console) — this program has: ${known}` } });
+    }
     const s: ConsoleSession = {
       id: session, console: params.console, node: params.node ?? { id: "" },
       get cols() { return state.size.cols; }, get rows() { return state.size.rows; },

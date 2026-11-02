@@ -6,15 +6,18 @@
 
 ## Подключение
 
+С установленной командной строкой ([быстрый старт](getting-started.md)):
+
 ```json
 {
   "mcpServers": {
-    "sshkipper-sdk": { "command": "node", "args": ["/путь/к/sshkipper-sdk/packages/cli/sshkipper-ext.ts", "mcp"] }
+    "sshkipper-sdk": { "command": "sshkipper-ext", "args": ["mcp"] }
   }
 }
 ```
 
-Claude Code: `claude mcp add sshkipper-sdk -- node /путь/к/sshkipper-sdk/packages/cli/sshkipper-ext.ts mcp`.
+Claude Code: `claude mcp add sshkipper-sdk -- sshkipper-ext mcp`. Из клона, без установки: `node
+/путь/к/sshkipper-sdk/packages/cli/sshkipper-ext.ts mcp` (Node выполняет TypeScript клона, но не папки внутри `node_modules`).
 
 ## Инструменты
 

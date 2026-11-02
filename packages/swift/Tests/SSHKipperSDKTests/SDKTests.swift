@@ -205,6 +205,9 @@ struct RuntimeTests {
         let data = app.pipe.written.filter { $0["method"] == "console/data" }.compactMap { Data(base64Encoded: $0["params"]["data"].string ?? "") }
         #expect(data.map { String(decoding: $0, as: UTF8.self) } == ["hello web-1\r\n", "ls"])
         #expect(app.pipe.written.contains { $0["method"] == "console/closed" && $0["params"]["reason"] == "done" })
+        // An unknown console names the ones the program has.
+        let missing = await app.call(4, "console/open", ["console": "sol", "session": "c2", "node": ["id": "n"]])
+        #expect(missing["error"]["message"].string == "console/open: no console «sol» (params.console) — this program has: serial")
         app.pipe.close()
         await app.task.value
     }

@@ -6,15 +6,19 @@ preview pages and live screens, run handlers and contribution methods.
 
 ## Connecting
 
+With the CLI installed ([getting started](getting-started.md)):
+
 ```json
 {
   "mcpServers": {
-    "sshkipper-sdk": { "command": "node", "args": ["/path/to/sshkipper-sdk/packages/cli/sshkipper-ext.ts", "mcp"] }
+    "sshkipper-sdk": { "command": "sshkipper-ext", "args": ["mcp"] }
   }
 }
 ```
 
-Claude Code: `claude mcp add sshkipper-sdk -- node /path/to/sshkipper-sdk/packages/cli/sshkipper-ext.ts mcp`.
+Claude Code: `claude mcp add sshkipper-sdk -- sshkipper-ext mcp`. From a clone, without installing: `node
+/path/to/sshkipper-sdk/packages/cli/sshkipper-ext.ts mcp` (Node runs the TypeScript of a clone, not of a folder inside
+`node_modules`).
 
 ## Tools
 
