@@ -133,8 +133,10 @@ read-only (§4 `connect`) — and that without verified read commands no stateme
 collections are still browsed: `tableData`, `redis.scan`/`redis.value`, `mongo.find` are reads by definition).
 The AI filter's «Выполнить как запрос» goes as a typed statement too: for an extension's engine Production asks.
 
-`readCommands` loosen this only for an extension **verified by SSHKipper** (installed from the library, `trust ==
-library`); for any other the app ignores them and writes why in the extension's log. Even then a statement is a read
+`readCommands` loosen this only for an extension **verified by SSHKipper now** — its installed files are the ones the
+library's signed index lists for a version it hasn't taken back (a changed file, a revocation or an entry gone from
+the library takes the trust back at once, whatever was recorded at install); for any other the app ignores them and
+writes why in the extension's log. Even then a statement is a read
 only if it starts with a declared word and every quoting the app knows reads it the same way, it is one statement,
 it holds no word that changes data anywhere (`insert`, `update`, `delete`, `create`, `drop`, `into`, `returning`…),
 no locking read, no side-effect or table function (`sleep`, `load_file`, `url(…)`…). Words that change data (`with`,

@@ -197,7 +197,8 @@ is started again on the next call.
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
 The program MUST answer `initialize` within **15 seconds** of starting; the app then ends it and the call fails with
-«Модуль не ответил за 15 с». The SDKs answer it after their `setup` hook (`defineModule({ setup })`,
+«… запустилась, но не ответила на initialize (Модуль не ответил за 15 с)». A program that never got to run says why
+instead: macOS keeps the file in quarantine, or the system stopped it (a signal — unsigned, built for another Mac). The SDKs answer it after their `setup` hook (`defineModule({ setup })`,
 `Extension.setup`): keep that hook short and do slow work (warming a cache, a first connection) lazily, on the first
 call that needs it. Calls the app sends meanwhile wait for `setup`.
 
@@ -299,7 +300,9 @@ runs as a script on its server (below); a **process module's block** calls its h
 ### 8.1 Blocks of a process module
 
 - The app calls the handler as a page's (`handler/call`, §4.2): `input` — the card's parameters, typed (`text`,
-  `number`, `bool`, `choice`); `context.settings` — the module's settings; no `item`.
+  `number`, `bool`, `choice`) and checked as an action's are (`required`, a number, one of `choices`, `pattern` matched
+  whole, `default`; a key the block doesn't declare isn't sent, a switch never touched is `false`) — a value that
+  fails fails the step before the program is called; `context.settings` — the module's settings; no `item`.
 - `server: true` gives the block a **server** input: `context.server` is that server, and the program's `host/exec`
   there goes through **the automation's sessions** — its server profile, its line of logins, and «without a person»
   for a run by the schedule: a 2FA code nobody can type makes the step wait for a person (the call gets an error for

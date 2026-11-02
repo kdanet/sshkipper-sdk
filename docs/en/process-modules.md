@@ -88,8 +88,8 @@ The stand-in host keeps `host.store` in `.sshkipper-dev-store.json` and prints n
 ## Start-up: `setup`
 
 `defineModule({ setup: async ({ app, locale, module }) => { … }, handlers })` runs once, before the program answers
-`initialize`. The app waits **15 seconds** for that answer, then ends the program and the call fails with «Модуль не
-ответил за 15 с». Keep `setup` short (read a config, open a file); do slow work — a cache to warm, a connection to a
+`initialize`. The app waits **15 seconds** for that answer, then ends the program and the call fails with «… запустилась, но
+не ответила на initialize (Модуль не ответил за 15 с)». Keep `setup` short (read a config, open a file); do slow work — a cache to warm, a connection to a
 remote API — on the first call that needs it. Calls that arrive while `setup` runs wait for it; a `setup` that throws
 fails them all with «setup failed: …».
 
