@@ -1,6 +1,6 @@
 // __TITLE__: a process module of SSHKipper SDK 1. The app starts `node module.ts` on this Mac and calls the
 // handlers below over JSON-RPC; `ctx.host.exec` runs a command on the server over the app's own SSH session.
-import { defineModule, gauge, grid, ModuleError, rows, row, tr, view, type HandlerContext } from "./lib/sshkipper-sdk/index.ts";
+import { bytes, defineModule, gauge, grid, ModuleError, rows, row, tr, view, type HandlerContext } from "./lib/sshkipper-sdk/index.ts";
 
 type Disk = { mount: string; device: string; size: number; used: number; pct: number };
 
@@ -27,7 +27,6 @@ async function disks(ctx: HandlerContext): Promise<Disk[]> {
 
 const warn = (ctx: HandlerContext) => (typeof ctx.settings.warn_pct === "number" ? ctx.settings.warn_pct : 85);
 const status = (d: Disk, ctx: HandlerContext) => (d.pct >= 95 ? "bad" : d.pct >= warn(ctx) ? "warn" : "ok");
-const gb = (n: number) => `${(n / 2 ** 30).toFixed(1)} GB`;
 
 defineModule({
   handlers: {
@@ -48,8 +47,8 @@ defineModule({
     render: async (_input, ctx) => {
       const all = await disks(ctx);
       return view([
-        grid(all.slice(0, 6).map((d) => gauge(d.mount, d.pct, 100, { unit: "%" })), 3),
-        rows(all.map((d) => row(d.mount, { id: d.mount, detail: d.device, status: status(d, ctx), trailing: `${gb(d.used)} / ${gb(d.size)}` })),
+        grid(all.slice(0, 6).map((d) => gauge(d.mount, d.pct, 100, { unit: "%", subtitle: tr(ctx, { en: `${bytes(d.used)} of ${bytes(d.size)}`, ru: `${bytes(d.used)} из ${bytes(d.size)}` }) })), 3),
+        rows(all.map((d) => row(d.mount, { id: d.mount, detail: d.device, status: status(d, ctx), trailing: `${d.pct}%` })),
           { title: tr(ctx, { en: "File systems", ru: "Файловые системы" }) }),
       ], { status: [{ text: tr(ctx, { en: `${all.length} file systems.`, ru: `Файловых систем: ${all.length}.` }) }] });
     },

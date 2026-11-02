@@ -186,6 +186,8 @@ export async function main(argv: string[]) {
         writeFileSync(join(folder, p), text);
       }
       console.log(`${kind}${kind === "service" ? (f.process ? " (a program)" : " (server scripts)") : ""} ${id} in ${folder}: ${Object.keys(files).length} files — README.md says how to try it`);
+      // The id is the extension's identity for good (updates, the library, its data): say so while it is cheap to change.
+      if (typeof f.id !== "string") console.log(`the id ${id} is a placeholder: before you share it, put your own reverse domain in "id" (or start again with --id com.yours.name)`);
       if (!report(resolve(folder))) process.exit(1);
       break;
     }

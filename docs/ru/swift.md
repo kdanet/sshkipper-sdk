@@ -80,6 +80,19 @@ sshkipper-ext pack .          # → dev.sshkipper.example.swift-hello-1.0.0.sshk
 
 ## Своё расширение на Swift
 
-`sshkipper-ext new … --kind …` пишет TypeScript. Для Swift начните со `swift-hello`: скопируйте папку, поменяйте `id`,
-`title` и вклады в `sshkipper-extension.json`, укажите в `Package.swift` пакет SDK (путь или адрес Git, когда SDK
-опубликуют), напишите обработчики и методы в `main.swift`, `./build.sh`.
+`sshkipper-ext new … --kind …` пишет TypeScript. Для Swift начните со `swift-hello`: скопируйте папку (из клона или
+из установленного пакета — `$(npm root -g)/sshkipper-sdk/examples/swift-hello`), поменяйте `id`, `title` и вклады в
+`sshkipper-extension.json`, напишите обработчики и методы в `main.swift`. Пример находит SDK по пути внутри
+репозитория SDK, поэтому в копии укажите в `Package.swift` сам SDK — адресом Git или путём к клону либо к
+установленному пакету (в нём есть и исходники Swift):
+
+```swift
+dependencies: [.package(url: "https://github.com/kdanet/sshkipper-sdk.git", branch: "main")],
+// или: [.package(path: "/usr/local/lib/node_modules/sshkipper-sdk")]  — где он, скажет `npm root -g`
+targets: [
+    .executableTarget(name: "swift-hello", dependencies: [.product(name: "SSHKipperSDK", package: "sshkipper-sdk")],
+                      path: "Sources/SwiftHello"),
+],
+```
+
+Затем `./build.sh`.

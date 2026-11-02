@@ -456,6 +456,10 @@ test("console: open, data both ways, resize, close from either side", async () =
   seen.close("bye");
   assert.deepEqual((await h.drain())[0], { jsonrpc: "2.0", method: "console/closed", params: { session: "s2", reason: "bye" } });
   assert.equal(closed, 2);
+  // An unknown console names the ones the program has, not «undefined».
+  h.send({ id: 4, method: "console/open", params: { session: "s3", cols: 80, rows: 24, node: { id: "n" } } });
+  const missing = (await h.drain()).find((m: any) => m.id === 4);
+  assert.equal(missing.error.message, "console/open: no console «» (params.console) — this program has: echo");
 });
 
 test("console example: a pretend device echoes, edits its line, answers commands and leaves on Ctrl-D", async () => {

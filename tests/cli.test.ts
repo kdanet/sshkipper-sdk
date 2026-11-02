@@ -34,6 +34,13 @@ test("CLI: a folder that isn't there, or holds no manifest, is an error — neve
     // The current folder still works when nothing is named, and a handler name isn't taken for a folder.
     assert.equal(ext(here, "validate").status, 0);
     assert.equal(ext(here, "run", "detect").status, 0, ext(here, "run", "detect").stderr);
+    // A typo in a handler's name says which handlers there are.
+    assert.match(ext(here, "run", "lsit").stderr, /no handler «lsit» in handlers — detect, summary, list, usage/);
+    // Without --id the id is a placeholder, and `new` says so.
+    const placeholder = ext(base, "new", "mine");
+    assert.equal(placeholder.status, 0, placeholder.stderr);
+    assert.match(placeholder.stdout, /the id dev\.example\.mine is a placeholder/);
+    assert.doesNotMatch(ext(base, "new", "theirs", "--id", "dev.test.theirs").stdout, /placeholder/);
   } finally { rmSync(base, { recursive: true, force: true }); }
 });
 
@@ -169,5 +176,11 @@ test("npm package: packed, installed from the tarball into another prefix, its C
     for (const p of [pkg.exports["."].default, pkg.exports["."].types, pkg.exports["./database"].default]) assert.ok(existsSync(join(lib, p)), p);
     const imported = spawnSync(process.execPath, ["--input-type=module", "-e", `import { view, quote } from ${JSON.stringify(join(lib, pkg.exports["."].default))}; console.log(quote("it's"), view([]).blocks.length)`], { encoding: "utf8" });
     assert.equal(imported.stdout.trim(), "'it'\\''s' 0", imported.stderr);
+    // Swift: the package a copy of swift-hello points at — by path to the installed SDK (its root manifest, the
+    // sources it names) — travels too, and no SwiftPM build folder does.
+    assert.match(readFileSync(join(lib, "Package.swift"), "utf8"), /path: "packages\/swift\/Sources\/SSHKipperSDK"/);
+    assert.ok(existsSync(join(lib, "packages/swift/Sources/SSHKipperSDK/Runtime.swift")), "the Swift sources");
+    assert.ok(existsSync(join(lib, "examples/swift-hello/Package.swift")), "the Swift example");
+    assert.ok(!existsSync(join(lib, "packages/swift/.build")) && !existsSync(join(lib, "examples/swift-hello/bin")));
   } finally { rmSync(base, { recursive: true, force: true }); }
 });
