@@ -28,7 +28,7 @@
           {
             "key": "token", "type": "secret",
             "title": { "ru": "Токен API", "en": "API token" },
-            "help": { "ru": "Console → проект → Security → API tokens; достаточно «Read».", "en": "Console → project → Security → API tokens; «Read» is enough." }
+            "help": { "ru": "Console → проект → Security → API tokens; достаточно «Read».", "en": "Console → project → Security → API tokens; “Read” is enough." }
           },
           {
             "key": "api", "type": "text", "default": "https://api.hetzner.cloud/v1",
@@ -53,7 +53,7 @@
             "placeholder": "bastion",
             "help": {
               "ru": "Имя подключения документа; у сервера метка «sshkipper-jump» сильнее. Для частной сети.",
-              "en": "The name of a connection of the document; a server's «sshkipper-jump» label wins. For the private network."
+              "en": "The name of a connection of the document; a server's “sshkipper-jump” label wins. For the private network."
             }
           },
           {
@@ -62,7 +62,7 @@
             "choices": [
               { "value": "none", "title": { "ru": "Без папок", "en": "No folders" } },
               { "value": "location", "title": { "ru": "По расположению", "en": "By location" } },
-              { "value": "label", "title": { "ru": "По метке «group»", "en": "By the «group» label" } }
+              { "value": "label", "title": { "ru": "По метке «group»", "en": "By the “group” label" } }
             ]
           }
         ]

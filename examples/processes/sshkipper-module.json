@@ -13,7 +13,7 @@
   "permissions": ["exec", "sudo"],
   "settings": [
     { "key": "limit", "title": { "ru": "Сколько процессов показывать", "en": "Processes to show" }, "type": "number", "default": 40 },
-    { "key": "busy", "title": { "ru": "«Занят», если CPU больше, %", "en": "«Busy» above CPU, %" }, "type": "number", "default": 80 }
+    { "key": "busy", "title": { "ru": "«Занят», если CPU больше, %", "en": "“Busy” above CPU, %" }, "type": "number", "default": 80 }
   ],
   "service": {
     "detect": "detect",

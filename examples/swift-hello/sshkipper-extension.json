@@ -6,7 +6,7 @@
   "title": { "ru": "Привет из Swift (пример)", "en": "Hello from Swift (an example)" },
   "description": {
     "ru": "Расширение на Swift с пакетом SSHKipperSDK: служба сервера с живым экраном — сводка сервера через host/exec, «Обновить» на панели инструментов, график нагрузки этого Mac, который программа дополняет сама. Собрать: ./build.sh.",
-    "en": "An extension in Swift with the SSHKipperSDK package: a service of servers with a live screen — the server's summary through host/exec, «Refresh» on the toolbar, a chart of this Mac's load the program adds points to. Build: ./build.sh."
+    "en": "An extension in Swift with the SSHKipperSDK package: a service of servers with a live screen — the server's summary through host/exec, “Refresh” on the toolbar, a chart of this Mac's load the program adds points to. Build: ./build.sh."
   },
   "author": { "name": "SSHKipper" },
   "license": "MIT",
