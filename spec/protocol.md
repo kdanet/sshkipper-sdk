@@ -197,7 +197,8 @@ is started again on the next call.
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
 The program MUST answer `initialize` within **15 seconds** of starting; the app then ends it and the call fails with
-«Модуль не ответил за 15 с». The SDKs answer it after their `setup` hook (`defineModule({ setup })`,
+«… запустилась, но не ответила на initialize (Модуль не ответил за 15 с)». A program that never got to run says why
+instead: macOS keeps the file in quarantine, or the system stopped it (a signal — unsigned, built for another Mac). The SDKs answer it after their `setup` hook (`defineModule({ setup })`,
 `Extension.setup`): keep that hook short and do slow work (warming a cache, a first connection) lazily, on the first
 call that needs it. Calls the app sends meanwhile wait for `setup`.
 
