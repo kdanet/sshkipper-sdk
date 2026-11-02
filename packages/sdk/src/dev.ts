@@ -193,7 +193,7 @@ function answer(output: string, kind: "json" | "text" | "lines"): Json {
 export async function call(dir: string, handler: string, o: CallOptions = {}): Promise<CallResult> {
   const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
   const h = m.handlers?.[handler];
-  if (!h) return { ok: false, error: `no handler «${handler}» in handlers`, stdout: "", stderr: "", log: [] };
+  if (!h) return { ok: false, error: `no handler «${handler}» in handlers — ${Object.keys(m.handlers ?? {}).join(", ") || "the manifest has none"}`, stdout: "", stderr: "", log: [] };
   const log: string[] = [];
   if (!o.unchecked) {
     // As the app: what an action, a tool or a block passes is checked against its params before anything runs.

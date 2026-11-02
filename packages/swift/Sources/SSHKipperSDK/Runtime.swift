@@ -398,7 +398,11 @@ public final class Extension: @unchecked Sendable {
                 lock.withLock { sessions[session.id] = session }
             }
             return {
-                guard let fn else { throw ExtensionError("no console \(params["console"].text)", code: ErrorCode.methodNotFound) }
+                guard let fn else {
+                    let known = self.lock.withLock { self.consoles.keys.sorted().joined(separator: ", ") }
+                    throw ExtensionError("console/open: no console «\(params["console"].text)» (params.console) — this program has: \(known.isEmpty ? "none" : known)",
+                                         code: ErrorCode.methodNotFound)
+                }
                 let context = (try? params["context"].decode(Context.self)) ?? Context(locale: locale)
                 do { try await fn(session, HandlerContext(context: context, host: host(context))) } catch {
                     self.lock.withLock { _ = self.sessions.removeValue(forKey: session.id) }

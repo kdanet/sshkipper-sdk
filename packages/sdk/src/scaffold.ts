@@ -152,7 +152,7 @@ function service(o: ScaffoldOptions, title: string | { en: string; ru: string },
 /** How to try each kind without the app, and where the app shows it (the English interface's words; the Russian
  * ones are in docs/glossary.md). */
 const TRY: Record<ExtensionKind, (o: ScaffoldOptions, program: boolean) => string> = {
-  service: (_o, program) => `sshkipper-ext run . list${program ? "                 # host.exec runs here; --ssh user@host — there" : "                 # here; --ssh user@host — on a server"}
+  service: (_o, program) => `sshkipper-ext run . list                    ${program ? "# host.exec runs here; --ssh user@host — there" : "# here; --ssh user@host — on a server"}
 sshkipper-ext preview . main --run         # the page as text
 # In SSHKipper: a connection's card → Services → this service; its page opens from the tree`,
   database: (o) => `node driver.ts                             # then type: {"id":1,"method":"hello","params":{}}

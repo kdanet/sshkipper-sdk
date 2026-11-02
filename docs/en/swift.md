@@ -78,6 +78,19 @@ builds them in its CI.
 
 ## Your own extension in Swift
 
-`sshkipper-ext new … --kind …` writes TypeScript. For Swift, start from `swift-hello`: copy the folder, change `id`,
-`title` and the contributions in `sshkipper-extension.json`, point `Package.swift` at the SDK package (a path, or a
-Git URL once the SDK is published), write the handlers and methods in `main.swift`, `./build.sh`.
+`sshkipper-ext new … --kind …` writes TypeScript. For Swift, start from `swift-hello`: copy the folder (from a clone
+or from the installed package — `$(npm root -g)/sshkipper-sdk/examples/swift-hello`), change `id`, `title` and the
+contributions in `sshkipper-extension.json`, write the handlers and methods in `main.swift`. The example finds the SDK
+by a path inside the SDK's repository, so a copy points `Package.swift` at the SDK itself — by Git URL or by a path to a
+clone or to the installed package (it carries the Swift sources too):
+
+```swift
+dependencies: [.package(url: "https://github.com/kdanet/sshkipper-sdk.git", branch: "main")],
+// or: [.package(path: "/usr/local/lib/node_modules/sshkipper-sdk")]  — `npm root -g` says where
+targets: [
+    .executableTarget(name: "swift-hello", dependencies: [.product(name: "SSHKipperSDK", package: "sshkipper-sdk")],
+                      path: "Sources/SwiftHello"),
+],
+```
+
+Then `./build.sh`.
