@@ -348,6 +348,7 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
   const perms = new Set(m.permissions ?? []);
   const handlers = m.handlers ?? {};
   const server = m.runtime.kind === "server";
+  const sym = symbols();
   const known = CONTRIBUTION_KINDS as readonly string[];
   for (const k of Object.keys(c)) {
     if (!known.includes(k)) err(`contributes.${k}`, `unknown kind of contribution «${k}» — this version of SSHKipper knows: ${known.join(", ")}`);
@@ -383,6 +384,8 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
       ids.add(x.id);
       if (NEEDS_PROGRAM.has(kind) && server && !(kind === "database" && x.command)) err(at, `«${kind}» runs as a program on this Mac — it needs the «process» runtime`);
       if (kind in BUILT_IN && BUILT_IN[kind as keyof typeof BUILT_IN].has(x.id)) err(`${at}.id`, `«${x.id}» is built into SSHKipper — an extension doesn't replace it`);
+      // As the app draws it: the contribution's symbol, else the extension's, else the kind's own icon.
+      if (x.icon?.symbol && !sym.has(x.icon.symbol)) warn(`${at}.icon.symbol`, `symbol «${x.icon.symbol}» isn't one the app draws (schemas/symbols.json): the extension's or the kind's own icon shows instead`);
       switch (kind) {
         case "database":
           if (x.identifierQuote !== undefined && x.identifierQuote !== '"' && x.identifierQuote !== "`") err(`${at}.identifierQuote`, 'the quote of names — " or `');

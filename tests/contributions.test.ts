@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateFolder } from "../packages/sdk/src/validate.ts";
+import { validateFolder, validateManifest } from "../packages/sdk/src/validate.ts";
 
 const root = join(fileURLToPath(import.meta.url), "../..");
 
@@ -138,4 +138,21 @@ test("a method nobody answers: method not found", async () => {
     p.stop();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a contribution's symbol outside schemas/symbols.json is a warning before install, as the app says", () => {
+  const m = {
+    sdk: 1, id: "dev.acme.icons", version: "1.0.0", title: "Icons", runtime: { kind: "process", command: ["node", "main.ts"] },
+    icon: { symbol: "no.such.symbol" },
+    contributes: {
+      import: [{ id: "csv", title: "CSV", fileExtensions: ["csv"], icon: { symbol: "tablecells.badge.ellipsis" } }],
+      console: [{ id: "serial", title: "Serial", targets: ["connection"], icon: { symbol: "terminal" } }],
+      storage: [{ id: "folder", title: "Folder", icon: { symbol: "folder" }, capabilities: [] }],
+    },
+  };
+  const warned = new Set(validateManifest(m as any).filter((i) => i.severity === "warning").map((i) => i.path));
+  assert.ok(warned.has("icon.symbol"));
+  assert.ok(warned.has("contributes.import[0].icon.symbol"));
+  assert.ok(!warned.has("contributes.console[0].icon.symbol"), "terminal is drawn");
+  assert.ok(!warned.has("contributes.storage[0].icon.symbol"), "folder is drawn");
 });
