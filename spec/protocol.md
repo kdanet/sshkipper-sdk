@@ -442,8 +442,16 @@ screen's inspector, the module's log) and skipped — the others still apply.
 
 A completion: `"status"` or `{"title", "insert"?, "detail"?}`.
 
-Limits: 8 MB of an answer, 2 000 ops, 10 000 rows an op, 10 000 000 rows a table (the app keeps up to 200 000
-loaded — pages far from sight are forgotten and asked again), 50 000 nodes a tree, 400 blocks a screen.
+Limits: 8 MB of an answer, 2 000 ops, 10 000 rows (row ids) an op, 10 000 000 rows a table (the app keeps up to
+200 000 loaded — pages far from sight are forgotten and asked again), 50 000 nodes a tree, 400 blocks a screen; a
+`terminal` keeps its last `maxLines` lines and at most 1 MB of text, breaks a line longer than 16 KB, and reads `\r`
+as a carriage return (the text after it starts its line anew — a progress bar).
+
+- Numbers are counts and places: `offset`, `index`, `total` move into `0 … 10 000 000` (a fraction is rounded);
+  rows past 10 000 000 aren't kept and the op says how many («строки дальше … не показываются»). Rows past 10 000 an
+  op are left out the same way. A `reset` (a new sort or filter) drops the answers to `more` asked before it.
+- The answer and `ui/push` are read off the main thread; the ops of one answer or push are applied together — a table
+  is drawn again once for thousands of row ops, not once each.
 
 ### 11.5 `ui/push` (module → app, a notification)
 
@@ -581,7 +589,8 @@ The program answers three methods of its own (on the same connection as its hand
 - `ai/cancel` — the user stopped the answer: abort the work (the SDK aborts `ctx.signal`). The app forgets the
   request; a late answer is dropped.
 - An error of `ai/chat` (`{"code", "message"}`) is shown as the provider's error, never retried by the app. An answer
-  over 4 MB is cut and fails.
+  over 4 MB (text, tool inputs, tool calls) is cut and fails at once: the program gets `cancel` and `ai/cancel`.
+- Token counts in `usage` are kept to 0 … 10^12.
 - `secrets` — the profile's secret fields; never put them in an answer or the log (the app masks each value in what it
   shows anyway).
 
@@ -642,9 +651,11 @@ A program with a screen on screen isn't stopped as idle (it pushes to it).
 
 ### 14.3 What a program sees
 
-Only what its screens on screen show: **the node a screen is open for, the nodes that node points at, the server of
-a section** — between calls too (a timer pushing live data). Anything else — another node's id, a guessed one,
-another extension's node — is refused (`-32001`).
+Only what its screens and consoles on screen show: **the node a screen (a console, §16) is open for, the nodes that
+node points at, the server of a section** — between calls too (a timer pushing live data). «Points at» is through the
+`node` fields the type declares **now**: a link under a key the schema no longer has (an update renamed the field, a
+document came with one more) is kept but gives nothing — the card lists it apart, to remove. Anything else — another
+node's id, a guessed one, another extension's node — is refused (`-32001`).
 
 | Method | Params | Result | Permission |
 |---|---|---|---|
@@ -658,10 +669,16 @@ another extension's node — is refused (`-32001`).
 - `host/open terminal`: a command (one line, ≤ 2000 characters) is typed into a new terminal of that server only after
   the user says yes in a question that shows it, who sent it, and what the command policy finds in it (red when it
   changes the system or the server is Production); `{"opened": false}` — the user said no. At most 5 opens in 10 s.
+  The command is refused (`-32602`) with any control character (CR, LF, Tab, ESC, Ctrl-U…, DEL, C1), a line or
+  paragraph separator, bidi or zero-width marks: the shell would read them as keys, the dialog would show another text.
 - `host/ask`: the app's dialog says which extension asks. `buttons[0]` is the main one; `risk: danger` makes it red
-  and never the Return default; Esc answers `cancel` (the last button by default). One question of an extension on
-  screen at a time, at most 8 waiting; with no window to ask over (closed to the menu bar, everything locked) a
-  question waits for one.
+  and never the Return default; Esc answers `cancel` (the last button by default) — an index of a button exactly,
+  anything else (a fraction, a huge number) is `-32602`. One question of an extension on screen at a time, at most 8
+  waiting; with no window to ask over (closed to the menu bar, everything locked) a question waits for one.
+- While a question of the program is on screen (`host/ask`, the command of `host/open terminal`), the timeouts of its
+  calls stop: an event that waits for the user's answer isn't cancelled after 30 s.
+- The program ends (crashes, is killed) while its screen is open: the screen says so at once and stops — its last
+  numbers aren't shown as live; «Повторить» builds it on a new program.
 
 ## 15. Import
 
@@ -720,7 +737,7 @@ pixels of an extension.
 
 | Method | Direction | Params |
 |---|---|---|
-| `console/open` (request) | app → program | `{"console", "session", "cols", "rows", "node": {"id", "name", "host", "port", "user"}, "context"}` — answer `{}` once the console runs (30 s at most); an error is shown in the tab |
+| `console/open` (request) | app → program | `{"console", "session", "cols", "rows", "node": {"id", "name", "host", "port", "user"}, "context"}` — answer `{}` once the console runs (30 s at most); an error is shown in the tab. A node of the extension's own type: `node` is its `context.node` (§14.1: `type`, `settings`, `links`, `secrets`) plus `host`, `port`, `user` of the server its fields point at |
 | `console/data` | program → app | `{"session", "data": "<base64>"}` — bytes for the terminal (it MAY come before the `console/open` answer) |
 | `console/input` | app → program | `{"session", "data": "<base64>"}` — what the user typed, as the terminal encodes it (Return is `\r`; a paste comes in pieces of 48 KB) |
 | `console/resize` | app → program | `{"session", "cols", "rows"}` — when the grid changes |
@@ -730,8 +747,14 @@ pixels of an extension.
 - `node` carries no password or key; `context` is the call's (§2: settings of the extension for that server, the
   language). While the console is open the node's server counts as a call in progress: `host/exec` and `host/secret`
   may name it, and the program isn't stopped as idle. A document lock that stops the program closes its consoles.
+- A console of a node of the extension's own type (`appliesTo: ["<type>"]`) works as its screen does (§14.3):
+  `context.node` is the node, `context.server` the first server its fields point at; while the console is open the
+  program sees the node and what it points at — `host/secret {"node", "key"}` of its secret fields
+  (`ctx.host.nodeSecret(key)`), `host/exec` on that server.
 - **Limits.** A `console/data` chunk is at most ≈ 1 MB (1 400 000 base64 characters) — a bigger one is dropped whole;
   the output may burst to 4 MB and keeps to 2 MB a second after — the rest is dropped and the terminal says how much
-  («[консоль: вывод слишком быстрый — пропущено N КБ]»). Bytes go to the terminal off the main thread.
+  («[консоль: вывод слишком быстрый — пропущено N КБ]»). Bytes go to the terminal off the main thread. A chunk too
+  big or not base64 is the author's mistake: the terminal and the extension's log say which («кусок console/data
+  больше 1 МБ», «console/data не в base64»).
 - `console/data` for a session the program didn't open is ignored (and noted in the extension's log).
 - The program exiting, crashing or being stopped ends its consoles: each tab says why and offers «Открыть снова» (⌘R).

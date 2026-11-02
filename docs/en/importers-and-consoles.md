@@ -92,6 +92,10 @@ defineModule({
 - `session.node` is `{ id, name, host, port, user }` — no password; ask for your own secret setting with
   `ctx.host.secret(key)` (`secrets` permission). While the console is open, `ctx.host.exec` may run commands on that
   server (`exec` permission).
+- A console of your own node type (`appliesTo: ["<type>"]`) gets the node as its screen does: `session.node` and
+  `ctx.node` carry `type`, `settings`, `links` and the keys of the secrets that are set, `host`/`port`/`user` are the
+  server its `node` field points at; `ctx.host.nodeSecret(key)` reads its secret fields, `ctx.host.exec` runs on that
+  server.
 - Output is limited to a 4 MB burst and 2 MB a second; what's above is dropped and the terminal says so.
 - `session.close(reason)` ends it from your side; the tab shows the reason and offers to open it again. If your
   program exits, every console it had closes the same way.
