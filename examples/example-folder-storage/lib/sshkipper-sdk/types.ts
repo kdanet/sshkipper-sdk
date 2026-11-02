@@ -200,7 +200,20 @@ export interface ImportFile { importer: string; name: string; size: number; data
 // MARK: Consoles (spec/protocol.md §16)
 
 /** The node a console was opened for: its address and login (never a password). */
-export interface ConsoleNode { id: string; name?: string; host?: string; port?: number; user?: string }
+/** The node a console was opened for (spec/protocol.md §16): its address and login, never a password. A node of the
+ * extension's own type comes as `context.node` does (`type`, `settings`, `links`, `secrets` — keys only) with the address
+ * of the server its fields point at; its secrets — `ctx.host.nodeSecret(key)`, as on its screen. */
+export interface ConsoleNode {
+  id: string;
+  name?: string;
+  host?: string;
+  port?: number;
+  user?: string;
+  type?: string;
+  settings?: Record<string, Json>;
+  links?: Record<string, NodeLink>;
+  secrets?: string[];
+}
 
 export interface Contributes {
   service?: Manifest["service"];

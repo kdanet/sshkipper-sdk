@@ -308,13 +308,20 @@ public struct ImportResult: Encodable, Sendable {
 
 // MARK: Consoles (§16)
 
-/// The node a console was opened for: its address and login (never a password).
+/// The node a console was opened for: its address and login (never a password). A node of the extension's own type
+/// comes as `context.node` does (`type`, `settings`, `links`, `secrets` — keys only) with the address of the server
+/// its fields point at; its secrets — `host.nodeSecret`, as on its screen.
 public struct ConsoleNode: Codable, Sendable, Hashable {
     public var id: String
     public var name: String?
     public var host: String?
     public var port: Int?
     public var user: String?
+    /// A node of the extension's own type: `ext:<extension>/<type>`, its settings, links and set secret keys.
+    public var type: String?
+    public var settings: [String: JSON]?
+    public var links: [String: NodeLink]?
+    public var secrets: [String]?
 }
 
 // MARK: Model providers (§13)
