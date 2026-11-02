@@ -28,7 +28,7 @@ export interface ScaffoldOptions {
 
 /** One line each: what a kind makes (help, the MCP tool, the guides). */
 export const KIND_INFO: Record<ExtensionKind, string> = {
-  service: "a service of servers: detect, summary, a page, an action, an AI tool, an automation block (scripts on the server; --process — a TypeScript program)",
+  service: "a service of servers: detect, summary, a page, an action, an AI tool, an automation block — scripts on the server, or with --process a TypeScript program on this Mac",
   database: "a database engine with the app's whole database tab (a driver speaking spec/database.md; reads a JSON file to start)",
   storage: "a kind of storage for the file panel: list, read and write in parts, folders, rename, delete, check",
   source: "a live folder of servers in the tree (source/poll)",
@@ -114,6 +114,10 @@ function service(o: ScaffoldOptions, title: string | { en: string; ru: string },
   const settings = [{ key: "warn_pct", title: { en: "Warn above, %", ru: "Предупреждать выше, %" }, type: "number", default: 85 }];
   const tools = [{ name: "disk_usage", description: "File systems of the server with size, used bytes and use %, the fullest first.", handler: "list", risk: "read" }];
   const refresh = { id: "refresh", title: { en: "Refresh", ru: "Обновить" }, symbol: "arrow.clockwise", handler: "list", risk: "read" };
+  const automation = [{
+    id: "usage", title: { en: "Disk usage", ru: "Заполненность дисков" }, symbol: "internaldrive", handler: "usage", risk: "read", returns: "json",
+    params: [{ key: "mount", title: { en: "Mount point", ru: "Точка монтирования" }, type: "text", default: "/", pattern: "/[A-Za-z0-9._/-]*" }],
+  }];
 
   if (!program) {
     const manifest = {
@@ -128,20 +132,18 @@ function service(o: ScaffoldOptions, title: string | { en: string; ru: string },
       },
       actions: [refresh],
       tools,
-      automation: [{
-        id: "usage", title: { en: "Disk usage", ru: "Заполненность дисков" }, symbol: "internaldrive", handler: "usage", risk: "read", returns: "json",
-        params: [{ key: "mount", title: { en: "Mount point", ru: "Точка монтирования" }, type: "text", default: "/", pattern: "/[A-Za-z0-9._/-]*" }],
-      }],
+      automation,
     };
     return { [name]: json(manifest), ...files(join(templates, "server")) };
   }
   const manifest = {
-    ...common, runtime: { kind: "process", command: ["node", "module.ts"] }, permissions: ["exec", "store"], settings,
+    ...common, runtime: { kind: "process", command: ["node", "module.ts"] }, permissions: ["exec"], settings,
     service: { detect: "detect", summary: "summary", page: "main" },
     pages: [{ id: "main", title, render: "render", refresh: 30 }],
-    handlers: { detect: { timeout: 10 }, summary: { timeout: 15 }, list: { timeout: 15 }, render: { timeout: 20 } },
+    handlers: { detect: { timeout: 10 }, summary: { timeout: 15 }, list: { timeout: 15 }, render: { timeout: 20 }, usage: { timeout: 15 } },
     actions: [refresh],
     tools,
+    automation,
   };
   const code = readFileSync(join(templates, "process/module.ts"), "utf8").replaceAll("__TITLE__", o.title.replace(/[\r\n]/g, " "));
   return { [name]: json(manifest), "module.ts": code, ...vendorFiles() };
@@ -173,7 +175,7 @@ function readme(o: ScaffoldOptions, kind: ExtensionKind, program: boolean): stri
   const pkg = kind === "service" && o.module ? "sshkmod" : "sshkext";
   return `# ${o.title}
 
-An SSHKipper extension (SDK 1): ${KIND_INFO[kind]}.${kind === "service" ? ` It runs ${program ? "as a program on this Mac" : "as scripts on the server"}.` : ""}
+An SSHKipper extension (SDK 1): ${kind === "service" ? `a service of servers — detect, summary, a page, an action, an AI tool, an automation block. It runs ${program ? "as a TypeScript program on this Mac: \`ctx.host.exec\` runs its commands on the server over the app's SSH session" : "as scripts on the server, over the app's SSH session"}` : KIND_INFO[kind]}.
 
 \`\`\`sh
 sshkipper-ext validate .                   # what the app will say before installing it

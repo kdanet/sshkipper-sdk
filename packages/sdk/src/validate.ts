@@ -1,6 +1,6 @@
 // Checks a module the way the app does before it installs one (the app's ModuleValidation): the JSON Schemas of
 // schemas/, then what a schema can't say — handlers that exist, files that are there, pages a service can show.
-// Used by the CLI (`sshkipper-module validate`) and the MCP server (`module_validate`).
+// Used by the CLI (`sshkipper-ext validate`, `pack`) and the MCP server (`ext_validate`).
 
 import { readFileSync, readdirSync, statSync, lstatSync, realpathSync } from "node:fs";
 import { join, relative, sep } from "node:path";

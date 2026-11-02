@@ -19,7 +19,7 @@
         "fields": [
           {
             "key": "bucket", "type": "text", "default": "default",
-            "title": { "en": "Bucket", "ru": "Корзина" },
+            "title": { "en": "Bucket", "ru": "Бакет" },
             "help": { "en": "A name: storages with the same one share their files.", "ru": "Имя: хранилища с одинаковым именем видят одни файлы." }
           }
         ],

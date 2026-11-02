@@ -7,7 +7,7 @@
   "description": "A model provider: a profile in Settings → AI, chosen wherever a profile is. This start echoes the question in pieces — call your model's API in provider.ts.",
   "icon": { "symbol": "bolt.fill", "color": "purple" },
   "runtime": { "kind": "process", "command": ["node", "provider.ts"] },
-  "permissions": ["secrets"],
+  "permissions": ["secrets", "network"],
   "contributes": {
     "ai": [
       {

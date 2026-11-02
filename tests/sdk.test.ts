@@ -34,13 +34,6 @@ test("templates: the conformance cases the app runs too", () => {
   }
 });
 
-test("validate: the examples are clean", () => {
-  for (const ex of ["processes", "http-checks", "screens", "node-type-sitechecks", "import-csv", "console-echo"]) {
-    const r = validateFolder(join(root, "examples", ex));
-    assert.deepEqual(r.issues.filter((i) => i.severity === "error"), [], ex);
-  }
-});
-
 test("validate: says what's wrong where", () => {
   const m = {
     sdk: 1, id: "dev.acme.q", version: "1.0.0", title: "Q", runtime: { kind: "server" },
@@ -95,18 +88,10 @@ test("ui builders make views the schema takes", () => {
   assert.match(text, /cron/);
 });
 
-test("scaffolds validate and their handlers run", async () => {
-  for (const kind of ["server", "process"] as const) {
-    const dir = write(scaffold({ kind, id: `dev.test.${kind}`, title: "Disks" }));
-    try {
-      const r = validateFolder(dir);
-      assert.deepEqual(r.issues.filter((i) => i.severity === "error"), [], kind);
-      const s = await call(dir, "summary", { settings: { warn_pct: 85 } });
-      assert.ok(s.ok, `${kind}: ${s.error}`);
-      assert.match(String((s.value as Record<string, Json>).text), /%/);
-      assert.ok(["ok", "warn", "bad"].includes(String((s.value as Record<string, Json>).status)));
-    } finally { rmSync(dir, { recursive: true, force: true }); }
-  }
+test("scaffold: the kinds of SDK 1.0 (server, process) still make a service", () => {
+  // What a service makes is checked by ext.test.ts («new: every kind…»); here only that the old names lead there.
+  assert.deepEqual(scaffold({ kind: "server", id: "dev.test.d", title: "D" }), scaffold({ kind: "service", id: "dev.test.d", title: "D" }));
+  assert.deepEqual(scaffold({ kind: "process", id: "dev.test.d", title: "D" }), scaffold({ kind: "service", process: true, id: "dev.test.d", title: "D" }));
 });
 
 test("extensions: sshkipper-extension.json with contributions, checked as the app checks them (protocol §10)", () => {

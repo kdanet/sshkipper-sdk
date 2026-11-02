@@ -130,7 +130,7 @@ test("new: every kind validates clean and its start works", async () => {
       try {
         const r = validateFolder(dir);
         assert.deepEqual(r.issues, [], `${kind}: ${JSON.stringify(r.issues)}`);
-        assert.ok(r.files.includes(kind === "service" ? "sshkipper-extension.json" : "sshkipper-extension.json"));
+        assert.ok(r.files.includes("sshkipper-extension.json"), kind);
         await SMOKE[kind](dir, id);
       } finally { rmSync(dir, { recursive: true, force: true }); }
     }

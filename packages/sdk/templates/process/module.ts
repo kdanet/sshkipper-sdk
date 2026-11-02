@@ -1,6 +1,6 @@
 // __TITLE__: a process module of SSHKipper SDK 1. The app starts `node module.ts` on this Mac and calls the
 // handlers below over JSON-RPC; `ctx.host.exec` runs a command on the server over the app's own SSH session.
-import { defineModule, gauge, grid, rows, row, tr, view, type HandlerContext } from "./lib/sshkipper-sdk/index.ts";
+import { defineModule, gauge, grid, ModuleError, rows, row, tr, view, type HandlerContext } from "./lib/sshkipper-sdk/index.ts";
 
 type Disk = { mount: string; device: string; size: number; used: number; pct: number };
 
@@ -37,6 +37,14 @@ defineModule({
       return d ? { text: `${d.mount} — ${d.pct}%`, status: status(d, ctx) } : { text: "—", status: "off" };
     },
     list: async (_input, ctx) => ({ disks: await disks(ctx) }),
+    // The automation block: one mount point (its pattern is checked by the app before the call), the step's result.
+    usage: async (input, ctx) => {
+      const mount = String(input.mount ?? "/");
+      const d = (await disks(ctx)).find((x) => x.mount === mount);
+      if (!d) throw new ModuleError(tr(ctx, { en: `no file system at ${mount}`, ru: `нет файловой системы в ${mount}` }));
+      const s = status(d, ctx);
+      return { status: s === "bad" ? "error" : s, summary: tr(ctx, { en: `${mount}: ${d.pct}% used`, ru: `${mount}: занято ${d.pct}%` }), value: d.pct, unit: "%", mount };
+    },
     render: async (_input, ctx) => {
       const all = await disks(ctx);
       return view([
