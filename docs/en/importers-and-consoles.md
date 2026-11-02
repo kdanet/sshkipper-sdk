@@ -18,7 +18,7 @@ of the app. The protocol is in [spec/protocol.md](../../spec/protocol.md) §15 a
 }
 ```
 
-The user picks the file (File → «Импорт: Server table (CSV)…»). The app reads it — up to 8 MB, or your `maxSizeMB`
+The user picks the file (File → Import → «Таблица серверов (CSV)…»). The app reads it — up to 8 MB, or your `maxSizeMB`
 — and calls your importer with its bytes; you never get the path. Return folders and connections:
 
 ```ts
@@ -67,7 +67,7 @@ Try it without the app: `node --test` the parsing (the example keeps it in `csv.
 }
 ```
 
-A server's menu gets «Консоль: IPMI SoL». The app opens a terminal tab — its own terminal, with find, copying and
+A server's menu gets «Console: IPMI SoL» («Консоль: IPMI SoL» in Russian). The app opens a terminal tab — its own terminal, with find, copying and
 the session log — and calls your console with a session:
 
 ```ts

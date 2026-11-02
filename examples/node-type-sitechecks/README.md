@@ -13,7 +13,7 @@ sshkipper-ext validate examples/node-type-sitechecks
 sshkipper-ext preview examples/node-type-sitechecks checks --node '{"id": "n1", "name": "Sites", "type": "ext:dev.sshkipper.example.sitechecks/checks", "settings": {"demo": true, "interval": 5}, "links": {}, "secrets": []}' --events '[{"type": "open"}]' --wait 3000
 ```
 
-**In SSHKipper:** «Папка разработки…» → the tree's «Создать ▸ Проверки сайтов» → a double click opens the tab. Guide:
+**In SSHKipper:** Settings → Extensions → Development folder… → File → From extensions → «Site checks…» → a double click opens the tab. Guide:
 [node types](../../docs/en/node-types.md).
 
 **По-русски:** свой тип узла: карточка из полей (адреса, интервал, секретный токен, ссылка на сервер) и вкладка с

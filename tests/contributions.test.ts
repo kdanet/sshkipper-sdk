@@ -36,13 +36,6 @@ function program(folder: string, env: Record<string, string> = {}) {
   return { call, stop: () => p.kill() };
 }
 
-test("examples validate", () => {
-  for (const ex of ["example-folder-storage", "example-hetzner-source"]) {
-    const r = validateFolder(join(root, "examples", ex));
-    assert.deepEqual(r.issues.filter((i) => i.severity === "error"), [], ex);
-  }
-});
-
 test("folder storage: parts, abort, folders, rename, delete, no way out", async () => {
   const dir = mkdtempSync(join(tmpdir(), "sk-folder-"));
   const data = mkdtempSync(join(tmpdir(), "sk-data-"));

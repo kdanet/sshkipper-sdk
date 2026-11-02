@@ -3,7 +3,7 @@
 
 import type {
   AIChatRequest, AIChatResult, AIDelta, AIModel, ConsoleNode, Context, EventAnswer, ExecResult, FoundHost, ImportFile, ImportResult,
-  Json, Op, OpenTarget, Question, Request, ScreenEvent, SourceRef, StorageItem, StorageLink, StorageRef,
+  Json, Op, OpenTarget, Question, Request, ScreenEvent, SourceRef, StorageItem, StorageLink, StorageRef, View,
 } from "./types.ts";
 
 /** A failure the app shows to the user (or gives to the model / fails the automation block with). */
@@ -22,7 +22,9 @@ export const Codes = {
 
 /** What the app does for a module (§4.3). Each call needs the matching permission in the manifest. */
 export interface Host {
-  /** A command on a server, over the app's SSH session (bastions, 2FA, containers handled by the app). */
+  /** A command on a server, over the app's SSH session (bastions, 2FA, containers handled by the app). It runs on the
+   * server itself unless `container` is named — `{ container: ctx.container }` for the service's own; `stdin` doesn't
+   * go into a container (the app refuses the pair). */
   exec(command: string, opts?: { server?: string; stdin?: string; timeout?: number; sudo?: boolean; container?: string }): Promise<ExecResult>;
   /** A secret setting of the module for the call's server. */
   secret(key: string, server?: string): Promise<string>;
@@ -52,7 +54,10 @@ export interface HandlerContext extends Context {
   signal: AbortSignal;
 }
 
-export type HandlerFn = (input: Record<string, Json>, ctx: HandlerContext) => Promise<Json | void> | Json | void;
+/** What a handler answers: JSON, a whole view (a page's or a screen's `render`), or nothing. */
+export type HandlerAnswer = Json | View | void;
+
+export type HandlerFn = (input: Record<string, Json>, ctx: HandlerContext) => Promise<HandlerAnswer> | HandlerAnswer;
 
 /** An event's context: the call's, plus `push` — ops to this screen at any time later (live data, `ui/push`). */
 export interface EventContext extends HandlerContext {
@@ -186,7 +191,8 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
           ...(opts.stdin !== undefined ? { stdin: opts.stdin } : {}),
           ...(opts.timeout !== undefined ? { timeout: opts.timeout } : {}),
           ...(opts.sudo ? { sudo: true } : {}),
-          ...(opts.container ?? ctx.container ? { container: opts.container ?? ctx.container! } : {}),
+          // Never filled from ctx.container: the same call in Swift and here, and stdin stays possible on the host.
+          ...(opts.container ? { container: opts.container } : {}),
         });
         return r as unknown as ExecResult;
       },
@@ -371,6 +377,19 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
     }
   }
 
+  /** A request that runs a function of the program: refused before `initialize`, known to `cancel` from the moment
+   * it arrives (also while it waits for `setup`), started once `setup` is done. */
+  async function started(msg: { id: number | string }, run: (abort: AbortController) => Promise<void>) {
+    if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
+    const abort = new AbortController();
+    running.set(String(msg.id), abort);
+    try { await ready; } catch {
+      running.delete(String(msg.id));
+      return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
+    }
+    return run(abort);
+  }
+
   transport.onLine(async (line) => {
     let msg: any;
     try { msg = JSON.parse(line); } catch { return send({ id: null, error: { code: Codes.parse, message: "not JSON" } }); }
@@ -393,55 +412,14 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
           return send({ id: msg.id, error: { code: Codes.handlerFailed, message: `setup failed: ${e instanceof Error ? e.message : String(e)}` } });
         }
         return send({ id: msg.id, result: { handlers: Object.keys(def.handlers) } });
-      case "handler/call":
-        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        {
-          // Known to `cancel` from the moment it arrives, also while it waits for setup.
-          const abort = new AbortController();
-          running.set(String(msg.id), abort);
-          try { await ready; } catch {
-            running.delete(String(msg.id));
-            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
-          }
-          return call(msg.id, msg.params as Request, abort);
-        }
-      case "ui/event":
-        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        {
-          const abort = new AbortController();
-          running.set(String(msg.id), abort);
-          try { await ready; } catch {
-            running.delete(String(msg.id));
-            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
-          }
-          return event(msg.id, msg.params, abort);
-        }
+      case "handler/call": return started(msg, (abort) => call(msg.id, msg.params as Request, abort));
+      case "ui/event": return started(msg, (abort) => event(msg.id, msg.params, abort));
       case "ai/models":
-      case "ai/chat":
-        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        {
-          const abort = new AbortController();
-          running.set(String(msg.id), abort);
-          try { await ready; } catch {
-            running.delete(String(msg.id));
-            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
-          }
-          return ai(msg.id, msg.method, msg.params, abort);
-        }
+      case "ai/chat": return started(msg, (abort) => ai(msg.id, msg.method, msg.params, abort));
       case "ai/cancel":
         chats.get(String(msg.params?.id))?.abort();
         return;
-      case "import/parse":
-        if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-        {
-          const abort = new AbortController();
-          running.set(String(msg.id), abort);
-          try { await ready; } catch {
-            running.delete(String(msg.id));
-            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
-          }
-          return importFile(msg.id, msg.params, abort);
-        }
+      case "import/parse": return started(msg, (abort) => importFile(msg.id, msg.params, abort));
       case "console/open": {
         if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
         // Known before anything is awaited: input or a resize right behind the open isn't lost.
@@ -479,16 +457,7 @@ export function serve(def: ModuleDefinition, transport: Transport = stdioTranspo
         return;
       default: {
         const fn = def.methods?.[msg.method];
-        if (fn && msg.id !== undefined) {
-          if (!ready) return send({ id: msg.id, error: { code: Codes.invalidRequest, message: "not initialized" } });
-          const abort = new AbortController();
-          running.set(String(msg.id), abort);
-          try { await ready; } catch {
-            running.delete(String(msg.id));
-            return send({ id: msg.id, error: { code: Codes.handlerFailed, message: "setup failed" } });
-          }
-          return method(msg.id, fn, msg.params, abort);
-        }
+        if (fn && msg.id !== undefined) return started(msg, (abort) => method(msg.id, fn, msg.params, abort));
         if (msg.id !== undefined) send({ id: msg.id, error: { code: Codes.methodNotFound, message: `no method ${msg.method}` } });
       }
     }

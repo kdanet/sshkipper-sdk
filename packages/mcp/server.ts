@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalogText } from "../sdk/src/catalog.ts";
-import { call, callMethod } from "../sdk/src/dev.ts";
+import { call, callMethod, referrers } from "../sdk/src/dev.ts";
 import { applyOps, preview } from "../sdk/src/preview.ts";
 import { KIND_INFO, KINDS, scaffold, type Kind } from "../sdk/src/scaffold.ts";
 import { previewScreen, type PreviewEvent } from "../sdk/src/screens.ts";
@@ -53,6 +53,28 @@ const READ_METHODS = new Set(["storage/list", "storage/stat", "storage/read", "s
 /** Events of a live screen that only look (by the protocol's convention): the rest may change things. */
 const READ_EVENTS = new Set(["open", "close", "select", "expand", "collapse", "more", "sort", "change", "complete"]);
 const ALLOW = "the person who started this MCP server can restart it with `sshkipper-ext mcp --allow-changes`";
+
+/** Whether a handler only reads, by what the manifest uses it for: true, or why not. Reading uses — a service's
+ * detect, summary and tree, a page's data and render, a screen's render, an action, tool or block of risk «read» —
+ * and no changing one. Anything else (a handler nothing names, an event handler, a change) counts as a change. */
+export function readingHandler(m: Manifest, handler: string): true | string {
+  const reads: string[] = [];
+  for (const s of [m.service, m.contributes?.service]) {
+    if (!s) continue;
+    if (s.detect === handler) reads.push("service.detect");
+    if (s.summary === handler) reads.push("service.summary");
+    if (s.tree?.handler === handler) reads.push("service.tree");
+  }
+  for (const p of m.pages ?? []) {
+    if (p.render === handler || Object.values(p.data ?? {}).includes(handler)) reads.push(`page «${p.id}»`);
+  }
+  for (const s of m.contributes?.screen ?? []) if (s.render === handler) reads.push(`screen «${s.id}»`);
+  const refs = referrers(m, handler);
+  const changes = refs.filter((r) => r.risk !== "read");
+  if (changes.length) return `is the handler of ${changes.map((r) => `${r.what} (${r.risk})`).join(", ")}: it changes things`;
+  if (!reads.length && !refs.length) return "isn't used for reading anywhere in the manifest (detect, summary, a page's data or render, a screen's render, risk «read»): it counts as a change";
+  return true;
+}
 
 const TOOLS = [
   {
@@ -123,7 +145,7 @@ const TOOLS = [
   },
   {
     name: "ext_run_local",
-    description: "Runs one handler — or one method of a contribution (storage/list, source/poll, import/parse, ai/models…) — of an extension folder ON THIS MACHINE (server scripts with sh, programs as the app starts them; host.exec runs here too), to see what it returns while writing it — never on servers. What changes things — handlers of change/danger actions, tools or blocks, storage writes and deletes, ai/chat (a model's API) — runs only when the person started this server with --allow-changes: the agent can't allow it itself. Consoles are interactive: try them in the app.",
+    description: "Runs one handler — or one method of a contribution (storage/list, source/poll, import/parse, ai/models…) — of an extension folder ON THIS MACHINE (server scripts with sh, programs as the app starts them; host.exec runs here too), to see what it returns while writing it — never on servers. Safe by default: without --allow-changes (the person's flag when starting this server, not a parameter) only what reads runs — a handler the manifest uses for reading (service detect, summary or tree, a page's data or render, a screen's render, an action, tool or block of risk «read») and the methods that read; everything else, a handler nothing names included, is refused. Consoles are interactive: try them in the app.",
     inputSchema: obj({
       folder: { type: "string" }, handler: { type: "string" }, method: { type: "string" },
       input: { type: "object" }, params: { type: "object", description: "A method's params, as the app sends them (spec/protocol.md §12–15)" },
@@ -205,7 +227,7 @@ async function tool(name: string, a: Record<string, any>) {
       const opts = { input: a.input, settings: a.settings, item: a.item, node: a.node, locale: a.locale ?? "en" };
       if (a.method) {
         const method = String(a.method);
-        if (method.startsWith("console/")) return text("a console is interactive (bytes both ways): open it in the app — a connection's menu → «Консоль: …»", true);
+        if (method.startsWith("console/")) return text("a console is interactive (bytes both ways): open it in the app — a connection's menu → «Console: <title>»", true);
         const reads = READ_METHODS.has(method) || (method === "storage/link" && (a.params?.action ?? "list") === "list");
         if (!reads && !options.allowChanges) {
           return text(`«${method}» may change things (writes, deletes, a model's API) — it would run on this machine: not allowed; ${ALLOW}. Methods that only read run: ${[...READ_METHODS].join(", ")}.`, true);
@@ -216,15 +238,10 @@ async function tool(name: string, a: Record<string, any>) {
         return r.ok ? text(JSON.stringify(r.value, null, 2) + notes + log) : text(`${r.error}${r.stderr ? `\n\nstderr:\n${r.stderr.slice(-4000)}` : ""}${log}`, true);
       }
       if (!a.handler) return text("give «handler» or «method»", true);
-      // What changes things isn't run on the agent's machine (a kill handler would kill a local PID) unless the person
-      // started the server with --allow-changes: a parameter the agent sets itself would be no one's consent.
-      // An extension may write its tools and blocks under `contributes`: they change things the same way.
-      const changes = [...(m.actions ?? []), ...(m.tools ?? []), ...(m.automation ?? []), ...(m.contributes?.tools ?? []), ...(m.contributes?.automation ?? [])]
-        .filter((x) => x.handler === a.handler && x.risk !== "read");
-      if (changes.length && !options.allowChanges) {
-        return text(`«${a.handler}» is the handler of ${changes.map((x) => ("id" in x ? x.id : (x as { name: string }).name) + ` (${x.risk})`).join(", ")}: it changes things. ` +
-          `It would run on this machine — not allowed: ${ALLOW}.`, true);
-      }
+      // Safe by default: without --allow-changes only a handler the manifest uses for reading runs on the agent's
+      // machine (a kill handler would kill a local PID). A parameter the agent sets itself would be no one's consent.
+      const why = readingHandler(m, String(a.handler));
+      if (why !== true && !options.allowChanges) return text(`«${a.handler}» ${why} — it would run on this machine: not allowed; ${ALLOW}.`, true);
       const r = await call(dir, a.handler, opts);
       const log = r.log.length ? `\n\nlog:\n${r.log.join("\n")}` : "";
       return r.ok ? text(JSON.stringify(r.value, null, 2) + log) : text(`${r.error}${r.stderr ? `\n\nstderr:\n${r.stderr.slice(-4000)}` : ""}${log}`, true);

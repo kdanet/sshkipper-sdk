@@ -1,6 +1,6 @@
 // The database protocol (spec/database.md): what a driver of a `contributes.database` engine answers. One JSON object
 // per line on stdin (requests) and stdout (responses), answered in any order — the id ties them together; logs go to
-// stderr. Not JSON-RPC: the same wire as the app's built-in driver `sshkipper-db` (Packages/DatabaseProtocol).
+// stderr. Not JSON-RPC: the same wire as the app's built-in driver `sshkipper-db`.
 //
 //   request  {"id": 7, "method": "query", "params": {…}}
 //   response {"id": 7, "result": {…}}   or   {"id": 7, "error": {"code": "query", "message": "…"}}
@@ -242,6 +242,58 @@ export interface Methods {
   "mongo.write"(p: { session: string; database: string; collection: string; ops: WriteOp[]; dryRun: boolean }): ApplyResult;
 }
 
+// MARK: keyValue and document engines (spec/database.md §4.1)
+
+export interface RedisKeyInfo { key: string; type: string; /** Seconds; -1 — no expiry, -2 — gone. */ ttl: number }
+export interface RedisScanResult { /** "0" when the scan is done. */ cursor: string; keys: RedisKeyInfo[] }
+export interface RedisValue {
+  key: string; type: string; ttl: number;
+  /** Elements in the value (a string: its bytes). */
+  length: number;
+  memory?: number; encoding?: string;
+  /** A string's value. */
+  text?: string;
+  /** `text` is the whole value as plain text: safe to edit and write back. */
+  textIsExact?: boolean;
+  /** A binary string: `text` shows only its first this many bytes. */
+  binaryPreviewBytes?: number;
+  /** [value] (list, set), [field, value] (hash), [member, score] (zset), [id, "field=value"…] (stream). */
+  items: string[][];
+  offset: number;
+}
+export interface RedisReply {
+  kind: "string" | "status" | "error" | "integer" | "double" | "bool" | "null" | "array" | "map" | "set" | "bigNumber" | "verbatim";
+  text?: string;
+  items?: RedisReply[];
+}
+export interface MongoFindResult {
+  /** Documents as Mongo shell text, field order kept. */
+  documents: string[];
+  total?: number | null;
+  /** The command as the shell would write it. */
+  command: string;
+  durationMs: number;
+  /** Positions of documents too big to hand over whole: shown read-only. */
+  cut?: number[];
+}
+export interface MongoWriteOp { kind: "insert" | "replace" | "delete"; original?: string; document?: string }
+
+/** The key browser (`model: "keyValue"`) and a collection (`model: "document"`): answered besides `Methods`. */
+export interface KeyValueMethods {
+  "redis.scan"(p: { session: string; db: number; cursor: string; pattern: string; count: number }): RedisScanResult;
+  "redis.value"(p: { session: string; db: number; key: string; offset: number; limit: number }): RedisValue;
+  /** `escaped` — positions of arguments written as the browser shows bytes ("\\xff"): decode them to bytes. */
+  "redis.command"(p: { session: string; db: number; args: string[]; escaped: number[] }): RedisReply;
+}
+export interface DocumentMethods {
+  "mongo.find"(p: { session: string; database: string; collection: string; filter: string; projection?: string; sort?: string;
+    skip: number; limit: number; countTotal: boolean; queryID: string }): MongoFindResult;
+  /** All or as many as still match `original`, in order; `dryRun` — only the shell commands, as `statements`. */
+  "mongo.write"(p: { session: string; database: string; collection: string; ops: MongoWriteOp[]; dryRun: boolean }): ApplyResult;
+}
+
+export type AllMethods = Methods & KeyValueMethods & DocumentMethods;
+
 export type ErrorCode = "auth" | "connection" | "query" | "cancelled" | "unsupported" | "notConnected" | "invalidRequest" | "internalError";
 
 /** A failure the app shows as is (`code` picks the screen: login, connection, the statement's error). */
@@ -258,7 +310,7 @@ export class DatabaseError extends Error {
   }
 }
 
-export type Handlers = { [M in keyof Methods]?: (params: Parameters<Methods[M]>[0]) => ReturnType<Methods[M]> | Promise<ReturnType<Methods[M]>> };
+export type Handlers = { [M in keyof AllMethods]?: (params: Parameters<AllMethods[M]>[0]) => ReturnType<AllMethods[M]> | Promise<ReturnType<AllMethods[M]>> };
 
 /** Answers the app's requests with `handlers` until stdin closes (the app stops the driver by closing it). Requests
  *  run concurrently: a `cancel` arrives while the `query` it names is still running. */

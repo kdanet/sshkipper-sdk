@@ -1,8 +1,7 @@
 # SSHKipper database protocol — version 1
 
 What a driver of a `contributes.database` engine answers (spec/protocol.md §10). It is the protocol of the app's
-built-in database extension (`sshkipper-db`, `Packages/DatabaseProtocol` in the app's repository): an extension's
-engine gets the same tab — query editor, grid with edits, filters, structure, AI, Production and «Только чтение», a
+built-in database extension (`sshkipper-db`): an extension's engine gets the same tab — query editor, grid with edits, filters, structure, AI, Production and «Только чтение», a
 forward over SSH — because its program answers the same requests. TypeScript types and a serve loop:
 `packages/sdk/src/database.ts`; an example driver: `examples/db-sqlite-node`.
 
@@ -31,7 +30,7 @@ forward over SSH — because its program answers the same requests. TypeScript t
 | `readCommands` | First words of statements that only read. **Trusted only for an extension of the SSHKipper library** (§5). |
 | `command` | The driver's own program; without it the extension's `runtime.command` is started for the driver. |
 
-The engine is known as soon as the extension is active — pickers, the palette and «Новая база» list it before any
+The engine is known as soon as the extension is active — pickers, the palette and File → Database… list it before any
 program runs. Switched off or removed, it disappears from the pickers; its nodes stay in the document and the tab
 says the extension is needed.
 
@@ -77,7 +76,7 @@ Types are in `packages/sdk/src/database.ts` (`Methods`). All but `hello` name a 
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
-| `hello` | `{}` | `{protocolVersion: 1, pluginVersion, engines: [EngineInfo], features?}` | Asked once per process. `engines[]` must name the manifest's engines (`supportsEditing`, `supportsTransactions`, `hasDatabases` drive the grid); the descriptor stays the manifest's. `features: ["passwordBytes"]` — the password comes as `passwordBase64`. |
+| `hello` | `{}` | `{protocolVersion: 1, pluginVersion, engines: [EngineInfo], features?}` | Asked once per process. `engines[]` must name the manifest's engines: `engine` and `title` are required, the rest optional — `supportsEditing` (false), `supportsTransactions` (false), `hasDatabases` (true) drive the grid, `keywords` and `functions` ([] — the manifest's), `identifierQuote` (the manifest's); the descriptor stays the manifest's. `features: ["passwordBytes"]` — the password comes as `passwordBase64`. |
 | `connect` | `{session, connection: ConnectParams}` | `{serverVersion, serverTitle, database?, readOnly?, readOnlyReason?}` | `connection.readOnly` — the node is «Только чтение»: open read-only where you can. Say `readOnly: true` (with `readOnlyReason`) only when the session can't write anyway — a read-only file, a replica: the tab is then «Только чтение» whatever the node's mode, and for an engine without verified read commands (§5) that refuses every statement of the editor, a SELECT too. A driver that just doesn't write leaves it out. |
 | `disconnect` | `{session}` | `{}` | Also stops what still runs. |
 | `ping` | `{session}` | `{}` | |

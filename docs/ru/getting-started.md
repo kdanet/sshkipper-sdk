@@ -2,14 +2,23 @@
 
 ## 1. Командная строка
 
+Нужен Node.js 24 или новее. CLI ставится пакетом — npm собирает его в JavaScript (Node выполняет TypeScript как есть,
+но не внутри `node_modules`):
+
 ```sh
-git clone https://github.com/kdanet/sshkipper-sdk.git
-cd sshkipper-sdk && npm link          # sshkipper-ext в PATH (Node 24+, без зависимостей)
+npm install -g github:kdanet/sshkipper-sdk   # или архив: npm pack в клоне → npm install -g sshkipper-sdk-1.1.0.tgz
 sshkipper-ext help
 ```
 
-Без `npm link`: `node /путь/к/sshkipper-sdk/packages/cli/sshkipper-ext.ts …`. Старое имя `sshkipper-module` работает
-(одна строка скажет, что оно переименовано; его `call` — это `run`).
+Или работайте из клона, с TypeScript как есть — правки SDK действуют сразу:
+
+```sh
+git clone https://github.com/kdanet/sshkipper-sdk.git
+cd sshkipper-sdk && npm install && npm link   # единственные зависимости (для разработки) — TypeScript и типы Node
+```
+
+Без того и другого: `node /путь/к/sshkipper-sdk/packages/cli/sshkipper-ext.ts …`. У каждой команды есть `--help`.
+Старое имя `sshkipper-module` работает (одна строка скажет, что оно переименовано; его `call` — это `run`).
 
 ## 2. Расширение
 

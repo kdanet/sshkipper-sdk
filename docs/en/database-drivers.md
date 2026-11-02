@@ -35,7 +35,7 @@ Example: [examples/db-sqlite-node](../../examples/db-sqlite-node) — SQLite fil
   **as a separate process** for the driver, with `SK_ROLE=database` in its environment.
 - `readCommands` — see «What asks first» below.
 
-The engine shows up in «Новая база», the palette and the node's engine picker as soon as the extension is on — before
+The engine shows up in File → Database…, the palette and the node's engine picker as soon as the extension is on — before
 your program ever runs. Off or removed, the nodes stay and say which extension they need.
 
 ## 2. The program
@@ -77,8 +77,8 @@ The rules that matter most:
 - On this Mac, started on the first request, again after it exits; stopped when the documents lock and when the app
   quits (stdin closes — exit then).
 - Every file of the extension is hashed again before each start: change a file of an installed extension and it
-  won't start until approved again. For development link the folder (`modlink`, Settings → Extensions → «Папка
-  разработки…»): changes apply at once.
+  won't start until approved again. For development link the folder (Settings → Extensions → Development
+  folder…): changes apply at once.
 - A database behind a server: the app forwards a port over its own SSH session and gives you `127.0.0.1:<port>`; you
   never see SSH keys, the document or other databases' passwords.
 - If the program exits, its tabs say «Расширение «…» завершилось» with the last lines of stderr, and reconnect on the
@@ -104,5 +104,5 @@ node packages/cli/sshkipper-ext.ts validate examples/db-sqlite-node
 node --test tests/database.test.ts          # the example end to end over the protocol
 ```
 
-In SSHKipper: Settings → Extensions → «Установить расширение…» (or `sshkipper-ext pack` for a `.sshkext`), then
-File → «Новая база данных…», engine «SQLite (Node, пример)», a `.sqlite` file on this Mac.
+In SSHKipper: Settings → Extensions → Install extension… (or `sshkipper-ext pack` for a `.sshkext`), then
+File → Database…, engine «SQLite (Node, пример)», a `.sqlite` file on this Mac.

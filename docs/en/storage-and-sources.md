@@ -86,6 +86,8 @@ defineModule({
 
 ## Checking it
 
-`node packages/cli/sshkipper-ext.ts validate <folder>` checks the manifest like the app. In the app (debug build,
-review instance): `extinstall <folder>`, then «Файл → Новое хранилище «…»…» or «Новый источник «…»…». The tests in
-`tests/contributions.test.ts` speak to both examples as the app does — a good start for your own.
+`sshkipper-ext validate <folder>` checks the manifest like the app; `sshkipper-ext run <folder> storage/list --params …`
+and `run <folder> source/poll --params …` call the program as the app does. In SSHKipper: Settings → Extensions →
+Development folder… → your folder, then File → Storage… → your kind's tile under From extensions, or File → Server
+source → «<title>…». The tests in `tests/contributions.test.ts` speak to both examples as the app does — a good start
+for your own.

@@ -7,15 +7,16 @@ the app (the app never loads extension code: the program is its own process). It
 - the manifest and protocol types (`Manifest`, `Request`, `Context`, `ScreenEvent`, `StorageRef`, `FoundHost`,
   `ImportResult`, `AIChatRequest`…), all `Codable`, and `JSON` for anything loose;
 - `Extension` — the JSON-RPC loop of spec/protocol.md §4 on stdin/stdout: handlers, cancellation (`cancel` cancels the
-  handler's task), `initialize` and `shutdown`;
+  handler's task), `initialize` and `shutdown`; `setup { app, locale in … }` runs before `initialize` is answered —
+  the app waits 15 s for that answer, so keep it short and do slow work on the first call;
 - `AppHost` — what the app does for a program (`ctx.host`): `exec`, `secret`, `nodeSecret`, `storeGet` / `storeSet`,
   `notify`, `log`, `forward`, `oauth`, `open`, `ask` (named `AppHost`, not `Host`: Foundation has a `Host`);
 - live screens: `onEvent` answers `EventAnswer(ops:)`, `ctx.push(_:)` sends ops by itself (`ui/push`);
 - contributions: `storage(_: StorageProvider)`, `source(_: SourceProvider)`, `importer(_:_:)`, `console(_:_:)`,
   `ai(_: AIProvider)`, `method(_:_:)` for anything else;
 - `UI` and `Op` — the UI-Kit builders and the ops of `ui/patch`;
-- `DB` and `DatabaseDriver` — the database protocol (spec/database.md) for a `contributes.database` driver: the same
-  shapes as the app's `Packages/DatabaseProtocol` for the `sql` model; `"id"` first on every line.
+- `DB` and `DatabaseDriver` — the database protocol (spec/database.md) for a `contributes.database` driver: the shapes of
+  spec/database.md for the `sql` model and of the `keyValue` and `document` engines (§4.1–4.2: `DB.RedisScan`, `DB.MongoFind`… — `on("redis.scan", DB.RedisScan.self) { … }`); `"id"` first on every line.
 
 ## The example
 
@@ -62,6 +63,18 @@ packs it.
 
 A package with a binary is for your own Macs and people who trust you: SSHKipper's library accepts sources only and
 builds them in its CI.
+
+### A compiled program in a package
+
+- **Architecture.** `swift build` makes a binary for the Mac it runs on (`file bin/swift-hello` — `arm64`). For Intel
+  Macs too, build a universal one: `swift build -c release --arch arm64 --arch x86_64`.
+- **Signing.** An unsigned binary from somebody else's Mac is refused by Gatekeeper the moment it carries the
+  quarantine flag. The app installs a package without that flag (installing is the user's decision), but sign what
+  you share — `codesign --sign "Developer ID Application: …" --options runtime bin/<program>` — and notarize it when
+  you can: then it starts wherever it is copied.
+- **When it doesn't start**, the app names the reason instead of a timeout: the quarantine flag (with the
+  `xattr -d com.apple.quarantine …` command), a signal from the system, or a program that started but never answered
+  `initialize`.
 
 ## Your own extension in Swift
 

@@ -5,3 +5,10 @@ dist/
 .build/
 .swiftpm/
 .sshkipper-dev-store.json
+# Built by `npm run build` (prepack, prepare): the installed package runs these, a clone its TypeScript
+/packages/cli/*.js
+/packages/mcp/*.js
+/packages/sdk/src/*.js
+/packages/*/*.d.ts
+/packages/sdk/src/*.d.ts
+*.tgz

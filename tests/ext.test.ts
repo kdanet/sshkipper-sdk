@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -12,6 +12,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { call, callMethod } from "../packages/sdk/src/dev.ts";
 import { applyOps, preview } from "../packages/sdk/src/preview.ts";
+import type { Json } from "../packages/sdk/src/types.ts";
 import { KINDS, scaffold, slug } from "../packages/sdk/src/scaffold.ts";
 import { previewScreen } from "../packages/sdk/src/screens.ts";
 import { ops } from "../packages/sdk/src/ui.ts";
@@ -132,7 +133,7 @@ test("new: every kind validates clean and its start works", async () => {
       try {
         const r = validateFolder(dir);
         assert.deepEqual(r.issues, [], `${kind}: ${JSON.stringify(r.issues)}`);
-        assert.ok(r.files.includes(kind === "service" ? "sshkipper-extension.json" : "sshkipper-extension.json"));
+        assert.ok(r.files.includes("sshkipper-extension.json"), kind);
         await SMOKE[kind](dir, id);
       } finally { rmSync(dir, { recursive: true, force: true }); }
     }
@@ -171,7 +172,7 @@ test("ops: applied as the app applies them; what can't apply is reported, the re
     { type: "terminal", id: "out", text: "a\n" },
     { type: "chart", id: "c", chart: "line", series: [{ values: [] }], window: 2 },
   ] };
-  const r = applyOps(v, [
+  const r = applyOps(v as unknown as Json, [
     ops.children("t", "q", [{ id: "q1", title: "job" }]),
     ops.insert({ type: "text", id: "hint", text: "hi" }, { parent: "side" }),
     ops.updateRows("d", [{ id: 2, cells: ["z"] }]),
@@ -191,7 +192,7 @@ test("ops: applied as the app applies them; what can't apply is reported, the re
   assert.match(t, /notice \(ok\): done/);
   assert.deepEqual((r.view as any).blocks[3].series[0].values, [2, 3], "the window keeps the last points");
   assert.equal((r.view as any).blocks[1].total, 1);
-  assert.equal(v.blocks[1].rows.length, 2, "the view given isn't changed");
+  assert.equal(v.blocks[1].rows?.length, 2, "the view given isn't changed");
 });
 
 test("preview: the screens example lives through open and more, its pushes applied", async () => {
@@ -210,8 +211,9 @@ test("every example validates and packs (npm run validate)", () => {
   }
 });
 
-test("MCP: a scaffold of every kind, methods that read run, what changes waits for --allow-changes", async () => {
-  const run = async (allowChanges: boolean, calls: [string, object][]) => {
+/** Tools called on an MCP server started with or without --allow-changes: their results in order. */
+async function mcp(allowChanges: boolean, calls: [string, object][]) {
+  {
     const input = new PassThrough();
     const out: string[] = [];
     serveMCP(input, (s) => out.push(...s.split("\n").filter(Boolean)), { allowChanges });
@@ -225,7 +227,11 @@ test("MCP: a scaffold of every kind, methods that read run, what changes waits f
       }
     }
     return results;
-  };
+  }
+}
+
+test("MCP: a scaffold of every kind, methods that read run, what changes waits for --allow-changes", async () => {
+  const run = mcp;
   const dir = mkdtempSync(join(tmpdir(), "sk-mcp-"));
   try {
     const store = join(dir, "storage");
@@ -250,5 +256,38 @@ test("MCP: a scaffold of every kind, methods that read run, what changes waits f
     const [allowed] = await run(true, [["ext_run_local", { folder: store, method: "storage/write/begin", params: { storage: storage("store"), path: "/a", size: 1 } }]]);
     assert.ok(!allowed.isError, allowed.content[0].text);
     assert.match(allowed.content[0].text, /upload/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("MCP: safe by default — a handler runs without --allow-changes only when the manifest uses it for reading", async () => {
+  // The agent writes the manifest: a handler nothing names, or one a «read» tool shares with a danger action, is a change.
+  const dir = mkdtempSync(join(tmpdir(), "sk-mcp-safe-"));
+  const marker = join(dir, "BOOM-marker");
+  try {
+    const touch = `touch ${JSON.stringify(marker)}; echo '{}'`;
+    writeFileSync(join(dir, "sshkipper-extension.json"), JSON.stringify({
+      sdk: 1, id: "dev.test.safe", version: "1.0.0", title: "Safe", runtime: { kind: "server" }, permissions: ["exec"],
+      service: { detect: "look" },
+      handlers: { look: { script: "scripts/look.sh" }, boom: { script: "scripts/boom.sh" }, both: { script: "scripts/boom.sh" } },
+      tools: [{ name: "both", description: "Reads, it says.", handler: "both", risk: "read" }],
+      actions: [{ id: "wipe", title: "Wipe", handler: "both", risk: "danger", confirm: "Wipe?" }],
+    }));
+    mkdirSync(join(dir, "scripts"));
+    writeFileSync(join(dir, "scripts/look.sh"), "echo '{\"found\": true}'\n");
+    writeFileSync(join(dir, "scripts/boom.sh"), touch + "\n");
+    const [look, boom, both] = await mcp(false, [
+      ["ext_run_local", { folder: dir, handler: "look" }],
+      ["ext_run_local", { folder: dir, handler: "boom" }],
+      ["ext_run_local", { folder: dir, handler: "both" }],
+    ]);
+    assert.ok(!look.isError, look.content[0].text);
+    assert.equal(boom.isError, true);
+    assert.match(boom.content[0].text, /isn't used for reading[\s\S]*--allow-changes/);
+    assert.equal(both.isError, true);
+    assert.match(both.content[0].text, /action «wipe» \(danger\)/);
+    assert.equal(existsSync(marker), false, "refused handlers didn't run");
+    const [allowed] = await mcp(true, [["ext_run_local", { folder: dir, handler: "boom" }]]);
+    assert.ok(!allowed.isError, allowed.content[0].text);
+    assert.equal(existsSync(marker), true);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

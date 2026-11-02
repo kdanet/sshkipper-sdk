@@ -12,7 +12,7 @@ sshkipper-ext validate examples/screens
 sshkipper-ext preview examples/screens --events '[{"type": "open"}, {"type": "more", "block": "jobs", "value": {"offset": 200, "limit": 100}}]' --wait 1500
 ```
 
-**In SSHKipper:** «Папка разработки…» → a connection's «Службы» → «Очереди (пример экрана)» on → the section in the
+**In SSHKipper:** Settings → Extensions → Development folder… → a connection's Services → «Очереди (пример экрана)» on → the section in the
 server's services tab. Its «⋯» → «Инспектор экрана» shows the block tree, every event and every patch. Guide:
 [UI-Kit](../../docs/en/ui-kit.md) (live screens).
 

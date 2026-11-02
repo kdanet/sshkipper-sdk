@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "sourceMap": false
+  },
+  "include": ["packages/cli/*.ts", "packages/mcp/*.ts", "packages/sdk/src/*.ts"],
+  "exclude": ["**/*.d.ts"]
+}

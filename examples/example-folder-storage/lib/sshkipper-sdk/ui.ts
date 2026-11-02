@@ -25,7 +25,7 @@ export const screen = (blocks: Node[], opts: { title?: string; state?: View["sta
 type Heavy = Common & { title?: string; subtitle?: string; height?: number };
 
 /** Many rows: the first `rows` here, the rest asked for with `more` as the user scrolls (answer with `ops.rows`). */
-export const datatable = (columns: (string | Column)[], rows: Row[] | (string | number | boolean | null)[][],
+export const datatable = (columns: (string | Column)[], rows: (Row | (string | number | boolean | null)[])[],
   o: Heavy & { id: string; total?: number; pageSize?: number; sort?: Block["sort"]; selection?: Block["selection"]; menu?: MenuItem[]; draggable?: boolean; drop?: Block["drop"] }): Block =>
   ({ type: "datatable", columns, rows, ...o });
 /** Nodes; give `expandable: true` without `children` to have them asked for (`expand`, answer with `ops.children`). */
@@ -60,7 +60,7 @@ export const ops = {
   state: (values: Record<string, string | number | boolean>): Op => ({ op: "state", values }),
   title: (text: string): Op => ({ op: "title", text }),
   /** A page of rows at `offset`; `reset` forgets the others (a new sort or filter); `total` — the new count. */
-  rows: (id: string, offset: number, rows: Row[] | (string | number | boolean | null)[][], o: { total?: number; reset?: boolean } = {}): Op => ({ op: "rows", id, offset, rows, ...o }),
+  rows: (id: string, offset: number, rows: (Row | (string | number | boolean | null)[])[], o: { total?: number; reset?: boolean } = {}): Op => ({ op: "rows", id, offset, rows, ...o }),
   updateRows: (id: string, rows: Row[]): Op => ({ op: "update_rows", id, rows }),
   insertRows: (id: string, index: number, rows: Row[]): Op => ({ op: "insert_rows", id, index, rows }),
   removeRows: (id: string, ids: string[]): Op => ({ op: "remove_rows", id, ids }),

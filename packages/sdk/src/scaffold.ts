@@ -28,7 +28,7 @@ export interface ScaffoldOptions {
 
 /** One line each: what a kind makes (help, the MCP tool, the guides). */
 export const KIND_INFO: Record<ExtensionKind, string> = {
-  service: "a service of servers: detect, summary, a page, an action, an AI tool, an automation block (scripts on the server; --process — a TypeScript program)",
+  service: "a service of servers: detect, summary, a page, an action, an AI tool, an automation block — scripts on the server, or with --process a TypeScript program on this Mac",
   database: "a database engine with the app's whole database tab (a driver speaking spec/database.md; reads a JSON file to start)",
   storage: "a kind of storage for the file panel: list, read and write in parts, folders, rename, delete, check",
   source: "a live folder of servers in the tree (source/poll)",
@@ -114,6 +114,10 @@ function service(o: ScaffoldOptions, title: string | { en: string; ru: string },
   const settings = [{ key: "warn_pct", title: { en: "Warn above, %", ru: "Предупреждать выше, %" }, type: "number", default: 85 }];
   const tools = [{ name: "disk_usage", description: "File systems of the server with size, used bytes and use %, the fullest first.", handler: "list", risk: "read" }];
   const refresh = { id: "refresh", title: { en: "Refresh", ru: "Обновить" }, symbol: "arrow.clockwise", handler: "list", risk: "read" };
+  const automation = [{
+    id: "usage", title: { en: "Disk usage", ru: "Заполненность дисков" }, symbol: "internaldrive", handler: "usage", risk: "read", returns: "json",
+    params: [{ key: "mount", title: { en: "Mount point", ru: "Точка монтирования" }, type: "text", default: "/", pattern: "/[A-Za-z0-9._/-]*" }],
+  }];
 
   if (!program) {
     const manifest = {
@@ -128,52 +132,52 @@ function service(o: ScaffoldOptions, title: string | { en: string; ru: string },
       },
       actions: [refresh],
       tools,
-      automation: [{
-        id: "usage", title: { en: "Disk usage", ru: "Заполненность дисков" }, symbol: "internaldrive", handler: "usage", risk: "read", returns: "json",
-        params: [{ key: "mount", title: { en: "Mount point", ru: "Точка монтирования" }, type: "text", default: "/", pattern: "/[A-Za-z0-9._/-]*" }],
-      }],
+      automation,
     };
     return { [name]: json(manifest), ...files(join(templates, "server")) };
   }
   const manifest = {
-    ...common, runtime: { kind: "process", command: ["node", "module.ts"] }, permissions: ["exec", "store"], settings,
+    ...common, runtime: { kind: "process", command: ["node", "module.ts"] }, permissions: ["exec"], settings,
     service: { detect: "detect", summary: "summary", page: "main" },
     pages: [{ id: "main", title, render: "render", refresh: 30 }],
-    handlers: { detect: { timeout: 10 }, summary: { timeout: 15 }, list: { timeout: 15 }, render: { timeout: 20 } },
+    handlers: { detect: { timeout: 10 }, summary: { timeout: 15 }, list: { timeout: 15 }, render: { timeout: 20 }, usage: { timeout: 15 } },
     actions: [refresh],
     tools,
+    automation,
   };
   const code = readFileSync(join(templates, "process/module.ts"), "utf8").replaceAll("__TITLE__", o.title.replace(/[\r\n]/g, " "));
   return { [name]: json(manifest), "module.ts": code, ...vendorFiles() };
 }
 
-/** How to try each kind without the app, and where the app shows it. */
+/** How to try each kind without the app, and where the app shows it (the English interface's words; the Russian
+ * ones are in docs/glossary.md). */
 const TRY: Record<ExtensionKind, (o: ScaffoldOptions, program: boolean) => string> = {
   service: (_o, program) => `sshkipper-ext run . list${program ? "                 # host.exec runs here; --ssh user@host — there" : "                 # here; --ssh user@host — on a server"}
-sshkipper-ext preview . main --run         # the page as text`,
-  database: () => `node driver.ts                             # then type: {"id":1,"method":"hello","params":{}}
-# In SSHKipper: «Новая база» → the engine → the file samples/demo.json`,
+sshkipper-ext preview . main --run         # the page as text
+# In SSHKipper: a connection's card → Services → this service; its page opens from the tree`,
+  database: (o) => `node driver.ts                             # then type: {"id":1,"method":"hello","params":{}}
+# In SSHKipper: File → Database… → the engine «${o.title}» → the file samples/demo.json`,
   storage: (o) => `sshkipper-ext run . storage/list --params '{"storage":{"node":"t","kind":"${slug(o.id)}","settings":{},"readOnly":false,"throughServer":false},"path":"/"}'
-# In SSHKipper: Файл → «Новое хранилище …» → the file panel`,
+# In SSHKipper: File → Storage… → «${o.title}» under From extensions → the file panel`,
   source: (o) => `sshkipper-ext run . source/poll --params '{"source":{"node":"t","kind":"${slug(o.id)}","settings":{"hosts":["web-1 10.0.0.5 deploy"]}}}'
-# In SSHKipper: Файл → «Новый источник …»: a live folder in the tree`,
-  "node-type": () => `sshkipper-ext preview . tasks --node '{"id":"n1","name":"Release","type":"ext:x/tasks","settings":{},"links":{},"secrets":[]}' --events '[{"type":"open"},{"type":"press","block":"toolbar","value":{"item":"add"}}]'
-# In SSHKipper: the tree's «Создать ▸» → your type; a double click opens its tab`,
-  import: () => `sshkipper-ext run . import/parse --file samples/hosts.txt --importer hosts
-# In SSHKipper: Файл → «Импорт: …»`,
-  console: () => `# In SSHKipper: a connection's menu → «Консоль: …» (the app's terminal tab)`,
+# In SSHKipper: File → Server source → «${o.title}…»: a live folder in the tree`,
+  "node-type": (o) => `sshkipper-ext preview . tasks --node '{"id":"n1","name":"Release","type":"ext:x/tasks","settings":{},"links":{},"secrets":[]}' --events '[{"type":"open"},{"type":"press","block":"toolbar","value":{"item":"add"}}]'
+# In SSHKipper: File → From extensions → «${o.title}…» (or «+» in the toolbar, Create in the tree's menu); a double click opens its tab`,
+  import: (o) => `sshkipper-ext run . import/parse --file samples/hosts.txt --importer hosts
+# In SSHKipper: File → Import → «${o.title}…»`,
+  console: (o) => `# In SSHKipper: a connection's menu → «Console: ${o.title}» (the app's terminal tab)`,
   ai: () => `sshkipper-ext run . ai/models --params '{"provider":"model","settings":{},"secrets":{}}'
-# In SSHKipper: Settings → AI → «+» → «Из расширений»`,
+# In SSHKipper: Settings → AI → «+» → From extensions`,
   automation: () => `sshkipper-ext run . threshold --input '{"value": 7, "min": 20}'
 sshkipper-ext run . disk_free --input '{"mount": "/"}'   # host.exec runs here
-# In SSHKipper: an automation's library → «Из установленных модулей»`,
+# In SSHKipper: an automation's library → From extensions`,
 };
 
 function readme(o: ScaffoldOptions, kind: ExtensionKind, program: boolean): string {
   const pkg = kind === "service" && o.module ? "sshkmod" : "sshkext";
   return `# ${o.title}
 
-An SSHKipper extension (SDK 1): ${KIND_INFO[kind]}.${kind === "service" ? ` It runs ${program ? "as a program on this Mac" : "as scripts on the server"}.` : ""}
+An SSHKipper extension (SDK 1): ${kind === "service" ? `a service of servers — detect, summary, a page, an action, an AI tool, an automation block. It runs ${program ? "as a TypeScript program on this Mac: \`ctx.host.exec\` runs its commands on the server over the app's SSH session" : "as scripts on the server, over the app's SSH session"}` : KIND_INFO[kind]}.
 
 \`\`\`sh
 sshkipper-ext validate .                   # what the app will say before installing it
@@ -181,7 +185,7 @@ ${TRY[kind](o, program)}
 sshkipper-ext pack .                       # → ${o.id}-0.1.0.${pkg}
 \`\`\`
 
-In SSHKipper: Settings → Extensions → «Папка разработки…» picks this folder and reloads it as you edit; «Установить
-расширение…» takes the packed file. The guides: https://github.com/kdanet/sshkipper-sdk/tree/main/docs/en.
+In SSHKipper: Settings → Extensions → Development folder… picks this folder and reloads it as you edit; Install
+extension… takes the packed file. The guides: https://github.com/kdanet/sshkipper-sdk/tree/main/docs/en.
 `;
 }

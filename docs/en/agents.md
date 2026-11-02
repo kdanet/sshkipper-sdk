@@ -36,13 +36,21 @@ The old names `module_scaffold`, `module_validate`, `module_run_local` still ans
 ## What runs on this machine
 
 `ext_run_local` and `screen_preview` run the extension **here**, with your rights and without a sandbox: scripts with
-`sh`, programs as the app starts them, `host.exec` here too. So what changes things runs only when **you** started the
-server with `sshkipper-ext mcp --allow-changes` — the agent can't allow it itself:
+`sh`, programs as the app starts them, `host.exec` here too. So the server is **safe by default**: without
+`--allow-changes` — a flag **you** give when starting it (`sshkipper-ext mcp --allow-changes`), not a parameter the
+agent can pass — only what reads runs:
 
-- handlers of `change`/`danger` actions, tools and blocks;
-- contribution methods other than reads (`storage/write/*`, `mkdir`, `rename`, `delete`, links that create or remove,
-  `ai/chat` — it would call a model's API);
-- screen events other than looking (`press`, `submit`, `edit`, `menu`, `drop`, `move`, `activate`).
+- handlers the manifest uses for reading: a service's `detect`, `summary` and `tree`, a page's data and `render`, a
+  screen's `render`, and actions, tools and blocks of risk `read` — and only when no `change`/`danger` one shares the
+  handler. Any other handler, one nothing in the manifest names included, is refused;
+- contribution methods that read (`storage/list`, `stat`, `read`, `check`, links listed, `source/*`, `import/parse`,
+  `ai/models`); writes, deletes and `ai/chat` (a model's API) are refused;
+- screen events that only look (`open`, `close`, `select`, `expand`, `collapse`, `more`, `sort`, `change`,
+  `complete`).
+
+This guards against an agent running a declared change by mistake; it is **not a sandbox**. The agent writes the
+manifest and the code itself — a handler declared as reading can do anything — and `ext_scaffold` with `folder`
+writes files into an empty folder it names. Run the server where an agent's mistake costs little.
 
 Consoles are interactive: try them in the app. `host/open` and `host/ask` are answered «not opened» and the cancel
 button (there is no person here); `host/forward` gives the target as is.
@@ -54,7 +62,7 @@ button (there is no person here); `host/forward` gives the target as is.
 3. Change one thing: a handler, a view, a method.
 4. `ext_validate` — fix every error; read the warnings.
 5. `ext_run_local` the handler or method; `view_preview` / `screen_preview` the page or screen.
-6. Ask the user to link the folder in SSHKipper (Settings → Extensions → «Папка разработки…») and look at it for real.
+6. Ask the user to link the folder in SSHKipper (Settings → Extensions → Development folder…) and look at it for real.
 
 Agents can't install extensions into the app or run them on the user's servers through this server: installing stays
 with the user, and the app's own agent reaches servers only through the tools the user's AI modes allow.

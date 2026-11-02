@@ -12,7 +12,7 @@ sshkipper-ext validate examples/db-sqlite-node
 node --disable-warning=ExperimentalWarning examples/db-sqlite-node/driver.ts   # then {"id":1,"method":"hello","params":{}}
 ```
 
-**In SSHKipper:** «Папка разработки…» → «Новая база» → «SQLite (Node, пример)» → a `.sqlite` file. The node starts
+**In SSHKipper:** Settings → Extensions → Development folder… → File → Database… → «SQLite (Node, пример)» → a `.sqlite` file. The node starts
 «Обычный»: the editor runs `select * from t` at once. Its `readCommands` count only when the extension comes from
 SSHKipper's library: otherwise every statement is a change — Production asks before each, and «Только чтение» runs
 none (the tab says so; tables are still browsed, read-only). The driver opens a «Только чтение» node's file read-only

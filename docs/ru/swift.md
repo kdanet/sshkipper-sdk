@@ -7,7 +7,8 @@
 - типы манифеста и протокола (`Manifest`, `Request`, `Context`, `ScreenEvent`, `StorageRef`, `FoundHost`,
   `ImportResult`, `AIChatRequest`…), все `Codable`, и `JSON` для свободных данных;
 - `Extension` — цикл JSON-RPC из spec/protocol.md §4 на stdin/stdout: обработчики, отмена (`cancel` отменяет задачу
-  обработчика), `initialize` и `shutdown`;
+  обработчика), `initialize` и `shutdown`; `setup { app, locale in … }` выполняется до ответа на `initialize` —
+  приложение ждёт этот ответ 15 с, поэтому держите его коротким, а долгое делайте при первом вызове;
 - `AppHost` — что приложение делает для программы (`ctx.host`): `exec`, `secret`, `nodeSecret`, `storeGet` /
   `storeSet`, `notify`, `log`, `forward`, `oauth`, `open`, `ask` (имя `AppHost`, а не `Host`: в Foundation есть свой
   `Host`);
@@ -15,8 +16,9 @@
 - вклады: `storage(_: StorageProvider)`, `source(_: SourceProvider)`, `importer(_:_:)`, `console(_:_:)`,
   `ai(_: AIProvider)`, `method(_:_:)` для остального;
 - `UI` и `Op` — конструкторы UI-Kit и операции `ui/patch`;
-- `DB` и `DatabaseDriver` — протокол баз (spec/database.md) для драйвера `contributes.database`: те же формы, что у
-  `Packages/DatabaseProtocol` приложения для модели `sql`; `"id"` — первым в каждой строке.
+- `DB` и `DatabaseDriver` — протокол баз (spec/database.md) для драйвера `contributes.database`: формы spec/database.md для
+  модели `sql` и движков `keyValue` и `document` (§4.1–4.2: `DB.RedisScan`, `DB.MongoFind`… — `on("redis.scan", DB.RedisScan.self) { … }`); `"id"` — первым в
+  каждой строке.
 
 ## Пример
 
@@ -63,6 +65,18 @@ sshkipper-ext pack .          # → dev.sshkipper.example.swift-hello-1.0.0.sshk
 
 Пакет с готовой программой — для своих Mac и тех, кто вам доверяет: библиотека SSHKipper принимает только исходники и
 собирает их своим CI.
+
+### Скомпилированная программа в пакете
+
+- **Архитектура.** `swift build` собирает программу для того Mac, на котором запущен (`file bin/swift-hello` —
+  `arm64`). Для Mac на Intel тоже — универсальную: `swift build -c release --arch arm64 --arch x86_64`.
+- **Подпись.** Неподписанную программу с чужого Mac Gatekeeper не запускает, как только на ней флаг карантина.
+  Приложение устанавливает пакет без этого флага (установка — решение пользователя), но то, чем делитесь, подписывайте
+  — `codesign --sign "Developer ID Application: …" --options runtime bin/<программа>` — и по возможности
+  нотаризуйте: тогда она запустится, куда бы её ни скопировали.
+- **Если не запускается**, приложение называет причину вместо тайм-аута: флаг карантина (с командой
+  `xattr -d com.apple.quarantine …`), сигнал системы или программу, которая запустилась, но не ответила на
+  `initialize`.
 
 ## Своё расширение на Swift
 

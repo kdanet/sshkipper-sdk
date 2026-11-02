@@ -7,7 +7,7 @@ importer, a console, a model provider. The app draws everything natively from th
 as scripts on the server over the app's SSH session or as a program on this Mac — never inside the app.
 
 ```sh
-npm link                                      # Node 24+, no dependencies → sshkipper-ext on PATH
+npm install -g github:kdanet/sshkipper-sdk    # Node 24+ → sshkipper-ext on PATH (a clone: npm install && npm link)
 sshkipper-ext new disks --id dev.acme.disks   # --kind service|database|storage|source|node-type|import|console|ai|automation
 sshkipper-ext validate disks
 sshkipper-ext run disks summary --ssh deploy@web-1
@@ -34,9 +34,10 @@ sshkipper-ext pack disks                      # → dev.acme.disks-0.1.0.sshkext
 | `examples/` | an extension of every kind |
 | `tests/` | `npm test`; `tests/conformance/` — cases the app runs against its own implementation too |
 
-`npm test` — the SDK's tests; `npm run validate` — every example passes the app's checks and packs; `npm run swift` —
+`npm test` — the SDK's tests and `tsc --strict` over the SDK, the examples and a fresh extension of every kind;
+`npm run validate` — every example passes the app's checks and packs; `npm run swift` —
 the Swift package and its example build and pass. The app checks this repository too: its test suite compares
 `schemas/symbols.json`, `spec/prelude.sh` and the template conformance cases with its own code, and validates the
 examples.
 
-License: MIT.
+License: [MIT](LICENSE).

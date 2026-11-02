@@ -1,14 +1,14 @@
 // A view as text: what the app would draw, block by block — for an agent that can't see the app, a test, the CLI.
 // Templates are expanded first (with the data given), as the app does before drawing.
 
-import type { Json } from "./types.ts";
+import type { Json, Op, View } from "./types.ts";
 import { expand, print } from "./template.ts";
 
 const dot: Record<string, string> = { ok: "●", warn: "▲", bad: "✖", off: "○", info: "ℹ" };
 
 /** The outline of a view; `vars` — data, item, settings, server for its placeholders. */
-export function preview(view: Json, vars: Record<string, Json> = {}, components: Record<string, Json> = {}): string {
-  const v = (Object.keys(vars).length || JSON.stringify(view).includes("{{") ? expand(view, vars, components) : view) as any;
+export function preview(view: Json | View, vars: Record<string, Json> = {}, components: Record<string, Json> = {}): string {
+  const v = (Object.keys(vars).length || JSON.stringify(view).includes("{{") ? expand(view as Json, vars, components) : view) as any;
   const lines: string[] = [];
   if (v.title) lines.push(`# ${v.title}`);
   if (Array.isArray(v.status) && v.status.length) {
@@ -30,7 +30,7 @@ export interface OpProblem { index: number; op: string; message: string }
 
 /** A live screen after ops of `ui/patch` / `ui/push`, as the app applies them (a copy; `view` isn't changed). The
  * preview's own extras: `notice` and `sheet` on the view, `selected` on a datatable or tree. */
-export function applyOps(view: Json, ops: Json[]): { view: Json; problems: OpProblem[] } {
+export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; problems: OpProblem[] } {
   const v = structuredClone(view) as any;
   v.blocks ??= [];
   const problems: OpProblem[] = [];

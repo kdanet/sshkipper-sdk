@@ -58,7 +58,7 @@ export async function previewScreen(dir: string, id: string | undefined, o: Scre
   const program = m.runtime.kind === "process" ? startProgram(dir, m, o) : null;
   const handler = async (name: string, input: Record<string, Json>) => {
     if (!program) {
-      const r = await call(dir, name, { ...o, input });
+      const r = await call(dir, name, { ...o, input, unchecked: true });
       log.push(...r.log);
       if (!r.ok) throw new Error(`${name}: ${r.error}`);
       return r.value ?? null;

@@ -3,7 +3,7 @@
 // `host.exec` goes through the automation's session (its profile, «without a person» on a schedule). The answer is
 // the step's result: `{status, summary, value, unit, items}`; other keys become `{{ in.<key> }}` for the next blocks.
 
-import { defineModule, ModuleError, quote } from "./lib/sshkipper-sdk/index.ts";
+import { defineModule, ModuleError, quote, tr } from "./lib/sshkipper-sdk/index.ts";
 
 defineModule({
   handlers: {
@@ -14,12 +14,16 @@ defineModule({
       const used = Number(r.stdout.trim().split("\n").pop()?.split(/\s+/)[4]?.replace("%", ""));
       if (!Number.isFinite(used)) throw new ModuleError("df said something unexpected");
       const free = 100 - used;
-      return { status: free < 10 ? "error" : free < 20 ? "warn" : "ok", summary: `${mount}: ${free}% free`, value: free, unit: "%", mount };
+      // The summary is what the run's result says: in the user's language (ctx.locale).
+      const summary = tr(ctx, { en: `${mount}: ${free}% free`, ru: `${mount}: свободно ${free}%` });
+      return { status: free < 10 ? "error" : free < 20 ? "warn" : "ok", summary, value: free, unit: "%", mount };
     },
-    threshold(input) {
+    threshold(input, ctx) {
       const value = Number(input.value), min = Number(input.min ?? 20);
       const status = value >= min ? "ok" : value >= min / 2 ? "warn" : "error";
-      return { status, summary: `${value} — ${status === "ok" ? "above" : "below"} ${min}`, value };
+      const summary = status === "ok" ? tr(ctx, { en: `${value} — above ${min}`, ru: `${value} — выше ${min}` })
+        : tr(ctx, { en: `${value} — below ${min}`, ru: `${value} — ниже ${min}` });
+      return { status, summary, value };
     },
   },
 });

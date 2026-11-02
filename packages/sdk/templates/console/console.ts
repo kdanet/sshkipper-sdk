@@ -1,5 +1,5 @@
 // __TITLE__: a console of SSHKipper SDK 1 (spec/protocol.md §16). The app opens it from a connection's menu
-// («Консоль: …») in its own terminal: what the user types comes to `onInput`, what you `write` is drawn. The node's
+// («Console: …») in its own terminal: what the user types comes to `onInput`, what you `write` is drawn. The node's
 // address and login come with it, never a password. This start echoes lines; a real console relays the bytes to the
 // provider's gateway (a WebSocket, a serial-over-LAN session…) and back.
 

@@ -15,8 +15,8 @@ sshkipper-ext run examples/processes overview --ssh deploy@web-1
 sshkipper-ext preview examples/processes main --run
 ```
 
-**In SSHKipper:** Settings → Extensions → «Папка разработки…» → this folder (or `sshkipper-ext pack` and «Установить
-расширение…»). A connection's «Службы» → «Процессы»; the service's node under the server, its section in the
+**In SSHKipper:** Settings → Extensions → Development folder… → this folder (or `sshkipper-ext pack` and Install
+extension…). A connection's Services → «Процессы»; the service's node under the server, its section in the
 server's services tab. Guide: [server modules](../../docs/en/server-modules.md).
 
 **По-русски:** служба из sh-скриптов на сервере — нагрузка, память, самые занятые процессы, страница процесса,

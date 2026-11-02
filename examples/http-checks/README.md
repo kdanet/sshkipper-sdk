@@ -13,7 +13,7 @@ sshkipper-ext run examples/http-checks render --settings '{"urls": ["http://127.
 sshkipper-ext preview examples/http-checks main --ssh deploy@web-1
 ```
 
-**In SSHKipper:** «Папка разработки…» or a packed `.sshkmod` → a connection's «Службы» → «Проверки сайтов», its URLs in
+**In SSHKipper:** Settings → Extensions → Development folder… (or Install extension… with a packed `.sshkmod`) → a connection's Services → «Проверки сайтов», its URLs in
 the module's settings. Guide: [process modules](../../docs/en/process-modules.md).
 
 **По-русски:** модуль-программа на TypeScript: проверки адресов с сервера (curl через `host.exec`) или с этого Mac,
