@@ -62,7 +62,7 @@ defineModule({
 
 | Вызов | Право | |
 |---|---|---|
-| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | выполняет команду на сервере вызова по SSH-сессии приложения; `{exitCode, stdout, stderr}`. Указать можно только серверы вызова. Значения берите в кавычки через `quote()`. |
+| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | выполняет команду на сервере вызова по SSH-сессии приложения; `{exitCode, stdout, stderr}`. Указать можно только серверы вызова. Выполняется на самом сервере, если не назвать контейнер: `{container: ctx.container}` — контейнер службы; `stdin` в контейнер не передаётся. Значения берите в кавычки через `quote()`. |
 | `ctx.host.secret(key)` | `secrets` | секретная настройка сервера вызова |
 | `ctx.host.store.get(key)` / `.set(key, value)` | `store` | JSON-хранилище модуля на этом Mac (всего ≤ 1 МБ); `null` удаляет |
 | `ctx.host.notify(title, text)` | `notify` | уведомление |

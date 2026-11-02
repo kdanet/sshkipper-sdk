@@ -1,7 +1,7 @@
 // The SDK against itself and against what the app expects: `npm test` (node --test, Node 24+).
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -14,7 +14,8 @@ import { scaffold, VENDORED } from "../packages/sdk/src/scaffold.ts";
 import { expand } from "../packages/sdk/src/template.ts";
 import type { Json, Manifest } from "../packages/sdk/src/types.ts";
 import { view, rows, row, metric, grid, each, $, screen, datatable, tree, split, editor, terminal, toolbar, sheet, field, liveChart, ops } from "../packages/sdk/src/ui.ts";
-import { validateFolder, validateManifest, validateView } from "../packages/sdk/src/validate.ts";
+import { schema, validateFolder, validateManifest, validateView } from "../packages/sdk/src/validate.ts";
+import { BLOCKS, STYLE } from "../packages/sdk/src/catalog.ts";
 import { serveMCP } from "../packages/mcp/server.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -28,7 +29,7 @@ function write(files: Record<string, string>): string {
 test("templates: the conformance cases the app runs too", () => {
   const cases = JSON.parse(readFileSync(join(root, "tests/conformance/templates.json"), "utf8"));
   for (const c of cases) {
-    if (c.error) assert.throws(() => expand(c.view, c.vars ?? {}, c.components ?? {}), undefined, c.name);
+    if (c.error) assert.throws(() => expand(c.view, c.vars ?? {}, c.components ?? {}), Error, c.name);
     else assert.deepEqual(expand(c.view, c.vars ?? {}, c.components ?? {}), c.expected, c.name);
   }
 });
@@ -78,7 +79,7 @@ test("validate: says what's wrong where", () => {
 test("validate: views take templates in place of values", () => {
   const v = { blocks: [{ type: "rows", items: [{ each: "data.p", as: "p", block: { title: "{{ p.name }}", status: "{{ p.status }}", data: "{{ p }}" } }] }],
     status: [{ if: "data.bad", block: { text: "Bad", tone: "bad" } }] };
-  assert.deepEqual(validateView(v as Json), []);
+  assert.deepEqual(validateView(v), []);
   const wrong = validateView({ blocks: [{ type: "metric", title: "x", value: 1, colour: "red" }, { type: "rows", items: [{ title: "a", status: "weird", symbol: "no.such.symbol" }] }] } as Json);
   assert.ok(wrong.some((i) => i.path === "blocks[0].colour"));
   assert.ok(wrong.some((i) => i.path === "blocks[1].items[0].status"));
@@ -147,7 +148,8 @@ test("server calls: request on stdin, variables, sk_file, secrets, failures", as
   const dir = write({
     "sshkipper-module.json": JSON.stringify({ sdk: 1, id: "dev.test.echo", version: "1.0.0", title: "E", runtime: { kind: "server" }, permissions: ["secrets"],
       settings: [{ key: "token", title: "T", type: "secret" }],
-      handlers: { echo: { script: "scripts/echo.sh" }, fail: { script: "scripts/fail.sh" }, text: { script: "scripts/text.sh", output: "lines" } } }),
+      handlers: { echo: { script: "scripts/echo.sh" }, fail: { script: "scripts/fail.sh" }, text: { script: "scripts/text.sh", output: "lines" } },
+      tools: [{ name: "echo", description: "Echoes what it was given.", handler: "echo", risk: "read", params: [{ key: "name", title: "Name", type: "text" }] }] }),
     "scripts/echo.sh": `r=$(cat); printf '{"in": %s, "unit": %s, "lib": %s, "secret": %s, "request": %s}' "$(sk_json_string "$SK_INPUT_NAME")" "$(sk_json_string "$SK_SETTING_UNIT")" "$(sk_json_string "$(sk_file scripts/lib.txt)")" "$(sk_json_string "$(sk_secret token)")" "$r"`,
     "scripts/lib.txt": "shared",
     "scripts/fail.sh": "echo working; sk_fail 'the queue is gone'",
@@ -211,13 +213,24 @@ test("process runtime: a call sent during setup waits for it", async () => {
   assert.deepEqual([a, b].find((m) => m.id === 2).result, { conn: "open" });
 });
 
-test("examples carry the current SDK runtime (sshkipper-module vendor)", () => {
-  // Exactly what `vendor` copies: each file there and the same as the SDK's.
-  for (const f of VENDORED) {
-    const copy = join(root, "examples/http-checks/lib/sshkipper-sdk", f);
-    assert.ok(existsSync(copy), `${f} missing: run sshkipper-module vendor examples/http-checks`);
-    assert.equal(readFileSync(copy, "utf8"), readFileSync(join(root, "packages/sdk/src", f), "utf8"), `${f}: run sshkipper-module vendor examples/http-checks`);
+test("examples carry the current SDK runtime (sshkipper-ext vendor)", () => {
+  // Every example with a copy of the runtime — or of the database protocol — has exactly what `vendor` copies now.
+  const stale: string[] = [];
+  let copies = 0;
+  for (const ex of readdirSync(join(root, "examples"))) {
+    const dir = join(root, "examples", ex);
+    const own = [
+      ...(existsSync(join(dir, "lib/sshkipper-sdk")) ? VENDORED.map((f) => [`lib/sshkipper-sdk/${f}`, f]) : []),
+      ...(existsSync(join(dir, "lib/database.ts")) ? [["lib/database.ts", "database.ts"]] : []),
+    ];
+    for (const [copy, src] of own) {
+      copies++;
+      const at = join(dir, copy);
+      if (!existsSync(at) || readFileSync(at, "utf8") !== readFileSync(join(root, "packages/sdk/src", src), "utf8")) stale.push(`examples/${ex}/${copy}`);
+    }
   }
+  assert.ok(copies >= 9, `only ${copies} vendored files found`);
+  assert.deepEqual(stale, [], "stale copies: run sshkipper-ext vendor examples/<name> for each");
 });
 
 test("MCP: handshake, tools, validation through the server", async () => {
@@ -274,13 +287,13 @@ test("live screens: the builders make what the schema allows; the preview reads 
     liveChart("line", [{ values: [1, 2] }], { id: "rate", window: 60 }),
     sheet("new", "New", [field("name", "Name")], { ok: "Add" }),
   ], { title: "Queues", fill: true });
-  assert.deepEqual(validateView(v as Json).filter((i) => i.severity === "error"), []);
+  assert.deepEqual(validateView(v).filter((i) => i.severity === "error"), []);
   assert.equal(v.events, true);
   assert.equal(v.layout, "fill");
   // A block the schema doesn't know is still an error; a grid's count of columns still a number.
   assert.ok(validateView({ blocks: [{ type: "datatable", id: "t", columns: [{ id: "a", nope: 1 }] }] }).some((i) => i.severity === "error"));
   assert.ok(validateView({ blocks: [{ type: "grid", columns: 9, children: [] }] }).some((i) => i.severity === "error"));
-  const text = preview(v as Json);
+  const text = preview(v);
   assert.match(text, /live screen: events → the program/);
   assert.match(text, /\[datatable #jobs\]: id \| name — 2 of 10000 rows/);
   assert.match(text, /▸ default \(asks\)/);
@@ -477,4 +490,19 @@ test("console example: a pretend device echoes, edits its line, answers commands
   d.input(new TextEncoder().encode("\u0004"));
   assert.equal(closedWith, "Ctrl-D");
   d.stop();
+});
+
+test("UI-Kit catalog: every tone, status, color and example it teaches passes the view schema", () => {
+  const defs = (schema("view") as any).$defs;
+  assert.deepEqual([...STYLE.tones].sort(), [...defs.tone.enum].sort(), "tones: the catalog and view.schema.json $defs.tone");
+  assert.deepEqual([...STYLE.statuses].sort(), [...defs.status.enum].sort(), "statuses");
+  const color = new RegExp(defs.color.pattern);
+  for (const c of STYLE.colors.filter((c) => !c.startsWith("#"))) assert.match(c, color, `color ${c}`);
+  for (const tone of STYLE.tones) {
+    const v = { blocks: [{ type: "text", text: "x", style: { tone } }], status: [{ text: "x", tone }] };
+    assert.deepEqual(validateView(v as Json).filter((i) => i.severity === "error"), [], `tone ${tone}`);
+  }
+  for (const b of BLOCKS) {
+    assert.deepEqual(validateView({ blocks: [b.example as Json] }).filter((i) => i.severity === "error"), [], `the example of ${b.type}`);
+  }
 });

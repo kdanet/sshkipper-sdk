@@ -218,7 +218,7 @@ export interface Contributes {
 
 // MARK: Views (UI-Kit)
 
-export type Tone = "plain" | "secondary" | "good" | "warning" | "attention" | "bad" | "accent" | "info";
+export type Tone = "plain" | "secondary" | "tertiary" | "good" | "warning" | "attention" | "bad" | "accent" | "info";
 export type Status = "ok" | "warn" | "bad" | "off" | "info";
 
 export interface Style {

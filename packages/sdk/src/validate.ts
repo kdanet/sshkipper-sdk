@@ -5,7 +5,7 @@
 import { readFileSync, readdirSync, statSync, lstatSync, realpathSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Json, Manifest, Param } from "./types.ts";
+import type { Json, Manifest, Param, View } from "./types.ts";
 import { expand, TemplateError } from "./template.ts";
 
 /** What a storage contribution may declare beyond list, stat, read and write (spec/protocol.md §12). */
@@ -432,7 +432,8 @@ function contributions(m: Manifest, files: Set<string> | undefined, out: Issue[]
 // MARK: Views
 
 /** What's wrong with a view: the schema, block symbols, the template (with `vars`, when given). */
-export function validateView(v: Json, opts: { components?: Record<string, Json>; vars?: Record<string, Json> } = {}): Issue[] {
+export function validateView(view: Json | View, opts: { components?: Record<string, Json>; vars?: Record<string, Json> } = {}): Issue[] {
+  const v = view as Json;
   const out = checkSchema(v, schema("view"), schema("view"), "", [], true);
   const sym = symbols();
   const walk = (n: any, path: string) => {
@@ -478,6 +479,11 @@ export function listFiles(dir: string): string[] {
   };
   walk(base);
   return out.sort();
+}
+
+/** The files `pack` puts in the package: the folder's, without packages made of it and the local runner's store. */
+export function packFiles(dir: string): string[] {
+  return listFiles(dir).filter((p) => !p.endsWith(".sshkmod") && !p.endsWith(".sshkext") && p.split("/").pop() !== ".sshkipper-dev-store.json");
 }
 
 /** The manifest, its issues and those of every view of a module folder; limits of the app (2000 files, 64 MB). */

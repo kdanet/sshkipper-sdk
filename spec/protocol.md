@@ -212,8 +212,10 @@ is started again on the next call.
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
 containers); only the servers of calls **in progress** (their `context.server.id`) may be named — a program can't
-reach a server between calls. `stdin` and `container` don't go together (a container's command line is readable on
-the server); the request fails. A method the
+reach a server between calls. Without `container` the command runs on the server itself, also for a call whose
+service runs in a container: a program names `"container": context.container` to run inside it — the SDKs never fill
+it in. `stdin` and `container` don't go together (a container's command line is readable on the server); the request
+fails with `-32602`. A method the
 module may not use returns error `-32001` ("permission").
 
 ### 4.4 Errors

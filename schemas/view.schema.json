@@ -64,6 +64,7 @@
       "enum": [
         "plain",
         "secondary",
+        "tertiary",
         "good",
         "warning",
         "attention",

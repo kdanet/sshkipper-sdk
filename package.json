@@ -9,14 +9,50 @@
     "node": ">=24"
   },
   "bin": {
-    "sshkipper-ext": "packages/cli/sshkipper-ext.ts",
-    "sshkipper-module": "packages/cli/sshkipper-module.ts"
+    "sshkipper-ext": "bin/sshkipper-ext.js",
+    "sshkipper-module": "bin/sshkipper-module.js"
   },
+  "exports": {
+    ".": {
+      "types": "./packages/sdk/src/index.d.ts",
+      "default": "./packages/sdk/src/index.js"
+    },
+    "./database": {
+      "types": "./packages/sdk/src/database.d.ts",
+      "default": "./packages/sdk/src/database.js"
+    },
+    "./schemas/*": "./schemas/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin/",
+    "packages/cli/*.js",
+    "packages/cli/*.ts",
+    "packages/mcp/*.js",
+    "packages/mcp/*.ts",
+    "packages/sdk/src/",
+    "packages/sdk/templates/",
+    "spec/",
+    "schemas/",
+    "docs/",
+    "examples/",
+    "!examples/**/.sshkipper-dev-store.json",
+    "!examples/**/.build/",
+    "!examples/**/bin/"
+  ],
   "scripts": {
-    "test": "node --test tests/*.test.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "test": "node --test tests/*.test.ts && node scripts/typecheck.ts",
+    "typecheck": "node scripts/typecheck.ts",
     "validate": "node scripts/check-examples.ts",
     "swift": "sh scripts/swift-check.sh",
     "mcp": "node packages/cli/sshkipper-ext.ts mcp",
     "docs": "node scripts/gen-docs.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
   }
 }

@@ -8,9 +8,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Json, Manifest, Request } from "./types.ts";
+import type { Json, Manifest, Param, Request } from "./types.ts";
 import { quote } from "./module.ts";
 import { manifestFile } from "./validate.ts";
+
+/** The app keeps an extension's host.store under 1 MB (its JSON). */
+const STORE_LIMIT = 1 << 20;
 
 export const PRELUDE = readFileSync(fileURLToPath(new URL("../../../spec/prelude.sh", import.meta.url)), "utf8");
 
@@ -29,6 +32,8 @@ export interface CallOptions {
   /** Process modules: the file host/store keeps its values in. */
   storeFile?: string;
   timeout?: number;
+  /** Input as is, not checked against the params that declare it (a page's data handler, a screen's render). */
+  unchecked?: boolean;
 }
 
 export interface CallResult { ok: boolean; value?: Json; error?: string; stdout: string; stderr: string; log: string[] }
@@ -37,11 +42,66 @@ const envKey = (k: string) => k.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
 const flat = (v: Json): string | undefined =>
   v === null ? undefined : typeof v === "boolean" ? (v ? "1" : "0") : typeof v === "string" ? v : JSON.stringify(v);
 
+/** The stand-in server of a call: `--ssh`'s host, else this machine. */
+export const DEV_SERVER = "dev";
+
+/** Everything that runs `handler` with params of its own: actions, AI tools, automation blocks. */
+export function referrers(m: Manifest, handler: string): { what: string; risk: string; params?: Param[]; server: boolean }[] {
+  const c = m.contributes;
+  return [
+    ...(m.actions ?? []).map((x) => ({ what: `action «${x.id}»`, risk: x.risk, params: x.params, handler: x.handler, server: true })),
+    ...[...(m.tools ?? []), ...(c?.tools ?? [])].map((x) => ({ what: `tool «${x.name}»`, risk: x.risk, params: x.params, handler: x.handler, server: true })),
+    ...[...(m.automation ?? []), ...(c?.automation ?? [])].map((x) => ({
+      what: `automation block «${x.id}»`, risk: x.risk, params: x.params, handler: x.handler,
+      // A server module's block always has its server; a program's only when it says so.
+      server: m.runtime.kind === "server" || x.server === true,
+    })),
+  ].filter((x) => x.handler === handler);
+}
+
+/** The input checked as the app checks it before a call (ModuleParam.check): types made right, required ones there,
+ * patterns matched in full, choices among theirs; keys no param declares are dropped (`dropped` names them). */
+export function checkInput(params: Param[], input: Record<string, Json>): { input: Record<string, Json>; dropped: string[] } {
+  const out: Record<string, Json> = {};
+  const name = (p: Param) => {
+    const t = typeof p.title === "string" ? p.title : p.title?.en ?? Object.values(p.title ?? {})[0] ?? "";
+    return t && t !== p.key ? `${t} (${p.key})` : p.key;
+  };
+  for (const p of params) {
+    let v: Json = input[p.key] ?? p.default ?? null;
+    if (v === "") v = null;
+    if (v === null) {
+      if (p.required) throw new Error(`the parameter «${name(p)}» isn't given`);
+      continue;
+    }
+    if (p.type === "number") {
+      if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v.replace(",", ".")))) v = Number(v.replace(",", "."));
+      if (typeof v !== "number" || !Number.isFinite(v)) throw new Error(`«${name(p)}»: a number is needed`);
+    } else if (p.type === "bool") {
+      if (typeof v === "string") v = ["1", "true", "yes", "да"].includes(v.toLowerCase());
+      if (typeof v !== "boolean") throw new Error(`«${name(p)}»: yes or no is needed`);
+    } else {
+      if (typeof v === "number") v = String(v);
+      if (typeof v !== "string") throw new Error(`«${name(p)}»: text is needed`);
+      if ([...v].length > 4000) throw new Error(`«${name(p)}»: too long`);
+      if (p.type === "choice" && !(p.choices ?? []).includes(v)) throw new Error(`«${name(p)}»: no choice «${v}»`);
+      // The whole value, as the app matches it (JavaScript's «$» without the m flag is the very end, as ICU's \z).
+      if (p.pattern !== undefined && !new RegExp(`^(?:${p.pattern})$`).test(v)) throw new Error(`«${name(p)}»: the value doesn't match the extension's pattern`);
+    }
+    out[p.key] = v;
+  }
+  return { input: out, dropped: Object.keys(input).filter((k) => !params.some((p) => p.key === k)) };
+}
+
 export function request(m: Manifest, handler: string, o: CallOptions): Request {
+  // As the app: a call has its server, unless it is a program's automation block that takes none.
+  const refs = referrers(m, handler);
+  const local = !refs.length || refs.some((r) => r.server);
   return {
     handler, input: o.input ?? {},
     context: {
-      ...(o.ssh ? { server: { id: "dev", name: o.ssh, host: o.ssh.split("@").pop()!, user: o.ssh.includes("@") ? o.ssh.split("@")[0] : undefined } } : {}),
+      ...(o.ssh ? { server: { id: DEV_SERVER, name: o.ssh, host: o.ssh.split("@").pop()!, user: o.ssh.includes("@") ? o.ssh.split("@")[0] : undefined } }
+        : local ? { server: { id: DEV_SERVER, name: "this machine", host: "localhost" } } : {}),
       ...(o.container ? { container: o.container } : {}),
       settings: o.settings ?? {}, ...(o.item !== undefined ? { item: o.item } : {}),
       ...(o.node !== undefined ? { node: o.node } : {}),
@@ -134,6 +194,18 @@ export async function call(dir: string, handler: string, o: CallOptions = {}): P
   const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
   const h = m.handlers?.[handler];
   if (!h) return { ok: false, error: `no handler «${handler}» in handlers`, stdout: "", stderr: "", log: [] };
+  const log: string[] = [];
+  if (!o.unchecked) {
+    // As the app: what an action, a tool or a block passes is checked against its params before anything runs.
+    const declared = referrers(m, handler).flatMap((r) => r.params ?? []).filter((p, i, all) => all.findIndex((q) => q.key === p.key) === i);
+    try {
+      const r = checkInput(declared, o.input ?? {});
+      if (r.dropped.length) log.push(`input ${r.dropped.join(", ")}: no param of the handler's actions, tools or blocks declares it — the app doesn't pass it`);
+      o = { ...o, input: r.input };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message, stdout: "", stderr: "", log };
+    }
+  }
   const timeout = o.timeout ?? h.timeout ?? 30;
   if (m.runtime.kind === "server") {
     const script = serverScript(dir, m, handler, o);
@@ -145,13 +217,14 @@ export async function call(dir: string, handler: string, o: CallOptions = {}): P
         : h.sudo === "required" ? await run("sudo", ["-n", "sh", "-s"], script, timeout) : await run("/bin/sh", ["-s"], script, timeout);
     if (r.code !== 0) {
       const last = r.stderr.trim().split("\n").pop() || `exit code ${r.code}`;
-      return { ok: false, error: last, stdout: r.stdout, stderr: r.stderr, log: [] };
+      return { ok: false, error: last, stdout: r.stdout, stderr: r.stderr, log };
     }
-    try { return { ok: true, value: answer(r.stdout, h.output ?? "json"), stdout: r.stdout, stderr: r.stderr, log: [] }; } catch (e) {
-      return { ok: false, error: (e as Error).message, stdout: r.stdout, stderr: r.stderr, log: [] };
+    try { return { ok: true, value: answer(r.stdout, h.output ?? "json"), stdout: r.stdout, stderr: r.stderr, log }; } catch (e) {
+      return { ok: false, error: (e as Error).message, stdout: r.stdout, stderr: r.stderr, log };
     }
   }
-  return processCall(dir, m, handler, o, timeout);
+  const r = await processCall(dir, m, handler, o, timeout);
+  return { ...r, log: [...log, ...r.log] };
 }
 
 /** A process module's handler: its program started in `dir`, initialize, one handler/call. */
@@ -214,11 +287,18 @@ export function startProgram(dir: string, m: Manifest, o: CallOptions = {}): Pro
   let buf = "", stderr = "", exited: string | null = null, nextID = 1;
   const waiting = new Map<number, (r: { ok: boolean; value?: Json; error?: string }) => void>();
   const send = (msg: object) => { if (!exited) p.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\n"); };
+  const refuse = (id: unknown, code: number, message: string) => send({ id, error: { code, message } });
   const need = (perm: string, id: unknown) => {
     if (perms.has(perm as never)) return true;
-    send({ id, error: { code: -32001, message: `permission «${perm}» isn't in the manifest` } });
+    refuse(id, -32001, `permission «${perm}» isn't in the manifest`);
     return false;
   };
+  // As the app (§4.3): host.exec and a server's secret only for the servers of calls in progress — a storage's or a
+  // source's method has none — and the servers the open screen's node points at.
+  const inFlight = new Map<number, string>();
+  const servers = () => new Set([...inFlight.values(),
+    ...Object.values((o.node as { links?: Record<string, Json> } | undefined)?.links ?? {}).filter((x): x is string => typeof x === "string")]);
+  const notOurs = (s: unknown) => `server «${s ?? ""}» isn't a server of a call in progress (the app refuses it: only context.server.id of the call)`;
   const end = (why: string) => {
     if (exited) return;
     exited = why;
@@ -249,6 +329,9 @@ export function startProgram(dir: string, m: Manifest, o: CallOptions = {}): Pro
         case "host/log": log.push(`${pr.level}: ${pr.message}`); break;
         case "host/exec": {
           if (!need("exec", msg.id) || (pr.sudo && !need("sudo", msg.id))) break;
+          if (typeof pr.command !== "string" || !pr.command) { refuse(msg.id, -32602, "command"); break; }
+          if (!servers().has(String(pr.server))) { refuse(msg.id, -32001, notOurs(pr.server)); break; }
+          if (pr.container && pr.stdin !== undefined) { refuse(msg.id, -32602, "stdin doesn't go into a container — drop stdin or container (the app refuses the pair)"); break; }
           const r = await shell(pr.sudo ? `sudo -n sh -c ${quote(pr.command)}` : pr.command, { ssh: o.ssh, stdin: pr.stdin, timeout: pr.timeout ?? 30, container: pr.container });
           log.push(`exec${o.ssh ? " on " + o.ssh : " here"}: ${pr.command} → ${r.code}`);
           send({ id: msg.id, result: { exitCode: r.code, stdout: r.stdout, stderr: r.stderr } });
@@ -256,17 +339,35 @@ export function startProgram(dir: string, m: Manifest, o: CallOptions = {}): Pro
         }
         case "host/secret": {
           if (!need("secrets", msg.id)) break;
+          if ("node" in pr) {
+            // A node's secret field (§14.3): the call's node or one it points at, a secret field of the extension's types.
+            const node = o.node as { id?: string; links?: Record<string, Json> } | undefined;
+            const visible = new Set([node?.id, ...Object.values(node?.links ?? {})].filter((x) => typeof x === "string"));
+            if (typeof pr.node !== "string" || !visible.has(pr.node)) { refuse(msg.id, -32001, "the node isn't visible to the extension: only the open screen's node (--node) and the nodes it points at"); break; }
+            const fields = (m.contributes?.nodeType ?? []).flatMap((t) => t.fields ?? []).filter((f) => f.type === "secret").map((f) => f.key);
+            if (!fields.includes(pr.key)) { refuse(msg.id, -32602, `no secret field «${pr.key}» in the extension's node types`); break; }
+          } else {
+            if (!servers().has(String(pr.server))) { refuse(msg.id, -32001, notOurs(pr.server)); break; }
+            const keys = (m.settings ?? []).filter((s) => s.type === "secret").map((s) => s.key);
+            if (!keys.includes(pr.key)) { refuse(msg.id, -32602, `no secret setting «${pr.key}» (settings with type «secret»: ${keys.join(", ") || "none"})`); break; }
+          }
           const value = o.secrets?.[pr.key];
-          if (value === undefined) send({ id: msg.id, error: { code: -32000, message: `no secret «${pr.key}» (pass --secret ${pr.key}=…)` } });
+          if (value === undefined) refuse(msg.id, -32000, `no secret «${pr.key}» (pass --secret ${pr.key}=…)`);
           else send({ id: msg.id, result: { value } });
           break;
         }
-        case "host/store/get": if (need("store", msg.id)) send({ id: msg.id, result: { value: store[pr.key] ?? null } }); break;
-        case "host/store/set":
+        case "host/store/get":
+        case "host/store/set": {
           if (!need("store", msg.id)) break;
-          if (pr.value === null) delete store[pr.key]; else store[pr.key] = pr.value;
+          if (typeof pr.key !== "string" || !pr.key || [...pr.key].length > 200) { refuse(msg.id, -32602, "key: 1–200 characters"); break; }
+          if (msg.method === "host/store/get") { send({ id: msg.id, result: { value: store[pr.key] ?? null } }); break; }
+          const next = { ...store };
+          if (pr.value === null || pr.value === undefined) delete next[pr.key]; else next[pr.key] = pr.value;
+          if (Buffer.byteLength(JSON.stringify(next)) > STORE_LIMIT) { refuse(msg.id, -32602, "the extension's store is over 1 MB"); break; }
+          if (pr.value === null || pr.value === undefined) delete store[pr.key]; else store[pr.key] = pr.value;
           send({ id: msg.id, result: null });
           break;
+        }
         case "host/notify": if (need("notify", msg.id)) { log.push(`notify: ${pr.title} — ${pr.text}`); send({ id: msg.id, result: null }); } break;
         case "host/forward":
           // No SSH session here: the target as is (a service on this machine, a stand-in).
@@ -292,12 +393,15 @@ export function startProgram(dir: string, m: Manifest, o: CallOptions = {}): Pro
   const ask = (method: string, params: Json, timeout: number) => new Promise<{ ok: boolean; value?: Json; error?: string }>((resolve) => {
     if (exited) return resolve({ ok: false, error: exited });
     const id = nextID++;
+    const server = (params as { context?: { server?: { id?: string } } } | null)?.context?.server?.id;
+    if (server) inFlight.set(id, server);
     const t = setTimeout(() => {
       waiting.delete(id);
+      inFlight.delete(id);
       send({ method: "cancel", params: { id } });
       resolve({ ok: false, error: `no answer in ${timeout} s` });
     }, timeout * 1000);
-    waiting.set(id, (r) => { clearTimeout(t); resolve(r); });
+    waiting.set(id, (r) => { clearTimeout(t); inFlight.delete(id); resolve(r); });
     send({ id, method, params });
   });
   const ready = ask("initialize", { sdk: 1, app: "sshkipper-ext", module: { id: m.id, version: m.version }, locale: o.locale ?? "en" }, 30);

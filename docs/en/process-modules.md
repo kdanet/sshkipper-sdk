@@ -62,7 +62,7 @@ Each needs its permission in the manifest; without it the call fails with `-3200
 
 | Call | Permission | |
 |---|---|---|
-| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | runs on the call's server over the app's SSH session; `{exitCode, stdout, stderr}`. Only servers of the call may be named. Quote values with `quote()`. |
+| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | runs on the call's server over the app's SSH session; `{exitCode, stdout, stderr}`. Only servers of the call may be named. On the server itself unless you name a container — `{container: ctx.container}` for the service's own; `stdin` doesn't go into a container. Quote values with `quote()`. |
 | `ctx.host.secret(key)` | `secrets` | a secret setting of the call's server |
 | `ctx.host.store.get(key)` / `.set(key, value)` | `store` | the module's JSON storage on this Mac (≤ 1 MB in all); `null` deletes |
 | `ctx.host.notify(title, text)` | `notify` | a notification |
