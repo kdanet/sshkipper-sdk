@@ -15,16 +15,16 @@ isn't packed ([Swift](swift.md)).
 
 ## Installing
 
-Settings → Extensions → **«Установить расширение…»** takes a folder, a `.sshkext` or a `.sshkmod` (a double click on
+Settings → Extensions → **Install extension…** takes a folder, a `.sshkext` or a `.sshkmod` (a double click on
 the file in Finder does the same). Before installing, the app shows what the extension adds (its contributions),
 where its code runs, the permissions in words, its AI tools and automation blocks, and that the author isn't verified.
 It copies the package into its own folder and records the SHA-256 of every file.
 
 - A program's files are hashed again **before every start**: a changed, added or removed file stops it, and the
   extension is marked changed until the user approves it again (“Allow as is”).
-- **«Папка разработки…»** links a folder instead of copying it: the app reloads it as files change and marks it
+- **Development folder…** links a folder instead of copying it: the app reloads it as files change and marks it
   «из папки». Use it while writing.
-- The «⋯» menu of an extension in the list: «Журнал…» (what each handler wrote to stderr, how long it took, what
+- The «⋯» menu of an extension in the list: Log… (what each handler wrote to stderr, how long it took, what
   failed), Finder, remove.
 
 ## Versions

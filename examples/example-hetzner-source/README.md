@@ -14,7 +14,7 @@ sshkipper-ext validate examples/example-hetzner-source
 sshkipper-ext run examples/example-hetzner-source source/poll --params '{"source": {"node": "t", "kind": "hetzner-cloud", "settings": {"token": "…", "api": "http://127.0.0.1:8080/v1"}}}'
 ```
 
-**In SSHKipper:** «Папка разработки…» → File → «Новый источник «Hetzner Cloud»…» → the token → a live folder in the
+**In SSHKipper:** Settings → Extensions → Development folder… → File → Server source → «Hetzner Cloud…» → the token → a live folder in the
 tree, polled every 5 minutes. Guide: [storages and sources](../../docs/en/storage-and-sources.md).
 
 **По-русски:** источник — живая папка серверов проекта Hetzner Cloud по API: секретный токен, метки как теги, папки по

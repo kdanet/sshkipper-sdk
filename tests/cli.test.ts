@@ -164,6 +164,8 @@ test("npm package: packed, installed from the tarball into another prefix, its C
     // The library: types and code, as a package import.
     const lib = join(prefix, "lib/node_modules/sshkipper-sdk");
     const pkg = JSON.parse(readFileSync(join(lib, "package.json"), "utf8"));
+    assert.equal(pkg.license, "MIT");
+    assert.match(readFileSync(join(lib, "LICENSE"), "utf8"), /^MIT License/, "the licence text travels with the package");
     for (const p of [pkg.exports["."].default, pkg.exports["."].types, pkg.exports["./database"].default]) assert.ok(existsSync(join(lib, p)), p);
     const imported = spawnSync(process.execPath, ["--input-type=module", "-e", `import { view, quote } from ${JSON.stringify(join(lib, pkg.exports["."].default))}; console.log(quote("it's"), view([]).blocks.length)`], { encoding: "utf8" });
     assert.equal(imported.stdout.trim(), "'it'\\''s' 0", imported.stderr);

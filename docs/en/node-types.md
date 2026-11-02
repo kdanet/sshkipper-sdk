@@ -37,7 +37,8 @@ blocks. The protocol — [spec/protocol.md §14](../../spec/protocol.md). A comp
 - **A screen** `tab` opens on a double click on the node; `section` is a section of a server's services tab (where the
   extension is switched on in the card's «Services»); `panel` doesn't open yet.
 
-The user creates a node with «Create ▸ …» in the tree, File → «New «…»…» or the palette; the card is a native form
+The user creates a node with File → From extensions → «<title>…» (the same in the toolbar's «+» and the tree's
+Create menu) or the palette; the card is a native form
 from your fields. Without the extension the node stays in the document with a puzzle piece, «extension needed», and
 loses nothing.
 
@@ -95,5 +96,12 @@ const button = await ctx.host.ask({
 node packages/cli/sshkipper-ext.ts validate examples/node-type-sitechecks
 ```
 
-In a review instance: `extinstall <folder>`, `extnodenew ext:<id>/<type>`, `extnodeset <key>|<value>`,
-`extnodesave`, `extnodeopen <name>`, `extnodedump <file>`; screen events — `screenevent`, `screenselect`.
+```sh
+sshkipper-ext preview examples/node-type-sitechecks checks \
+  --node '{"id":"n1","name":"Shop","type":"ext:dev.sshkipper.example.sitechecks/checks","settings":{},"links":{},"secrets":[]}' \
+  --events '[{"type":"open"},{"type":"press","block":"toolbar","value":{"item":"check"}}]'
+```
+
+`preview` builds the screen for the node you give (`--node`) and lives it through the events, printing the screen
+after them. In SSHKipper: Settings → Extensions → Development folder… → the folder, then File → From extensions →
+your type; a double click opens its tab, and the tab's «⋯» → «Инспектор экрана» shows every event and patch.

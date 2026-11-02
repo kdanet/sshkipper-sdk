@@ -12,7 +12,7 @@ sshkipper-ext validate examples/example-folder-storage
 sshkipper-ext run examples/example-folder-storage storage/list --params '{"storage": {"node": "t", "kind": "folder", "settings": {"root": "/tmp"}, "readOnly": true, "throughServer": false}, "path": "/"}'
 ```
 
-**In SSHKipper:** «Папка разработки…» → File → «Новое хранилище «Папка на этом Mac»…» → the folder → the file panel.
+**In SSHKipper:** Settings → Extensions → Development folder… → File → Storage… → «Папка на этом Mac» under From extensions → the folder → the file panel.
 Guide: [storages and sources](../../docs/en/storage-and-sources.md).
 
 **По-русски:** хранилище-папка на этом Mac — весь протокол `storage/*`: список, чтение и запись частями, папки,

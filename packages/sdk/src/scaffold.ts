@@ -149,26 +149,28 @@ function service(o: ScaffoldOptions, title: string | { en: string; ru: string },
   return { [name]: json(manifest), "module.ts": code, ...vendorFiles() };
 }
 
-/** How to try each kind without the app, and where the app shows it. */
+/** How to try each kind without the app, and where the app shows it (the English interface's words; the Russian
+ * ones are in docs/glossary.md). */
 const TRY: Record<ExtensionKind, (o: ScaffoldOptions, program: boolean) => string> = {
   service: (_o, program) => `sshkipper-ext run . list${program ? "                 # host.exec runs here; --ssh user@host — there" : "                 # here; --ssh user@host — on a server"}
-sshkipper-ext preview . main --run         # the page as text`,
-  database: () => `node driver.ts                             # then type: {"id":1,"method":"hello","params":{}}
-# In SSHKipper: «Новая база» → the engine → the file samples/demo.json`,
+sshkipper-ext preview . main --run         # the page as text
+# In SSHKipper: a connection's card → Services → this service; its page opens from the tree`,
+  database: (o) => `node driver.ts                             # then type: {"id":1,"method":"hello","params":{}}
+# In SSHKipper: File → Database… → the engine «${o.title}» → the file samples/demo.json`,
   storage: (o) => `sshkipper-ext run . storage/list --params '{"storage":{"node":"t","kind":"${slug(o.id)}","settings":{},"readOnly":false,"throughServer":false},"path":"/"}'
-# In SSHKipper: Файл → «Новое хранилище …» → the file panel`,
+# In SSHKipper: File → Storage… → «${o.title}» under From extensions → the file panel`,
   source: (o) => `sshkipper-ext run . source/poll --params '{"source":{"node":"t","kind":"${slug(o.id)}","settings":{"hosts":["web-1 10.0.0.5 deploy"]}}}'
-# In SSHKipper: Файл → «Новый источник …»: a live folder in the tree`,
-  "node-type": () => `sshkipper-ext preview . tasks --node '{"id":"n1","name":"Release","type":"ext:x/tasks","settings":{},"links":{},"secrets":[]}' --events '[{"type":"open"},{"type":"press","block":"toolbar","value":{"item":"add"}}]'
-# In SSHKipper: the tree's «Создать ▸» → your type; a double click opens its tab`,
-  import: () => `sshkipper-ext run . import/parse --file samples/hosts.txt --importer hosts
-# In SSHKipper: Файл → «Импорт: …»`,
-  console: () => `# In SSHKipper: a connection's menu → «Консоль: …» (the app's terminal tab)`,
+# In SSHKipper: File → Server source → «${o.title}…»: a live folder in the tree`,
+  "node-type": (o) => `sshkipper-ext preview . tasks --node '{"id":"n1","name":"Release","type":"ext:x/tasks","settings":{},"links":{},"secrets":[]}' --events '[{"type":"open"},{"type":"press","block":"toolbar","value":{"item":"add"}}]'
+# In SSHKipper: File → From extensions → «${o.title}…» (or «+» in the toolbar, Create in the tree's menu); a double click opens its tab`,
+  import: (o) => `sshkipper-ext run . import/parse --file samples/hosts.txt --importer hosts
+# In SSHKipper: File → Import → «${o.title}…»`,
+  console: (o) => `# In SSHKipper: a connection's menu → «Console: ${o.title}» (the app's terminal tab)`,
   ai: () => `sshkipper-ext run . ai/models --params '{"provider":"model","settings":{},"secrets":{}}'
-# In SSHKipper: Settings → AI → «+» → «Из расширений»`,
+# In SSHKipper: Settings → AI → «+» → From extensions`,
   automation: () => `sshkipper-ext run . threshold --input '{"value": 7, "min": 20}'
 sshkipper-ext run . disk_free --input '{"mount": "/"}'   # host.exec runs here
-# In SSHKipper: an automation's library → «Из установленных модулей»`,
+# In SSHKipper: an automation's library → From extensions`,
 };
 
 function readme(o: ScaffoldOptions, kind: ExtensionKind, program: boolean): string {
@@ -183,7 +185,7 @@ ${TRY[kind](o, program)}
 sshkipper-ext pack .                       # → ${o.id}-0.1.0.${pkg}
 \`\`\`
 
-In SSHKipper: Settings → Extensions → «Папка разработки…» picks this folder and reloads it as you edit; «Установить
-расширение…» takes the packed file. The guides: https://github.com/kdanet/sshkipper-sdk/tree/main/docs/en.
+In SSHKipper: Settings → Extensions → Development folder… picks this folder and reloads it as you edit; Install
+extension… takes the packed file. The guides: https://github.com/kdanet/sshkipper-sdk/tree/main/docs/en.
 `;
 }

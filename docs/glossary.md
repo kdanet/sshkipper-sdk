@@ -1,10 +1,12 @@
 # Glossary · Словарь терминов
 
-One word for one thing, in the guides of both languages, in the protocol and in the app's interface. The app's own
-words (Russian, as the user sees them) are in «quotes».
+One word for one thing, in the guides of both languages, in the protocol and in the app's interface. Menus and
+buttons are named as the guide's language names them in the app (English or Russian interface — the table at the
+end); what the app says to the user (messages, states) is quoted «as in the Russian interface», its source language.
 
-Одно слово — одна вещь: в руководствах на обоих языках, в протоколе и в интерфейсе приложения. Слова самого
-приложения (как их видит пользователь) — в «кавычках».
+Одно слово — одна вещь: в руководствах на обоих языках, в протоколе и в интерфейсе приложения. Меню и кнопки названы
+так, как их называет приложение на языке руководства (таблица в конце); то, что приложение говорит пользователю
+(сообщения, состояния), — в «кавычках», как в русском интерфейсе.
 
 | English | Русский | What it is · Что это |
 |---|---|---|
@@ -33,7 +35,7 @@ words (Russian, as the user sees them) are in «quotes».
 | action | действие | `actions[]`: a menu item or button running a handler; risk `read` / `change` / `danger`. · Пункт меню или кнопка с обработчиком. |
 | risk | риск | `read` (reads), `change` (changes, asks), `danger` (disruptive, asks in red). · Чтение / изменение / опасное. |
 | AI tool | инструмент AI | `tools[]`: what the app's agent may call under the server's AI mode. · Что агент приложения вызывает в рамках режима AI. |
-| automation block | блок автоматизации | `automation[]`: a block of the automations library. · Блок библиотеки автоматизаций. |
+| automation block | блок автоматизации | `automation[]`: a block of the automations library. The library itself calls every block a «модуль» (module): blocks of extensions are in its section «Из расширений» (From extensions), the user's own in «Мои модули». · Блок библиотеки автоматизаций; в самой библиотеке блоки называются «модулями»: блоки расширений — в разделе «Из расширений», свои — в «Мои модули». |
 | setting | настройка | `settings[]` of a module: the connection card, inherited from folders. · Настройки модуля в карточке подключения. |
 | field | поле | `fields[]` of a storage, source, node type, model provider: their card. · Поля карточки вклада. |
 | secret | секрет | A `secret` setting or field: kept encrypted by the app, given only on request. · Хранится зашифрованным, выдаётся только по запросу. |
@@ -56,3 +58,20 @@ words (Russian, as the user sees them) are in «quotes».
 | prelude | прелюдия | `spec/prelude.sh`: shell functions the app puts before each server script. · Функции sh перед каждым серверным скриптом. |
 | context | контекст | `context` of a request: server, settings, item, node, locale. · Контекст вызова. |
 | Production | Production | A server or node marked Production: changes always ask. · Узел с пометкой Production: изменения всегда спрашиваются. |
+
+## The app's menus · Меню приложения
+
+Where a contribution shows up, in both interfaces. · Где появляется вклад — в обоих интерфейсах.
+
+| Contribution · Вклад | English interface | Русский интерфейс |
+|---|---|---|
+| install, develop · установка, разработка | Settings → Extensions → Install extension… / Development folder… / Log… | Настройки → Расширения → Установить расширение… / Папка разработки… / Журнал… |
+| `service` | a connection's card → Services | карточка подключения → Службы |
+| `database` | File → Database… → the engine | Файл → База данных… → движок |
+| `storage` | File → Storage… → its tile under From extensions | Файл → Хранилище… → плитка в разделе «Из расширений» |
+| `source` | File → Server source → «<title>…» | Файл → Источник серверов → «<название>…» |
+| `nodeType` | File → From extensions → «<title>…» (also «+» in the toolbar, Create in the tree's menu) | Файл → Из расширений → «<название>…» (и «+» на панели, «Создать» в меню дерева) |
+| `import` | File → Import → «<title>…» | Файл → Импорт → «<название>…» |
+| `console` | a connection's menu → Console: <title> | меню подключения → Консоль: <название> |
+| `ai` | Settings → AI → «+» → From extensions | Настройки → AI → «+» → Из расширений |
+| `automation` | an automation's library → From extensions | библиотека автоматизации → Из расширений |

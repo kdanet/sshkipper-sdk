@@ -227,7 +227,7 @@ async function tool(name: string, a: Record<string, any>) {
       const opts = { input: a.input, settings: a.settings, item: a.item, node: a.node, locale: a.locale ?? "en" };
       if (a.method) {
         const method = String(a.method);
-        if (method.startsWith("console/")) return text("a console is interactive (bytes both ways): open it in the app — a connection's menu → «Консоль: …»", true);
+        if (method.startsWith("console/")) return text("a console is interactive (bytes both ways): open it in the app — a connection's menu → «Console: <title>»", true);
         const reads = READ_METHODS.has(method) || (method === "storage/link" && (a.params?.action ?? "list") === "list");
         if (!reads && !options.allowChanges) {
           return text(`«${method}» may change things (writes, deletes, a model's API) — it would run on this machine: not allowed; ${ALLOW}. Methods that only read run: ${[...READ_METHODS].join(", ")}.`, true);

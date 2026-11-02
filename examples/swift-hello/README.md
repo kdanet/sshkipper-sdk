@@ -14,7 +14,7 @@ sshkipper-ext run . summary
 sshkipper-ext preview . main --events '[{"type": "open"}, {"type": "press", "value": {"item": "refresh"}}]' --wait 2500
 ```
 
-**In SSHKipper:** «Папка разработки…» (after `./build.sh`; no `.build` in the folder) → a connection's «Службы» →
+**In SSHKipper:** Settings → Extensions → Development folder… (after `./build.sh`; no `.build` in the folder) → a connection's Services →
 «Привет из Swift». Guide: [Swift](../../docs/en/swift.md).
 
 **По-русски:** расширение на Swift с пакетом SSHKipperSDK: служба с живым экраном, `host.exec`, панель инструментов,

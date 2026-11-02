@@ -2,14 +2,23 @@
 
 ## 1. The command line
 
+Node.js 24 or later. Install the CLI as a package — npm builds it to JavaScript (Node runs TypeScript as is, but not
+inside `node_modules`):
+
 ```sh
-git clone https://github.com/kdanet/sshkipper-sdk.git
-cd sshkipper-sdk && npm link          # puts sshkipper-ext on PATH (Node 24+, no dependencies)
+npm install -g github:kdanet/sshkipper-sdk   # or a tarball: npm pack in a clone → npm install -g sshkipper-sdk-1.1.0.tgz
 sshkipper-ext help
 ```
 
-Without `npm link`: `node /path/to/sshkipper-sdk/packages/cli/sshkipper-ext.ts …`. The old name `sshkipper-module`
-still works (one line says it was renamed; its `call` is `run`).
+Or work from a clone, the TypeScript as is — changes to the SDK apply at once:
+
+```sh
+git clone https://github.com/kdanet/sshkipper-sdk.git
+cd sshkipper-sdk && npm install && npm link   # TypeScript and Node's types are its only (dev) dependencies
+```
+
+Without either: `node /path/to/sshkipper-sdk/packages/cli/sshkipper-ext.ts …`. Every command has `--help`. The old
+name `sshkipper-module` still works (one line says it was renamed; its `call` is `run`).
 
 ## 2. An extension
 
@@ -67,11 +76,11 @@ A name with a slash is a contribution's own method of a program: `run source/pol
 
 ## 4. In SSHKipper
 
-1. Settings → Extensions → **«Папка разработки…»** → pick `disks/`. A linked folder is reloaded as you save files.
+1. Settings → Extensions → **Development folder…** → pick `disks/`. A linked folder is reloaded as you save files.
 2. Open a connection: its **Services** now list “Disks” (automatic: on where `detect` finds it), with the module's
    settings under it. The sidebar shows the service under the server; the server's services tab has its section.
 3. The section is your page, drawn with the app's own parts. Its «⋯» menu has your actions; the extension's «⋯» in
-   Settings → Extensions has «Журнал…» — what each handler printed to stderr, how long it took, what failed.
+   Settings → Extensions has Log… — what each handler printed to stderr, how long it took, what failed.
 
 ## 5. Make it yours
 
@@ -88,5 +97,5 @@ A name with a slash is a contribution's own method of a program: `run source/pol
 sshkipper-ext pack            # → dev.acme.disks-0.1.0.sshkext
 ```
 
-Settings → Extensions → **«Установить расширение…»** takes the file; the app shows what the extension adds and asks
+Settings → Extensions → **Install extension…** takes the file; the app shows what the extension adds and asks
 for (permissions, commands on servers, AI tools) before installing. See [Publishing](publishing.md).

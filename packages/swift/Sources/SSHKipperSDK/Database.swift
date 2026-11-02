@@ -2,9 +2,9 @@ import Foundation
 
 // The database protocol (spec/database.md): what a driver of a `contributes.database` engine answers. One JSON object
 // per line on stdin (requests) and stdout (responses), answered in any order — the id ties them together; logs go to
-// stderr. Not JSON-RPC: the wire of the app's built-in driver (`Packages/DatabaseProtocol` in the app's repository,
-// whose shapes these types copy for the `sql` model; `keyValue` and `document` engines answer the built-in key and
-// collection methods — their shapes are described in spec/database.md §4).
+// stderr. Not JSON-RPC: the wire of the app's built-in driver; these types are the shapes of the `sql` model.
+// `keyValue` and `document` engines answer the key browser's and a collection's methods (spec/database.md §4.1)
+// with `on("redis.scan", JSON.self) { … }`.
 //
 //   request  {"id": 7, "method": "query", "params": {…}}
 //   response {"id": 7, "result": {…}}   or   {"id": 7, "error": {"code": "query", "message": "…"}}

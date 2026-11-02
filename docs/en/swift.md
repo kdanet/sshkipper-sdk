@@ -7,15 +7,16 @@ the app (the app never loads extension code: the program is its own process). It
 - the manifest and protocol types (`Manifest`, `Request`, `Context`, `ScreenEvent`, `StorageRef`, `FoundHost`,
   `ImportResult`, `AIChatRequest`…), all `Codable`, and `JSON` for anything loose;
 - `Extension` — the JSON-RPC loop of spec/protocol.md §4 on stdin/stdout: handlers, cancellation (`cancel` cancels the
-  handler's task), `initialize` and `shutdown`;
+  handler's task), `initialize` and `shutdown`; `setup { app, locale in … }` runs before `initialize` is answered —
+  the app waits 15 s for that answer, so keep it short and do slow work on the first call;
 - `AppHost` — what the app does for a program (`ctx.host`): `exec`, `secret`, `nodeSecret`, `storeGet` / `storeSet`,
   `notify`, `log`, `forward`, `oauth`, `open`, `ask` (named `AppHost`, not `Host`: Foundation has a `Host`);
 - live screens: `onEvent` answers `EventAnswer(ops:)`, `ctx.push(_:)` sends ops by itself (`ui/push`);
 - contributions: `storage(_: StorageProvider)`, `source(_: SourceProvider)`, `importer(_:_:)`, `console(_:_:)`,
   `ai(_: AIProvider)`, `method(_:_:)` for anything else;
 - `UI` and `Op` — the UI-Kit builders and the ops of `ui/patch`;
-- `DB` and `DatabaseDriver` — the database protocol (spec/database.md) for a `contributes.database` driver: the same
-  shapes as the app's `Packages/DatabaseProtocol` for the `sql` model; `"id"` first on every line.
+- `DB` and `DatabaseDriver` — the database protocol (spec/database.md) for a `contributes.database` driver: the shapes of
+  spec/database.md for the `sql` model (`keyValue` and `document` engines: §4.1, answered with `on("redis.scan", JSON.self) { … }`); `"id"` first on every line.
 
 ## The example
 

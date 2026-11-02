@@ -12,7 +12,7 @@ sshkipper-ext validate examples/db-sqlite-node
 node --disable-warning=ExperimentalWarning examples/db-sqlite-node/driver.ts   # then {"id":1,"method":"hello","params":{}}
 ```
 
-**In SSHKipper:** «Папка разработки…» → «Новая база» → «SQLite (Node, пример)» → a `.sqlite` file. Its `readCommands`
+**In SSHKipper:** Settings → Extensions → Development folder… → File → Database… → «SQLite (Node, пример)» → a `.sqlite` file. Its `readCommands`
 count only when the extension comes from SSHKipper's library: otherwise every statement is a change (Production asks).
 Guide: [database drivers](../../docs/en/database-drivers.md).
 

@@ -85,11 +85,19 @@ sshkipper-ext preview main --ssh deploy@web-1               # the rendered page 
 
 The stand-in host keeps `host.store` in `.sshkipper-dev-store.json` and prints notifications and logs.
 
+## Start-up: `setup`
+
+`defineModule({ setup: async ({ app, locale, module }) => { … }, handlers })` runs once, before the program answers
+`initialize`. The app waits **15 seconds** for that answer, then ends the program and the call fails with «Модуль не
+ответил за 15 с». Keep `setup` short (read a config, open a file); do slow work — a cache to warm, a connection to a
+remote API — on the first call that needs it. Calls that arrive while `setup` runs wait for it; a `setup` that throws
+fails them all with «setup failed: …».
+
 ## Another language
 
 Read lines from stdin, write lines to stdout:
 
-1. answer `initialize` with `{"handlers": [...]}`;
+1. answer `initialize` with `{"handlers": [...]}` — within 15 seconds of starting, or the app ends the program;
 2. answer each `handler/call` (params: the request) with the handler's result or a JSON-RPC error;
 3. send `host/exec`, `host/store/get`… requests with your own ids and wait for their answers;
 4. stop on `shutdown` or when stdin closes. Write logs to stderr.

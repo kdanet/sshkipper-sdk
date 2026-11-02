@@ -166,17 +166,16 @@ export interface ImportContribution extends Contribution {
   fileExtensions: string[];
   /** The largest file it takes, MB (never above the app's 8 MB). */
   maxSizeMB?: number;
-  /** Stage 1's field, still read: the program answers `import/parse` for the contribution's id. */
+  /** An older field, still read; the program answers `import/parse` for the contribution's id. */
   handler?: string;
 }
 export interface ConsoleContribution extends Contribution {
   description?: Text;
   /** Nodes whose menu offers it: "connection" (the default) and node types of the same extension. */
   appliesTo?: string[];
-  /** Stage 1's field, still read: the program answers `console/open` for the contribution's id. */
+  /** An older field, still read; the program answers `console/open` for the contribution's id. */
   handler?: string;
 }
-export interface HandlerContribution extends Contribution { handler: string }
 export interface AIContribution extends Contribution { description?: Text; fields?: Setting[]; reasoning?: string[]; handler?: string }
 
 // MARK: Import (spec/protocol.md §15)
@@ -519,12 +518,13 @@ export interface StorageRef {
   throughServer: boolean;
 }
 
-/** One entry of a storage. `modified` — seconds since 1970; `digest` — a checksum the app verifies after a download. */
+/** One entry of a storage. `modified` — seconds since 1970, or an ISO 8601 string (`toISOString()`; without a zone it is UTC);
+ * `digest` — a checksum the app verifies after a download. */
 export interface StorageItem {
   name: string;
   type: "file" | "folder";
   size?: number;
-  modified?: number;
+  modified?: number | string;
   digest?: { algorithm: "sha256" | "md5"; value: string };
 }
 

@@ -36,7 +36,7 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
 ]
 ```
 
-A block shows in the automations library under “From installed modules”, with one input — the **server** — and its
+A block shows in the automations library under “From extensions”, with one input — the **server** — and its
 parameters on the card. It runs on the server like any automation step: on schedule, without the user, its log and
 result in the run's history.
 

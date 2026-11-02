@@ -52,7 +52,7 @@ the view has errors, an op doesn't apply or an event fails.`,
   },
   pack: {
     usage: "pack [folder] [-o file]",
-    about: `validate, then zip it for «Установить расширение…»: .sshkext (sshkipper-extension.json) or .sshkmod
+    about: `validate, then zip it for Settings → Extensions → Install extension…: .sshkext (sshkipper-extension.json) or .sshkmod
 (sshkipper-module.json). The same files give the same bytes: paths sorted, one fixed time.`,
     flags: ["out="], names: 0,
   },

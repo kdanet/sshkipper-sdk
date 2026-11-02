@@ -332,7 +332,7 @@
         "description": { "$ref": "#/$defs/text" },
         "fileExtensions": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^([A-Za-z0-9]{1,16}|\\*)$" } },
         "maxSizeMB": { "type": "number", "minimum": 0.01, "description": "The largest file it takes; the app's own cap (8 MB) is never raised." },
-        "handler": { "$ref": "#/$defs/name", "description": "Stage 1's field, still read; the program answers `import/parse` for the contribution's id." }
+        "handler": { "$ref": "#/$defs/name", "description": "An older field, still read; the program answers `import/parse` for the contribution's id." }
       }
     },
     "consoleContribution": {
@@ -345,7 +345,7 @@
         "description": { "$ref": "#/$defs/text" },
         "appliesTo": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$" },
                        "description": "Nodes whose menu offers it: «connection» (the default) and node types of the same extension." },
-        "handler": { "$ref": "#/$defs/name", "description": "Stage 1's field, still read; the program answers `console/open` for the contribution's id." }
+        "handler": { "$ref": "#/$defs/name", "description": "An older field, still read; the program answers `console/open` for the contribution's id." }
       }
     },
     "aiContribution": {
@@ -358,16 +358,7 @@
         "description": { "$ref": "#/$defs/text" },
         "fields": { "$ref": "#/$defs/fields", "description": "The profile's settings in Settings → AI; secret fields are kept in the Mac's keychain like an API key." },
         "reasoning": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/name" }, "description": "Reasoning levels its models take (low, medium, high…)." },
-        "handler": { "$ref": "#/$defs/name", "description": "Not used (stage 1 manifests)." }
-      }
-    },
-    "handlerContribution": {
-      "type": "object", "additionalProperties": false, "required": ["id", "title", "handler"],
-      "properties": {
-        "id": { "$ref": "#/$defs/contributionId" },
-        "title": { "$ref": "#/$defs/text" },
-        "icon": { "$ref": "#/$defs/icon" },
-        "handler": { "$ref": "#/$defs/name" }
+        "handler": { "$ref": "#/$defs/name", "description": "Not used (an older field, still read)." }
       }
     }
   }

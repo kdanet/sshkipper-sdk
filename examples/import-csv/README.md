@@ -12,7 +12,7 @@ sshkipper-ext validate examples/import-csv
 sshkipper-ext run examples/import-csv import/parse --file examples/import-csv/samples/servers.csv --importer csv
 ```
 
-**In SSHKipper:** «Папка разработки…» → File → «Импорт: Таблица серверов (CSV)…» → the file → the question with the
+**In SSHKipper:** Settings → Extensions → Development folder… → File → Import → «Таблица серверов (CSV)…» → the file → the question with the
 tree of what comes. Guide: [importers and consoles](../../docs/en/importers-and-consoles.md).
 
 **По-русски:** импорт таблицы серверов из CSV/TSV в папки и подключения, пароли — отдельно и только с согласия.

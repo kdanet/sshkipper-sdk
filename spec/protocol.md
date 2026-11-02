@@ -194,6 +194,11 @@ is started again on the next call.
 | `ai/models`, `ai/chat`; `ai/cancel` (notification) | a model provider's (§13) | `{"models"}`; the answer, after `ai/delta` notifications |
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
+The program MUST answer `initialize` within **15 seconds** of starting; the app then ends it and the call fails with
+«Модуль не ответил за 15 с». The SDKs answer it after their `setup` hook (`defineModule({ setup })`,
+`Extension.setup`): keep that hook short and do slow work (warming a cache, a first connection) lazily, on the first
+call that needs it. Calls the app sends meanwhile wait for `setup`.
+
 ### 4.3 Module → app
 
 | Method | Params | Result | Permission |
@@ -271,7 +276,7 @@ Limits: 400 blocks after expansion, 32 levels of JSON nesting (the app draws 8 l
 
 ## 8. Automation blocks
 
-An `automation` entry is a block of the automations library («Из установленных модулей»). A server module's block
+An `automation` entry is a block of the automations library (its section «Из расширений», From extensions). A server module's block
 runs as a script on its server (below); a **process module's block** calls its handler in the program on this Mac
 (§8.1).
 
@@ -330,17 +335,17 @@ fields, the same `sdk`) plus `contributes` — what it adds to the app. A folder
 `sshkipper-extension.json` and `sshkipper-module.json` is an error. `sshkipper-module.json` and `.sshkmod` stay valid
 and read as extensions unchanged.
 
-| Contribution | Manifest | Used by the app since |
+| Contribution | Manifest | Protocol |
 |---|---|---|
-| `service`, `tools`, `automation` | `contributes.*` or the top level (not both) | modules (§1–§9) |
-| `database[]` | `id` (engine, never a built-in one), `title`, `model` (`sql` / `keyValue` / `document`), `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote` (`"` or `` ` ``), `keywords`, `functions`, `readCommands` (trusted only for library extensions), `logo` (`si:<slug>`), `command` (its own program; else `runtime`, started apart with `SK_ROLE=database`). The driver speaks the database protocol — [database.md](database.md) | stage 2 |
-| `storage[]` | `id` (kind), `title`, `signIn` (`keys` / `login` / `browser` — needs `oauth` / `none`), `fields` (settings, §3.3 kinds), `capabilities` | stage 4 |
-| `source[]` | `id` (kind), `title`, `fields`, `refresh` (s, 60…86400) | stage 4 |
-| `nodeType[]` | `id`, `title`, `icon`, `fields` (settings and `node` links, §14), `screen` (an id of `contributes.screen`) | stage 3 (§14) |
-| `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | stage 3 (§14) |
-| `import[]` | `id`, `title`, `description`, `fileExtensions` (no dot, or `*`), `maxSizeMB`; the program answers `import/parse` (§15) | stage 6 |
-| `console[]` | `id`, `title`, `description`, `appliesTo` (`connection` — the default — and node types of the extension); the program answers `console/open` (§16) | stage 6 |
-| `ai[]` | `id`, `title`, `icon`, `description`, `fields` (the profile's settings; `secret` ones kept in the keychain), `reasoning` (levels) — §13 | stage 6 |
+| `service`, `tools`, `automation` | `contributes.*` or the top level (not both) | §1–§9 |
+| `database[]` | `id` (engine, never a built-in one), `title`, `model` (`sql` / `keyValue` / `document`), `defaultPort`, `isFile`, `hasSchemas`, `hasEditorTransactions`, `identifierQuote` (`"` or `` ` ``), `keywords`, `functions`, `readCommands` (trusted only for library extensions), `logo` (`si:<slug>`), `command` (its own program; else `runtime`, started apart with `SK_ROLE=database`). The driver speaks the database protocol — [database.md](database.md) | database.md |
+| `storage[]` | `id` (kind), `title`, `signIn` (`keys` / `login` / `browser` — needs `oauth` / `none`), `fields` (settings, §3.3 kinds), `capabilities` | §12 |
+| `source[]` | `id` (kind), `title`, `fields`, `refresh` (s, 60…86400) | §12 |
+| `nodeType[]` | `id`, `title`, `icon`, `fields` (settings and `node` links, §14), `screen` (an id of `contributes.screen`) | §14 |
+| `screen[]` | `id`, `title`, `placement` (`tab` / `section` / `panel`), `render` (a handler building the view) | §11, §14 |
+| `import[]` | `id`, `title`, `description`, `fileExtensions` (no dot, or `*`), `maxSizeMB`; the program answers `import/parse` | §15 |
+| `console[]` | `id`, `title`, `description`, `appliesTo` (`connection` — the default — and node types of the extension); the program answers `console/open` | §16 |
+| `ai[]` | `id`, `title`, `icon`, `description`, `fields` (the profile's settings; `secret` ones kept in the keychain), `reasoning` (levels) | §13 |
 
 - Every contribution has an `id` (`^[a-z][a-z0-9_-]{0,39}$`, unique within its kind), a `title` (text or per
   language) and an optional `icon`. Built-in kinds and engines (`mysql`, `s3`, `tailscale`…) are never replaced.
@@ -353,7 +358,7 @@ and read as extensions unchanged.
 - An update that adds a contribution, like one that adds a permission, is installed **switched off** until the user
   switches it on.
 - Trust: an extension installed from any file is shown as «Автор не проверен»; extensions of SSHKipper's library
-  (signed, stage 5) as «Проверено SSHKipper».
+  (signed by SSHKipper) as «Проверено SSHKipper».
 - A program serves every contribution of its extension: handlers through `handler/call` (§4.2), a contribution's own
   methods (`ui/event`, a storage's `storage/list`… — §11–12) as JSON-RPC requests on the same connection. A
   database driver is the exception: a separate process speaking the database protocol ([database.md](database.md)).
@@ -475,7 +480,8 @@ nothing else's. A browser sign-in's token comes as `settings.oauth`. Paths are `
 {"name": "b.txt", "type": "file" | "folder", "size": 11, "modified": 1767225600, "digest": {"algorithm": "sha256" | "md5", "value": "<hex>"}}
 ```
 
-`modified` — seconds since 1970 (or an ISO 8601 string); `digest` — optional: the app checks the downloaded file
+`modified` — seconds since 1970, or an ISO 8601 date and time (`2026-01-01T00:00:00.000Z`, fractional seconds and an
+offset optional; without an offset it is UTC); `digest` — optional: the app checks the downloaded file
 against it and fails the download on a mismatch.
 
 | Method | Params (besides `storage`) | Result | Capability |
@@ -663,7 +669,7 @@ another extension's node — is refused (`-32001`).
 ## 15. Import
 
 A `contributes.import[]` item reads another program's file into folders and connections. The user picks the file
-(File → «Импорт: <title>…», the tree's «Создать», Settings → Хосты); **the app reads it** and sends its bytes — the
+(File → Import → «<title>…», the same in the toolbar's «+» and the tree's Create menu); **the app reads it** and sends its bytes — the
 program never gets the path, and gets nothing else of the disk through the app.
 
 ### 15.1 `import/parse` (app → program)
@@ -706,7 +712,7 @@ back. The free version imports as many connections as it allows.
 
 A `contributes.console[]` item is a text console the program streams — a provider's serial console, IPMI SoL, a
 hypervisor's `virsh console` — in a terminal tab of the app: the app's own terminal (find, copy, the session log when
-the server keeps one, OSC 52 asked as for any server). It opens from a node's menu («Консоль: <title>») — a
+the server keeps one, OSC 52 asked as for any server). It opens from a node's menu («Console: <title>», «Консоль: <title>») — a
 connection's, unless `appliesTo` says otherwise. A graphical console (KVM, VNC) can't be one: the app draws no
 pixels of an extension.
 

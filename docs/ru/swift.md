@@ -7,7 +7,8 @@
 - типы манифеста и протокола (`Manifest`, `Request`, `Context`, `ScreenEvent`, `StorageRef`, `FoundHost`,
   `ImportResult`, `AIChatRequest`…), все `Codable`, и `JSON` для свободных данных;
 - `Extension` — цикл JSON-RPC из spec/protocol.md §4 на stdin/stdout: обработчики, отмена (`cancel` отменяет задачу
-  обработчика), `initialize` и `shutdown`;
+  обработчика), `initialize` и `shutdown`; `setup { app, locale in … }` выполняется до ответа на `initialize` —
+  приложение ждёт этот ответ 15 с, поэтому держите его коротким, а долгое делайте при первом вызове;
 - `AppHost` — что приложение делает для программы (`ctx.host`): `exec`, `secret`, `nodeSecret`, `storeGet` /
   `storeSet`, `notify`, `log`, `forward`, `oauth`, `open`, `ask` (имя `AppHost`, а не `Host`: в Foundation есть свой
   `Host`);
@@ -15,8 +16,9 @@
 - вклады: `storage(_: StorageProvider)`, `source(_: SourceProvider)`, `importer(_:_:)`, `console(_:_:)`,
   `ai(_: AIProvider)`, `method(_:_:)` для остального;
 - `UI` и `Op` — конструкторы UI-Kit и операции `ui/patch`;
-- `DB` и `DatabaseDriver` — протокол баз (spec/database.md) для драйвера `contributes.database`: те же формы, что у
-  `Packages/DatabaseProtocol` приложения для модели `sql`; `"id"` — первым в каждой строке.
+- `DB` и `DatabaseDriver` — протокол баз (spec/database.md) для драйвера `contributes.database`: формы spec/database.md для
+  модели `sql` (движки `keyValue` и `document` — §4.1, ответ через `on("redis.scan", JSON.self) { … }`); `"id"` — первым в
+  каждой строке.
 
 ## Пример
 

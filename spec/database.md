@@ -1,8 +1,7 @@
 # SSHKipper database protocol — version 1
 
 What a driver of a `contributes.database` engine answers (spec/protocol.md §10). It is the protocol of the app's
-built-in database extension (`sshkipper-db`, `Packages/DatabaseProtocol` in the app's repository): an extension's
-engine gets the same tab — query editor, grid with edits, filters, structure, AI, Production and «Только чтение», a
+built-in database extension (`sshkipper-db`): an extension's engine gets the same tab — query editor, grid with edits, filters, structure, AI, Production and «Только чтение», a
 forward over SSH — because its program answers the same requests. TypeScript types and a serve loop:
 `packages/sdk/src/database.ts`; an example driver: `examples/db-sqlite-node`.
 
@@ -31,7 +30,7 @@ forward over SSH — because its program answers the same requests. TypeScript t
 | `readCommands` | First words of statements that only read. **Trusted only for an extension of the SSHKipper library** (§5). |
 | `command` | The driver's own program; without it the extension's `runtime.command` is started for the driver. |
 
-The engine is known as soon as the extension is active — pickers, the palette and «Новая база» list it before any
+The engine is known as soon as the extension is active — pickers, the palette and File → Database… list it before any
 program runs. Switched off or removed, it disappears from the pickers; its nodes stay in the document and the tab
 says the extension is needed.
 
@@ -77,7 +76,7 @@ Types are in `packages/sdk/src/database.ts` (`Methods`). All but `hello` name a 
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
-| `hello` | `{}` | `{protocolVersion: 1, pluginVersion, engines: [EngineInfo], features?}` | Asked once per process. `engines[]` must name the manifest's engines (`supportsEditing`, `supportsTransactions`, `hasDatabases` drive the grid); the descriptor stays the manifest's. `features: ["passwordBytes"]` — the password comes as `passwordBase64`. |
+| `hello` | `{}` | `{protocolVersion: 1, pluginVersion, engines: [EngineInfo], features?}` | Asked once per process. `engines[]` must name the manifest's engines: `engine` and `title` are required, the rest optional — `supportsEditing` (false), `supportsTransactions` (false), `hasDatabases` (true) drive the grid, `keywords` and `functions` ([] — the manifest's), `identifierQuote` (the manifest's); the descriptor stays the manifest's. `features: ["passwordBytes"]` — the password comes as `passwordBase64`. |
 | `connect` | `{session, connection: ConnectParams}` | `{serverVersion, serverTitle, database?, readOnly?, readOnlyReason?}` | `connection.readOnly` — the node is «Только чтение»: open read-only where you can. Say `readOnly: true` when the session can't write anyway. |
 | `disconnect` | `{session}` | `{}` | Also stops what still runs. |
 | `ping` | `{session}` | `{}` | |
@@ -90,12 +89,40 @@ Types are in `packages/sdk/src/database.ts` (`Methods`). All but `hello` name a 
 | `applyChanges` | `{session, database?, table, changes: [RowChange], dryRun}` | `{statements, affectedRows}` | `dryRun` — only the statements: the app shows them in its confirmation before it sends the same request without `dryRun`. Write all or nothing; an update or delete must touch exactly its row (else roll back and say «nothing written»). Refuse while the editor holds a transaction. |
 | `serverInfo` | `{session}` | `[{title, value, key?, number?, unit?}]` | The info panel. |
 
-`keyValue` engines answer the key browser's methods `redis.scan`, `redis.value`, `redis.command` with Redis's
-semantics (types `string`, `hash`, `list`, `set`, `zset`, `stream`; commands as redis-cli words) and `document`
-engines the collection's `mongo.find`, `mongo.write` (filters in Mongo shell syntax); their shapes are those of the
-built-in extension (`RedisScanResult`, `RedisValue`, `RedisReply`, `MongoFindResult`, `MongoWriteOp` in
-`Packages/DatabaseProtocol/Sources/DatabaseProtocol/Models.swift`). A method a driver doesn't answer is `unsupported`
-and the tab says so where it is used.
+A method a driver doesn't answer is `unsupported` and the tab says so where it is used.
+
+### 4.1 `keyValue` and `document` engines
+
+A `keyValue` engine answers the key browser with Redis's semantics (types `string`, `hash`, `list`, `set`, `zset`,
+`stream`; commands as redis-cli words); a `document` engine answers a collection's page and its edits (filters,
+projections and sorts as Mongo shell text: `{status: "paid", total: {$gt: 100}}`). Besides `hello`, `connect`,
+`disconnect`, `ping`, `cancel`, `databases`, `objects` (`kind: "collection"` for a document engine) and `serverInfo`:
+
+| Method | Params | Result |
+|---|---|---|
+| `redis.scan` | `{session, db, cursor, pattern, count}` — `cursor` `"0"` to start, `pattern` a glob (`*`) | `{cursor, keys: [{key, type, ttl}]}` — `cursor` `"0"` when the scan is done; `ttl` seconds, `-1` none, `-2` gone |
+| `redis.value` | `{session, db, key, offset, limit}` | `{key, type, ttl, length, memory?, encoding?, text?, textIsExact?, binaryPreviewBytes?, items, offset}` |
+| `redis.command` | `{session, db, args: [string], escaped: [int]}` — `escaped`: positions of arguments written as the browser shows bytes (`\xff`) | a RESP reply `{kind, text?, items?}` |
+| `mongo.find` | `{session, database, collection, filter, projection?, sort?, skip, limit, countTotal, queryID}` | `{documents: [string], total?, command, durationMs, cut?}` |
+| `mongo.write` | `{session, database, collection, ops: [{kind, original?, document?}], dryRun}` | `{statements, affectedRows}` |
+
+- `redis.value`: `length` — elements in the value (a string: its bytes); `memory` — bytes the key uses, when known;
+  `text` — a string's value; `textIsExact` — `text` is the whole value as plain text (safe to edit and write back);
+  `binaryPreviewBytes` — a binary string: `text` shows only its first this many bytes. `items` — a page of a
+  collection's elements: `[value]` for `list` and `set`, `[field, value]` for `hash`, `[member, score]` for `zset`,
+  `[id, "field=value"…]` for `stream`; a list's index is `offset + row`.
+- A RESP reply's `kind`: `string`, `status`, `error`, `integer`, `double`, `bool`, `null`, `array`, `map`, `set`,
+  `bigNumber`, `verbatim`; scalars carry `text`, `array` / `map` / `set` carry `items` (a map — key, value, key…).
+- `mongo.find`: `documents` — Mongo shell text, field order kept; `total` — matching documents, or absent when not
+  counted; `command` — the command as the shell would write it (the tab shows it); `cut` — positions of documents
+  too big to hand over whole (over 1 MB of text): shown read-only.
+- `mongo.write`: `kind` `insert` (`document`), `replace` (`original`, `document` — the `_id` kept) or `delete`
+  (`original`). A replacement or deletion applies only while the stored document still is `original`; on the first
+  that isn't, stop and answer an error with `appliedChanges` — how many were written. `dryRun` — only the shell
+  commands that would run, as `statements`.
+- The pages (`redis.scan`, `redis.value`, `mongo.find`) are reads; a command typed in the console and a write of the
+  key browser or a collection (`redis.command`, `mongo.write`) are changes of an extension's engine and are asked
+  about as §5 says.
 
 ## 5. What runs without a question
 

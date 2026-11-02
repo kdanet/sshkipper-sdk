@@ -171,7 +171,7 @@ public struct AppHost: Sendable {
     /// A notification of macOS (permission `notify`).
     public func notify(title: String, text: String) async throws { _ = try await connection.request("host/notify", ["title": .string(title), "text": .string(text)]) }
 
-    /// A line of the extension's log (Settings → Extensions → «Журнал…»).
+    /// A line of the extension's log (Settings → Extensions → Log…).
     public func log(_ level: LogLevel, _ message: String) { connection.notify("host/log", ["level": .string(level.rawValue), "message": .string(message)]) }
 
     /// A port forwarded through the SSH session of the server the user bound `node` to (permission `forward`).
