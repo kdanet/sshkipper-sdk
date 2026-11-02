@@ -65,6 +65,12 @@ The rules that matter most:
   one row per update or delete.
 - `cancel` must work while a `query` runs — the example kills the process that runs the statement.
 - Values are text, `null` for NULL, binary as `0x…`.
+- Don't answer `connect` with `readOnly: true` unless the session really can't write (a read-only file, a replica):
+  the tab becomes «Только чтение», and without verified read commands (§4 below) the editor then runs nothing, not
+  even a SELECT.
+- `keyValue` and `document` engines answer their browsers' methods too — `redis.scan`, `redis.value`, `redis.command`
+  and `mongo.find`, `mongo.write`: [spec/database.md §4.1–4.2](../../spec/database.md#41-keyvalue--the-key-browser-like-redis),
+  types `KeyInfo`, `ScanResult`, `KeyValue`, `Reply`, `FindResult`, `WriteOp` in `database.ts`.
 
 ## 3. How it runs
 
@@ -87,7 +93,9 @@ ignored, and the extension's log says so. Even then a statement with a second st
 changes data, `INTO`, a locking read or a side-effect function is still a change, and words that change data
 (`with`, `set`, `insert`…) are never accepted as read commands.
 
-Open a «Только чтение» node read-only yourself (`connection.readOnly`) — a second line of defence.
+A new node of your engine is «Обычный» (a file engine's too): statements run as typed. In Production each asks; in
+«Только чтение» none runs without verified read commands, and the tab says so — tables, keys and collections are
+still browsed. Open a «Только чтение» node read-only yourself (`connection.readOnly`) — a second line of defence.
 
 ## 5. Try it
 

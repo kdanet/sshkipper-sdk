@@ -148,6 +148,63 @@ export interface ColumnValue { column: string; value: CellValue }
 export interface RowChange { kind: "update" | "insert" | "delete"; key: ColumnValue[]; values: ColumnValue[] }
 export interface ApplyResult { statements: string[]; affectedRows: number }
 
+// MARK: keyValue engines (the key browser) — spec/database.md §4.1
+
+/** A key in a `redis.scan` page. `type`: string, hash, list, set, zset, stream (another type is shown, not edited). */
+export interface KeyInfo { key: string; type: string; /** Seconds to live; -1 — no expiry, -2 — gone. */ ttl: number }
+
+export interface ScanResult {
+  /** "0" when the scan is complete; else what the next `redis.scan` sends back. */
+  cursor: string;
+  keys: KeyInfo[];
+}
+
+/** One key's value, a page of its elements. */
+export interface KeyValue {
+  key: string;
+  type: string;
+  ttl: number;
+  /** Elements in the value (a string: its bytes). */
+  length: number;
+  /** Memory the key uses, bytes, when known. */
+  memory?: number;
+  encoding?: string;
+  /** A string value as text (binary bytes escaped as "\xff"). */
+  text?: string;
+  /** `text` is the whole value as plain text (not cut, no escaped bytes): the browser lets it be edited. */
+  textIsExact?: boolean;
+  /** A binary string: `text` shows only its first this many bytes. */
+  binaryPreviewBytes?: number;
+  /** Elements from `offset`: [value] for list and set, [field, value] for hash, [member, score] for zset,
+   *  [id, "field=value"…] for stream. A list's index is `offset + row`. */
+  items: string[][];
+  offset: number;
+}
+
+/** A reply of `redis.command`, as a tree (redis-cli shows it). */
+export interface Reply {
+  kind: "string" | "status" | "error" | "integer" | "double" | "bool" | "null" | "array" | "map" | "set" | "bigNumber" | "verbatim";
+  text?: string;
+  items?: Reply[];
+}
+
+// MARK: document engines (the collection browser) — spec/database.md §4.2
+
+export interface FindResult {
+  /** Documents as Mongo shell text (`{_id: ObjectId("…"), name: "a"}`), field order kept. */
+  documents: string[];
+  /** Matching documents in all; omit when not counted. */
+  total?: number;
+  /** The command that ran, as the shell would write it (shown and copyable). */
+  command: string;
+  durationMs: number;
+  /** Positions of documents too big to hand over whole: shown read-only. */
+  cut?: number[];
+}
+
+/** A change of `mongo.write`: `original` — the document as read (it must still be so on the server), shell text. */
+export interface WriteOp { kind: "insert" | "replace" | "delete"; original?: string; document?: string }
+
 // MARK: Requests
 
 export interface Methods {
@@ -168,6 +225,21 @@ export interface Methods {
   /** Edits of the grid; `dryRun` — only the statements (the app shows them before asking). */
   applyChanges(p: { session: string; database?: string; table: string; changes: RowChange[]; dryRun: boolean }): ApplyResult;
   serverInfo(p: { session: string }): InfoItem[];
+
+  /** keyValue: a page of keys of database `db` matching `pattern` (glob: `*`, `?`, `[…]`) from `cursor`. */
+  "redis.scan"(p: { session: string; db: number; cursor: string; pattern: string; count: number }): ScanResult;
+  /** keyValue: a key's value and a page of its elements (`offset`, `limit`). */
+  "redis.value"(p: { session: string; db: number; key: string; offset: number; limit: number }): KeyValue;
+  /** keyValue: a command as redis-cli words (`["HSET", "k", "f", "v"]`); `escaped` — positions of arguments written
+   *  as the browser shows bytes ("\xff"): decode them to bytes. The browser's writes and its console come here. */
+  "redis.command"(p: { session: string; db: number; args: string[]; escaped: number[] }): Reply;
+  /** document: a page of a collection. `filter`, `projection`, `sort` — Mongo shell text (`{status: "paid"}`); empty —
+   *  none. `countTotal` — count the matching documents too (bounded in time). Cancelled by `queryID` like a query. */
+  "mongo.find"(p: { session: string; database: string; collection: string; filter: string; projection?: string; sort?: string;
+                    skip: number; limit: number; countTotal: boolean; queryID: string }): FindResult;
+  /** document: whole documents inserted, replaced, deleted in order; a replace or delete applies only while the document
+   *  still equals `original`, else stop and fail with `appliedChanges`. `dryRun` — only the shell commands. */
+  "mongo.write"(p: { session: string; database: string; collection: string; ops: WriteOp[]; dryRun: boolean }): ApplyResult;
 }
 
 export type ErrorCode = "auth" | "connection" | "query" | "cancelled" | "unsupported" | "notConnected" | "invalidRequest" | "internalError";

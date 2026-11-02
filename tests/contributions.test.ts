@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync, symlinkSync, mkdirSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,6 +86,52 @@ test("folder storage: parts, abort, folders, rename, delete, no way out", async 
     p.stop();
     rmSync(dir, { recursive: true, force: true });
     rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("folder storage: a symbolic link inside the folder leads nowhere — reading, listing, writing, committing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "sk-folder-"));
+  const outside = mkdtempSync(join(tmpdir(), "sk-outside-"));
+  const data = mkdtempSync(join(tmpdir(), "sk-data-"));
+  writeFileSync(join(outside, "secret.txt"), "top secret");
+  symlinkSync(outside, join(dir, "out"));
+  symlinkSync(join(outside, "secret.txt"), join(dir, "file-link"));
+  mkdirSync(join(dir, "sub"));
+  const p = program(join(root, "examples/example-folder-storage"), { SK_DATA: data });
+  try {
+    const storage = { node: "n1", kind: "folder", settings: { root: dir }, readOnly: false, throughServer: false };
+    await p.call("initialize", { sdk: 1, app: "t", module: { id: "x", version: "1" }, locale: "en" });
+    for (const path of ["/out/secret.txt", "/file-link"]) {
+      assert.match((await p.call("storage/read", { storage, path, offset: 0, length: 100 })).error?.message ?? "", /symbolic link/, path);
+      assert.ok((await p.call("storage/stat", { storage, path })).error, path);
+    }
+    assert.match((await p.call("storage/list", { storage, path: "/out" })).error?.message ?? "", /symbolic link/);
+    assert.deepEqual((await p.call("storage/list", { storage, path: "/" })).result.items.map((i: any) => i.name), ["sub"], "links aren't listed");
+    assert.ok((await p.call("storage/write/begin", { storage, path: "/out/new.txt", size: 1 })).error);
+    assert.ok((await p.call("storage/mkdir", { storage, path: "/out/made" })).error);
+    assert.ok((await p.call("storage/delete", { storage, path: "/out/secret.txt", recursive: false })).error);
+    // A link put in the way after the upload began: the commit refuses, the part goes.
+    const up = (await p.call("storage/write/begin", { storage, path: "/sub/x.txt", size: 1 })).result.upload;
+    await p.call("storage/write/chunk", { storage, upload: up, offset: 0, data: Buffer.from("x").toString("base64") });
+    rmSync(join(dir, "sub"), { recursive: true });
+    symlinkSync(outside, join(dir, "sub"));
+    assert.match((await p.call("storage/write/commit", { storage, upload: up })).error?.message ?? "", /symbolic link/);
+    assert.ok(!existsSync(join(outside, "x.txt")));
+    assert.deepEqual(readdirSync(join(data, "uploads")), []);
+    // Read-only at commit time: nothing appears either.
+    unlinkSync(join(dir, "sub"));
+    mkdirSync(join(dir, "sub"));
+    const late = (await p.call("storage/write/begin", { storage, path: "/sub/y.txt", size: 1 })).result.upload;
+    assert.ok((await p.call("storage/write/commit", { storage: { ...storage, readOnly: true }, upload: late })).error);
+    assert.ok(!existsSync(join(dir, "sub", "y.txt")));
+    // The folder itself may be a link (on macOS /tmp is one): that is the storage.
+    const viaLink = join(outside, "root-link");
+    symlinkSync(dir, viaLink);
+    const linked = { ...storage, settings: { root: viaLink } };
+    assert.deepEqual((await p.call("storage/list", { storage: linked, path: "/" })).result.items.map((i: any) => i.name), ["sub"]);
+  } finally {
+    p.stop();
+    for (const d of [dir, outside, data]) rmSync(d, { recursive: true, force: true });
   }
 });
 

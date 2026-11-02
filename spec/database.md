@@ -78,7 +78,7 @@ Types are in `packages/sdk/src/database.ts` (`Methods`). All but `hello` name a 
 | Method | Params | Result | Notes |
 |---|---|---|---|
 | `hello` | `{}` | `{protocolVersion: 1, pluginVersion, engines: [EngineInfo], features?}` | Asked once per process. `engines[]` must name the manifest's engines (`supportsEditing`, `supportsTransactions`, `hasDatabases` drive the grid); the descriptor stays the manifest's. `features: ["passwordBytes"]` — the password comes as `passwordBase64`. |
-| `connect` | `{session, connection: ConnectParams}` | `{serverVersion, serverTitle, database?, readOnly?, readOnlyReason?}` | `connection.readOnly` — the node is «Только чтение»: open read-only where you can. Say `readOnly: true` when the session can't write anyway. |
+| `connect` | `{session, connection: ConnectParams}` | `{serverVersion, serverTitle, database?, readOnly?, readOnlyReason?}` | `connection.readOnly` — the node is «Только чтение»: open read-only where you can. Say `readOnly: true` (with `readOnlyReason`) only when the session can't write anyway — a read-only file, a replica: the tab is then «Только чтение» whatever the node's mode, and for an engine without verified read commands (§5) that refuses every statement of the editor, a SELECT too. A driver that just doesn't write leaves it out. |
 | `disconnect` | `{session}` | `{}` | Also stops what still runs. |
 | `ping` | `{session}` | `{}` | |
 | `query` | `{session, sql, database?, maxRows, queryID, readOnly?, isolated?}` | `Result` | One statement (the app splits scripts by the dialect). `readOnly` — the app wants a read the engine guarantees; `isolated` — not on the editor's connection state. Report `inTransaction` after it when the engine has editor transactions. |
@@ -90,17 +90,49 @@ Types are in `packages/sdk/src/database.ts` (`Methods`). All but `hello` name a 
 | `applyChanges` | `{session, database?, table, changes: [RowChange], dryRun}` | `{statements, affectedRows}` | `dryRun` — only the statements: the app shows them in its confirmation before it sends the same request without `dryRun`. Write all or nothing; an update or delete must touch exactly its row (else roll back and say «nothing written»). Refuse while the editor holds a transaction. |
 | `serverInfo` | `{session}` | `[{title, value, key?, number?, unit?}]` | The info panel. |
 
-`keyValue` engines answer the key browser's methods `redis.scan`, `redis.value`, `redis.command` with Redis's
-semantics (types `string`, `hash`, `list`, `set`, `zset`, `stream`; commands as redis-cli words) and `document`
-engines the collection's `mongo.find`, `mongo.write` (filters in Mongo shell syntax); their shapes are those of the
-built-in extension (`RedisScanResult`, `RedisValue`, `RedisReply`, `MongoFindResult`, `MongoWriteOp` in
-`Packages/DatabaseProtocol/Sources/DatabaseProtocol/Models.swift`). A method a driver doesn't answer is `unsupported`
-and the tab says so where it is used.
+A method a driver doesn't answer is `unsupported` and the tab says so where it is used. The methods above serve
+every model; the browsers of the other two models add their own (types: `database.ts` — `KeyInfo`, `ScanResult`,
+`KeyValue`, `Reply`, `FindResult`, `WriteOp`; Swift: `DB.Redis…`, `DB.Mongo…`). They are the methods of the app's
+built-in Redis and MongoDB drivers, with their semantics.
+
+### 4.1 `keyValue` — the key browser (like Redis)
+
+The tab lists `databases` (numbered: `name` is `"0"`, `"1"`…; `detail` — what the list shows beside it), the key
+browser pages keys and opens values, and the editor is a console: `query` gets one command line in redis-cli syntax
+(`HGET user:1 name`; quotes and `\xff` escapes as redis-cli reads them) in `sql`, `database` — the number, and answers
+one column with the reply as redis-cli prints it.
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `redis.scan` | `{session, db, cursor, pattern, count}` | `{cursor, keys: [{key, type, ttl}]}` | One SCAN step: `pattern` — a glob (`*`, `?`, `[…]`), `count` — a hint. `cursor: "0"` back — the scan is complete. `type`: `string`, `hash`, `list`, `set`, `zset`, `stream` (others are shown, not edited); `ttl` in seconds, -1 — none. |
+| `redis.value` | `{session, db, key, offset, limit}` | `{key, type, ttl, length, memory?, encoding?, text?, textIsExact?, binaryPreviewBytes?, items, offset}` | A string: `text` (binary bytes escaped as `\xff`), `textIsExact` — `text` is the whole value as plain text (only then it is editable), `binaryPreviewBytes` — `text` shows only that many bytes. A collection: `items` from `offset` — `[value]` (list, set), `[field, value]` (hash), `[member, score]` (zset), `[id, "field=value"…]` (stream); `length` — elements in all. |
+| `redis.command` | `{session, db, args, escaped}` | `{kind, text?, items?}` | A command as words (`["HSET", "k", "f", "v"]`) — the browser's edits (SET, HSET, LSET, ZADD, DEL, EXPIRE…). `escaped` — positions of arguments written as the browser shows bytes (`\xff`): decode them to bytes. The reply as a tree: `kind` — `string`, `status`, `error`, `integer`, `double`, `bool`, `null`, `array`, `map`, `set`, `bigNumber`, `verbatim`. |
+
+Every `redis.command`, and every console line, is a change for an extension's engine (§5): Production asks with the
+command, «Только чтение» refuses it.
+
+### 4.2 `document` — the collection browser (like MongoDB)
+
+`objects` lists collections (`kind: "collection"`), `structure` describes one (fields seen in its documents as
+`columns`, its indexes), and the editor sends Mongo shell commands in `query.sql` — one per request
+(`db.orders.find({status: "paid"})`), the result's rows being documents in shell syntax. Values are shell text
+everywhere: `{_id: ObjectId("…"), total: NumberDecimal("9.90"), at: ISODate("…")}`.
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `mongo.find` | `{session, database, collection, filter, projection?, sort?, skip, limit, countTotal, queryID}` | `{documents, total?, command, durationMs, cut?}` | A page of a collection. `filter`, `projection`, `sort` — shell text (`{status: "paid", total: {$gt: 100}}`), empty — none. `countTotal` — count the matches too (bounded in time; leave `total` out when it took too long). `command` — what ran, as the shell would write it. `cut` — positions of documents too big to hand over whole (the browser shows them read-only). Cancelled by `queryID` (`cancel`). |
+| `mongo.write` | `{session, database, collection, ops: [{kind, original?, document?}], dryRun}` | `{statements, affectedRows}` | The browser's edits, in order: `insert` (`document`), `replace` (`original` → `document`, the `_id` kept), `delete` (`original`). A replace or delete applies only while the document still equals `original` — else stop and fail with `appliedChanges` (how many were written). `dryRun` — only `statements`, the shell commands that would run, for the confirmation. |
 
 ## 5. What runs without a question
 
 The app decides, not the driver (`DBChangeDecision`): for an extension's engine **every statement is a change** —
 Production asks with the full text, «Только чтение» refuses it, «Обычный» runs it. Table edits are always changes.
+A new node of an extension's engine is «Обычный», a file engine's too (a built-in SQLite file opens «Только чтение»):
+with every statement a change, a read-only default would refuse even the first SELECT. The user picks Production or
+«Только чтение» in the node's card; then the refusal says why — the node's mode, or a session the driver declared
+read-only (§4 `connect`) — and that without verified read commands no statement runs in it (tables, keys and
+collections are still browsed: `tableData`, `redis.scan`/`redis.value`, `mongo.find` are reads by definition).
+The AI filter's «Выполнить как запрос» goes as a typed statement too: for an extension's engine Production asks.
 
 `readCommands` loosen this only for an extension **verified by SSHKipper** (installed from the library, `trust ==
 library`); for any other the app ignores them and writes why in the extension's log. Even then a statement is a read

@@ -12,9 +12,12 @@ sshkipper-ext validate examples/db-sqlite-node
 node --disable-warning=ExperimentalWarning examples/db-sqlite-node/driver.ts   # then {"id":1,"method":"hello","params":{}}
 ```
 
-**In SSHKipper:** «Папка разработки…» → «Новая база» → «SQLite (Node, пример)» → a `.sqlite` file. Its `readCommands`
-count only when the extension comes from SSHKipper's library: otherwise every statement is a change (Production asks).
-Guide: [database drivers](../../docs/en/database-drivers.md).
+**In SSHKipper:** «Папка разработки…» → «Новая база» → «SQLite (Node, пример)» → a `.sqlite` file. The node starts
+«Обычный»: the editor runs `select * from t` at once. Its `readCommands` count only when the extension comes from
+SSHKipper's library: otherwise every statement is a change — Production asks before each, and «Только чтение» runs
+none (the tab says so; tables are still browsed, read-only). The driver opens a «Только чтение» node's file read-only
+itself and answers `connect` with `readOnly` only then. Guide: [database drivers](../../docs/en/database-drivers.md).
 
-**По-русски:** драйвер базы данных: файлы SQLite на этом Mac через `node:sqlite`, вся вкладка базы приложения.
+**По-русски:** драйвер базы данных: файлы SQLite на этом Mac через `node:sqlite`, вся вкладка базы приложения. Новый
+узел — «Обычный»; в «Только чтение» без проверки SSHKipper редактор не выполняет ни одного запроса (так и пишет).
 Руководство — [драйверы баз данных](../../docs/ru/database-drivers.md).

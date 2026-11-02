@@ -3,8 +3,8 @@ import Foundation
 // The database protocol (spec/database.md): what a driver of a `contributes.database` engine answers. One JSON object
 // per line on stdin (requests) and stdout (responses), answered in any order — the id ties them together; logs go to
 // stderr. Not JSON-RPC: the wire of the app's built-in driver (`Packages/DatabaseProtocol` in the app's repository,
-// whose shapes these types copy for the `sql` model; `keyValue` and `document` engines answer the built-in key and
-// collection methods — their shapes are described in spec/database.md §4).
+// whose shapes these types copy: the `sql` model's methods, and the key and collection browsers' of `keyValue` and
+// `document` engines — spec/database.md §4.1–4.2).
 //
 //   request  {"id": 7, "method": "query", "params": {…}}
 //   response {"id": 7, "result": {…}}   or   {"id": 7, "error": {"code": "query", "message": "…"}}
@@ -208,6 +208,62 @@ public enum DB {
     public struct RowChange: Codable, Sendable { public var kind: String; public var key: [ColumnValue]; public var values: [ColumnValue] }
     public struct ApplyChanges: Codable, Sendable { public var session: String; public var database: String?; public var table: String; public var changes: [RowChange]; public var dryRun: Bool }
     public struct ApplyResult: Codable, Sendable { public var statements: [String]; public var affectedRows: Int; public init(statements: [String], affectedRows: Int) { self.statements = statements; self.affectedRows = affectedRows } }
+
+    // MARK: keyValue engines — the key browser (spec/database.md §4.1)
+
+    public struct RedisScan: Codable, Sendable { public var session: String; public var db: Int; public var cursor: String; public var pattern: String; public var count: Int }
+    /// `type`: string, hash, list, set, zset, stream; `ttl` in seconds, -1 — no expiry.
+    public struct RedisKeyInfo: Codable, Sendable {
+        public var key: String; public var type: String; public var ttl: Int
+        public init(key: String, type: String, ttl: Int = -1) { self.key = key; self.type = type; self.ttl = ttl }
+    }
+    /// `cursor` "0" — the scan is complete.
+    public struct RedisScanResult: Codable, Sendable {
+        public var cursor: String; public var keys: [RedisKeyInfo]
+        public init(cursor: String, keys: [RedisKeyInfo]) { self.cursor = cursor; self.keys = keys }
+    }
+    public struct RedisValueRequest: Codable, Sendable { public var session: String; public var db: Int; public var key: String; public var offset: Int; public var limit: Int }
+    /// A key's value: `text` for a string (`textIsExact` — whole and plain, so editable), `items` from `offset` for a
+    /// collection ([value], [field, value], [member, score], [id, "field=value"…]).
+    public struct RedisValue: Codable, Sendable {
+        public var key: String; public var type: String; public var ttl: Int; public var length: Int
+        public var memory: Int?; public var encoding: String?
+        public var text: String?; public var textIsExact: Bool?; public var binaryPreviewBytes: Int?
+        public var items: [[String]]; public var offset: Int
+        public init(key: String, type: String, ttl: Int = -1, length: Int, text: String? = nil, textIsExact: Bool? = nil, items: [[String]] = [], offset: Int = 0) {
+            self.key = key; self.type = type; self.ttl = ttl; self.length = length; self.text = text; self.textIsExact = textIsExact
+            self.items = items; self.offset = offset
+        }
+    }
+    /// `escaped`: positions of arguments written as the browser shows bytes ("\xff") — decode them to bytes.
+    public struct RedisCommand: Codable, Sendable { public var session: String; public var db: Int; public var args: [String]; public var escaped: [Int] }
+    /// `kind`: string, status, error, integer, double, bool, null, array, map, set, bigNumber, verbatim.
+    public struct RedisReply: Codable, Sendable {
+        public var kind: String; public var text: String?; public var items: [RedisReply]?
+        public init(kind: String, text: String? = nil, items: [RedisReply]? = nil) { self.kind = kind; self.text = text; self.items = items }
+    }
+
+    // MARK: document engines — the collection browser (spec/database.md §4.2)
+
+    /// `filter`, `projection`, `sort`: Mongo shell text; empty — none.
+    public struct MongoFind: Codable, Sendable {
+        public var session: String; public var database: String; public var collection: String
+        public var filter: String; public var projection: String?; public var sort: String?
+        public var skip: Int; public var limit: Int; public var countTotal: Bool; public var queryID: String
+    }
+    /// Documents as shell text; `cut` — positions of documents too big to hand over whole.
+    public struct MongoFindResult: Codable, Sendable {
+        public var documents: [String]; public var total: Int?; public var command: String; public var durationMs: Double; public var cut: [Int]?
+        public init(documents: [String], total: Int? = nil, command: String, durationMs: Double = 0, cut: [Int]? = nil) {
+            self.documents = documents; self.total = total; self.command = command; self.durationMs = durationMs; self.cut = cut
+        }
+    }
+    /// `kind`: insert, replace, delete; `original` — the document as read (it must still be so on the server).
+    public struct MongoWriteOp: Codable, Sendable { public var kind: String; public var original: String?; public var document: String? }
+    /// Answered with `ApplyResult`; `dryRun` — only the shell commands that would run.
+    public struct MongoWrite: Codable, Sendable {
+        public var session: String; public var database: String; public var collection: String; public var ops: [MongoWriteOp]; public var dryRun: Bool
+    }
 
     public struct Empty: Codable, Sendable { public init() {} }
 

@@ -467,7 +467,8 @@ Every call carries `storage` — which storage node it is for:
 `settings` holds every field of the contribution's `fields` (its value, else its `default`); a `secret` field comes as
 text — the program is trusted with its own node's secrets, and only with a record that is that node's field and
 nothing else's. A browser sign-in's token comes as `settings.oauth`. Paths are `/`-rooted inside the storage (`/`,
-`/a/b.txt`); the app drops entries whose names have `/`, or are `.` / `..`. An item:
+`/a/b.txt`); the app drops entries whose names are empty, have `/` or NUL, or are `.` / `..` — in every answer, for
+the file panel, automations and folder pickers alike. An item:
 
 ```json
 {"name": "b.txt", "type": "file" | "folder", "size": 11, "modified": 1767225600, "digest": {"algorithm": "sha256" | "md5", "value": "<hex>"}}
@@ -493,7 +494,9 @@ against it and fails the download on a mismatch.
 | `storage/signIn` | — | `{"account"?}` — the user pressed «Войти через браузер…» | `signIn: "browser"` |
 
 - **Reading** goes part by part: the app asks the next `offset` until `eof` (or an empty `data`). A transfer that is
-  paused continues from its offset. A part more than twice `length` fails the download.
+  paused continues from its offset. A part more than twice `length` fails the download. The file's `size` from
+  `storage/stat` bounds the read: the app stops there even without `eof`, and a part that goes past it fails the
+  download («больше, чем размер»). Give a file's exact `size` (or none): without one the app stops at 16 GB.
 - **Writing** is an upload in parts: `begin`, `chunk` in order (offsets grow), `commit`. Nothing may appear at `path`
   before `commit`. On any error, a cancel or a paused transfer the app sends `abort` (a new upload starts over).
 - A storage opened `readOnly` gets no write calls from the panel; the program should refuse them too.
@@ -683,8 +686,11 @@ doesn't end with one of `fileExtensions` (`*` — any) is refused too.
 | secret | `{"credential": "<credential id>", "kind": "password" \| "privateKey", "value": "…"}` |
 
 - `bastion` names another connection of this import — its `id`, else its `name` — or, failing that, a connection of
-  the document by name. One not found leaves the connection direct (the summary names it); a chain that comes back to
-  itself sets no bastion.
+  the document by name. A name two connections have (of this import or of the document) is not guessed: the
+  connection goes direct and the summary says the name is ambiguous. One not found leaves the connection direct too
+  (the summary names it); a chain that comes back to itself sets no bastion.
+- Give connections and credentials a stable `id` (the row's key in the other program): a re-import finds a node by it
+  first — wherever the user moved it — and two of one name in one folder stay two.
 - **Secrets come apart.** A password or a key the file held goes in `secrets`, never in a connection: the app asks
   («Импортировать без паролей» — the default, or «с паролями») and keeps them only on a yes, in the credential, as
   the document's own encrypted records. A key with a passphrase isn't taken.
@@ -696,9 +702,11 @@ doesn't end with one of `fileExtensions` (`*` — any) is refused too.
 - Tags have no field in the document: they go into the note («Теги: a, b»). Unknown keys of an item are ignored.
 
 The app shows what came (a tree, the counts, the program's warnings) in the built-in import's question, then merges
-the way its ~/.ssh/config import does: one folder per importer («Импорт: <title>»); a re-import finds a node by its
-folder path and name and updates only the fields the user hasn't changed since; undo (⌘Z) takes the whole import
-back. The free version imports as many connections as it allows.
+the way its ~/.ssh/config import does: one folder per importer («Импорт: <title>», found again by the extension's and
+importer's ids, so another interface language or a new title doesn't make a second one); a re-import finds a node by
+its `id`, else by its folder path and name (a node of this import is never taken twice), and updates only the fields
+the user hasn't changed since; undo (⌘Z) takes the whole import back. The free version imports as many connections
+as it allows.
 
 ## 16. Consoles
 
