@@ -33,6 +33,19 @@ test("database: read commands that change data and odd quotes are refused", () =
   assert.ok(!issues.has("contributes.database[0].readCommands[0]"), "select is a read");
 });
 
+test("runtime: env can't move what the app sets, arguments stay inside the package (XR-CORE-09, as the app checks)", () => {
+  const m = {
+    sdk: 1, id: "dev.acme.env", version: "1.0.0", title: "Env",
+    runtime: { kind: "process", command: ["python3", "-B", "/tmp/x.py", "--require=../x.js", "main.py"],
+               env: { HOME: "/tmp/h", PYTHONPYCACHEPREFIX: "/tmp/p", PHPRC: "/tmp", FX: "1" } },
+  };
+  const issues = new Set(validateManifest(m as any).filter((i) => i.severity === "error").map((i) => i.path));
+  for (const p of ["runtime.env.HOME", "runtime.env.PYTHONPYCACHEPREFIX", "runtime.env.PHPRC", "runtime.command[2]", "runtime.command[3]"]) {
+    assert.ok(issues.has(p), p);
+  }
+  assert.ok(!issues.has("runtime.env.FX") && !issues.has("runtime.command[4]"));
+});
+
 test("database: the serve loop answers by id, errors with codes, unknown methods as unsupported", async () => {
   const input = new PassThrough();
   const out: string[] = [];

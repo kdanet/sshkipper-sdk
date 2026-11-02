@@ -164,8 +164,10 @@ Defined before each script (POSIX sh, no dependencies — `jq` is not assumed):
 `/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin`, fixed; `HOME`, `TMPDIR`, `LANG`, `SK_SDK=1`,
 `SK_MODULE`, `SK_DATA` — a private folder for the module's files, `PYTHONPYCACHEPREFIX` under it (Python's byte code is
 read and written there, never in the module folder), plus `runtime.env` — except variables that load code from
-outside the module: `DYLD_*`, `LD_*`, `*_OPTIONS`, `*OPT`, `PYTHONSTARTUP`, `PYTHONPATH`, `NODE_PATH`, `BASH_ENV`… are
-refused by the check and never set). The program runs with the user's rights and **no sandbox**. **The module folder is read-only for the module**: an
+outside the module: `DYLD_*`, `LD_*`, `*_OPTIONS`, `*OPT`, `PYTHONSTARTUP`, `PYTHONPATH`, `PYTHONPYCACHEPREFIX`,
+`NODE_PATH`, `PHPRC`, `PERL5DB`, `BASH_ENV`… are refused by the check and never set, and the app's own `PATH`, `HOME`,
+`TMPDIR`, `LANG`, `SK_*` can't be changed). Arguments of `runtime.command` are files of the package: an absolute path,
+`~` or `..` (also after `=`, `--require=/tmp/x.js`) is refused by the check. The program runs with the user's rights and **no sandbox**. **The module folder is read-only for the module**: an
 installed module's files are hashed and approved, and a file written there (a cache, a log) reads as a changed module,
 which stops until the user approves it again — write state to `SK_DATA` or `host/store`. `.git` and `.DS_Store` are
 never part of a module. Messages are JSON-RPC 2.0 objects, **one per line**
@@ -211,8 +213,8 @@ is started again on the next call.
 | `host/secret {node}`, `host/open`, `host/ask` | an extension node's secret field; open a node, screen or terminal; ask the user (§14.3) | §14.3 | `secrets` (`node`) / — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
-containers); only the servers of calls **in progress** (their `context.server.id`) may be named — a program can't
-reach a server between calls. `stdin` and `container` don't go together (a container's command line is readable on
+containers); only the servers of calls **in progress** (their `context.server.id`) may be named — and, for an
+extension, the servers its open screens and consoles point at (§14): between calls a program reaches only those. `stdin` and `container` don't go together (a container's command line is readable on
 the server); the request fails. A method the
 module may not use returns error `-32001` ("permission").
 
