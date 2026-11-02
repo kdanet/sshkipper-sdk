@@ -213,7 +213,12 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     }
     for (const k of Object.keys(m.runtime.env ?? {}).sort()) {
       if (loadsOutsideCode(k)) err(`runtime.env.${k}`, `«${k}» loads code from outside the module — such variables can't be set`);
+      else if (setByApp(k)) err(`runtime.env.${k}`, `«${k}» is set by SSHKipper — runtime.env doesn't change it`);
     }
+    // Arguments are the package's own files: a path outside it is code nobody reviewed (as the app checks).
+    cmd.forEach((a, i) => {
+      if (i > 0 && pointsOutside(a)) err(`runtime.command[${i}]`, `«${a}» is a path outside the module folder: a program is given only its own files`);
+    });
     const program = cmd.slice(1).find((a) => /\.(ts|js|mjs|py|rb)$/.test(a));
     if (program && files && !files.has(norm(program))) err("runtime.command", `no file «${program}» in the module`);
   }
@@ -516,8 +521,22 @@ export const formatIssue = (i: Issue) => `${i.severity === "error" ? "✗" : "�
 export function loadsOutsideCode(key: string): boolean {
   const k = key.toUpperCase();
   if (k.startsWith("DYLD_") || k.startsWith("LD_") || k.endsWith("_OPTIONS") || k.endsWith("OPT")) return true;
-  return ["PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "NODE_PATH", "PERL5LIB", "PERLLIB", "RUBYLIB",
-    "BASH_ENV", "ENV", "ZDOTDIR", "CLASSPATH", "GEM_PATH", "GEM_HOME", "LUA_PATH", "LUA_CPATH"].includes(k);
+  return ["PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "PYTHONPYCACHEPREFIX", "NODE_PATH", "PERL5LIB", "PERLLIB",
+    "PERL5DB", "RUBYLIB", "PHPRC", "PHP_INI_SCAN_DIR", "BASH_ENV", "ENV", "ZDOTDIR", "CLASSPATH", "GEM_PATH", "GEM_HOME",
+    "LUA_PATH", "LUA_CPATH"].includes(k);
+}
+
+/** Variables the app sets for every program — `runtime.env` can't move them (as the app checks). */
+export function setByApp(key: string): boolean {
+  const k = key.toUpperCase();
+  return k.startsWith("SK_") || ["PATH", "HOME", "TMPDIR", "LANG", "PYTHONPYCACHEPREFIX"].includes(k);
+}
+
+/** An argument naming a path outside the package (absolute, `~`, or with `..`), as itself or after `=` (as the app checks). */
+export function pointsOutside(arg: string): boolean {
+  const eq = arg.indexOf("=");
+  const parts = eq >= 0 ? [arg, arg.slice(eq + 1)] : [arg];
+  return parts.some((p) => p.startsWith("/") || p.startsWith("~") || p.split("/").includes(".."));
 }
 
 /** `python3 -I main.py`, `/usr/bin/env python3 -Is …`: the interpreter's own options hold I or E and not B (as the app checks). */
