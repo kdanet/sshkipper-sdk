@@ -3,7 +3,8 @@
 **Shows:** a kind of storage whose files are in a folder on this Mac, answering the whole storage protocol
 (spec/protocol.md §12.1): listing, reading and writing in parts (an upload goes to a part file in `SK_DATA` and
 appears only on commit), folders, renames, deletes, free space and «Проверить»; a path check that never leaves the
-folder. The app draws the file panel, the transfer queue and the card from `fields`.
+folder — no `..`, no symbolic link below it (a link inside could lead anywhere), checked again at commit. The app
+draws the file panel, the transfer queue and the card from `fields`.
 
 **Contributes:** `storage` (kind `folder`). Permissions: none.
 

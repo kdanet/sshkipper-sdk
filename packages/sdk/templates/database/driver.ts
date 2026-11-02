@@ -64,7 +64,11 @@ await serveDatabase({
     try { data = JSON.parse(readFileSync(connection.path, "utf8")); } catch (e) { throw new DatabaseError("connection", `Can't read ${connection.path}: ${(e as Error).message}`); }
     if (!data || typeof data.tables !== "object") throw new DatabaseError("connection", "The file has no «tables» object");
     sessions.set(id, { path: connection.path, tables: data.tables });
-    return { serverVersion: "0.1.0", serverTitle: "__TITLE__", database: "main", readOnly: true, readOnlyReason: "The start reads only" };
+    // No `readOnly` here although nothing writes: an extension's engine without verified read commands has every
+    // statement counted as a change (spec/database.md §5), so a session said read-only would refuse even the editor's
+    // SELECT. Say `readOnly: true` (with `readOnlyReason`) only when the session really can't write — a read-only file,
+    // a replica; `query` below refuses anything but a read on its own.
+    return { serverVersion: "0.1.0", serverTitle: "__TITLE__", database: "main" };
   },
   disconnect: ({ session: id }) => { sessions.delete(id); return {}; },
   ping: ({ session: id }) => { session(id); return {}; },

@@ -112,6 +112,9 @@ const SMOKE: Record<string, (dir: string, id: string) => Promise<void>> = {
     const p = spawnSync("node", ["driver.ts"], { cwd: dir, encoding: "utf8", timeout: 10_000, input: lines.map((l) => JSON.stringify(l)).join("\n") + "\n" });
     const by = Object.fromEntries(p.stdout.trim().split("\n").map((l) => { assert.match(l, /^\{"id":/); const j = JSON.parse(l); return [j.id, j]; }));
     assert.equal(by[1].result.engines[0].engine, slug(id));
+    // A session said read-only makes the app refuse every statement of an engine without verified read commands
+    // (spec/database.md §5) — the editor's SELECT too: the start must not say it (XR-S-02).
+    assert.equal(by[2].result.readOnly, undefined, "connect must not declare the session read-only");
     assert.deepEqual(by[3].result.map((o: any) => o.name), ["hosts", "owners"]);
     assert.equal(by[4].result.rows.length, 2);
     assert.deepEqual(by[5].result.result.rows.map((r: any) => r[0]), ["web-2", "web-1"]);

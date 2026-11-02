@@ -52,6 +52,32 @@ test("database: the serve loop answers by id, errors with codes, unknown methods
   assert.equal(byID[3].error.code, "unsupported");
 });
 
+test("database: keyValue and document browsers' methods are typed handlers (spec/database.md §4.1–4.2)", async () => {
+  const input = new PassThrough();
+  const out: string[] = [];
+  const done = serveDatabase({
+    "redis.scan": (p) => ({ cursor: "0", keys: [{ key: `${p.pattern}-1`, type: "hash", ttl: -1 }] }),
+    "redis.value": (p) => ({ key: p.key, type: "hash", ttl: -1, length: 1, items: [["f", "v"]], offset: p.offset }),
+    "redis.command": (p) => ({ kind: "integer", text: String(p.args.length) }),
+    "mongo.find": (p) => ({ documents: [`{_id: 1, c: "${p.collection}"}`], total: 1, command: `db.${p.collection}.find(${p.filter || "{}"})`, durationMs: 0 }),
+    "mongo.write": (p) => ({ statements: p.ops.map((o) => `db.c.${o.kind}()`), affectedRows: p.dryRun ? 0 : p.ops.length }),
+  }, { input, output: (l) => out.push(l) });
+  const send = (id: number, method: string, params: unknown) => input.write(JSON.stringify({ id, method, params }) + "\n");
+  send(1, "redis.scan", { session: "s", db: 0, cursor: "0", pattern: "user:*", count: 100 });
+  send(2, "redis.value", { session: "s", db: 0, key: "user:1", offset: 0, limit: 100 });
+  send(3, "redis.command", { session: "s", db: 0, args: ["HSET", "k", "f", "v"], escaped: [] });
+  send(4, "mongo.find", { session: "s", database: "shop", collection: "orders", filter: "", skip: 0, limit: 50, countTotal: true, queryID: "q" });
+  send(5, "mongo.write", { session: "s", database: "shop", collection: "orders", ops: [{ kind: "delete", original: "{_id: 1}" }], dryRun: true });
+  input.end();
+  await done;
+  const byID = Object.fromEntries(out.map((l) => { const m = JSON.parse(l); return [m.id, m.result]; }));
+  assert.equal(byID[1].keys[0].key, "user:*-1");
+  assert.deepEqual(byID[2].items, [["f", "v"]]);
+  assert.deepEqual(byID[3], { kind: "integer", text: "4" });
+  assert.equal(byID[4].command, "db.orders.find({})");
+  assert.deepEqual(byID[5], { statements: ["db.c.delete()"], affectedRows: 0 });
+});
+
 test("database: the example driver end to end — read, edit, transaction, cancel", async () => {
   const dir = mkdtempSync(join(tmpdir(), "sk-db-"));
   const file = join(dir, "t.sqlite");
