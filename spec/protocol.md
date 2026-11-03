@@ -197,7 +197,8 @@ is started again on the next call.
 | `shutdown` | `{}` | `null`; then the module SHOULD exit |
 
 The program MUST answer `initialize` within **15 seconds** of starting; the app then ends it and the call fails with
-«… запустилась, но не ответила на initialize (Модуль не ответил за 15 с)». A program that never got to run says why
+«… запустилась, но не ответила на initialize (Модуль не ответил за 15 с)» («Расширение не ответило…» for an
+`sshkipper-extension.json`). A program that never got to run says why
 instead: macOS keeps the file in quarantine, or the system stopped it (a signal — unsigned, built for another Mac). The SDKs answer it after their `setup` hook (`defineModule({ setup })`,
 `Extension.setup`): keep that hook short and do slow work (warming a cache, a first connection) lazily, on the first
 call that needs it. Calls the app sends meanwhile wait for `setup`.
@@ -687,7 +688,9 @@ node's id, a guessed one, another extension's node — is refused (`-32001`).
   anything else (a fraction, a huge number) is `-32602`. One question of an extension on screen at a time, at most 8
   waiting; with no window to ask over (closed to the menu bar, everything locked) a question waits for one.
 - While a question of the program is on screen (`host/ask`, the command of `host/open terminal`), the timeouts of its
-  calls stop: an event that waits for the user's answer isn't cancelled after 30 s.
+  calls stop: an event that waits for the user's answer isn't cancelled after 30 s. So do they while the login behind
+  its `host/exec` (or a forward) asks the user — a new server's key, a password, a 2FA code; if the user declines, the
+  `host/exec` fails with the login's own reason («Вход отменён: ключ сервера не принят»).
 - The program ends (crashes, is killed) while its screen is open: the screen says so at once and stops — its last
   numbers aren't shown as live; «Повторить» builds it on a new program.
 
@@ -748,7 +751,7 @@ pixels of an extension.
 
 | Method | Direction | Params |
 |---|---|---|
-| `console/open` (request) | app → program | `{"console", "session", "cols", "rows", "node": {"id", "name", "host", "port", "user"}, "context"}` — answer `{}` once the console runs (30 s at most); an error is shown in the tab. A node of the extension's own type: `node` is its `context.node` (§14.1: `type`, `settings`, `links`, `secrets`) plus `host`, `port`, `user` of the server its fields point at |
+| `console/open` (request) | app → program | `{"console", "session", "cols", "rows", "node": {"id", "name", "host", "port", "user"}, "context"}` — `cols`/`rows` are the grid the tab lays out (the app waits for it, 2 s at most), so the first screen can be drawn for them; answer `{}` once the console runs (30 s at most); an error is shown in the tab. A node of the extension's own type: `node` is its `context.node` (§14.1: `type`, `settings`, `links`, `secrets`) plus `host`, `port`, `user` of the server its fields point at |
 | `console/data` | program → app | `{"session", "data": "<base64>"}` — bytes for the terminal (it MAY come before the `console/open` answer) |
 | `console/input` | app → program | `{"session", "data": "<base64>"}` — what the user typed, as the terminal encodes it (Return is `\r`; a paste comes in pieces of 48 KB) |
 | `console/resize` | app → program | `{"session", "cols", "rows"}` — when the grid changes |
