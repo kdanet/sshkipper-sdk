@@ -185,6 +185,15 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
   const handler = (path: string, n?: string) => { if (n !== undefined && !(n in handlers)) err(path, `no handler «${n}» in handlers`); };
 
   if (m.id === "registry.json") err("id", "«registry.json» is taken by the app");
+  // As the app refuses it: the title is said in the extension's questions («Asks the extension «…»»), and «SSHKipper»
+  // there would read as the app asking.
+  for (const t of typeof m.title === "string" ? [m.title] : Object.values(m.title ?? {})) {
+    if (typeof t !== "string") continue;
+    const letters = t.toLowerCase().replace(/[^\p{L}]/gu, "");
+    if (letters === "sshkipper" || letters === "sshift" || (letters.startsWith("sshkipper") && t.length <= 24)) {
+      err("title", `«${t}» passes the extension off as the app itself — choose a title of its own`);
+    }
+  }
   // As the app: a server module's handlers are commands on servers — without «exec» it runs none of them.
   if (server && Object.keys(handlers).length && !perms.has("exec")) err("permissions", "the module's scripts run on servers — add «exec» to permissions");
   symbol("icon.symbol", m.icon?.symbol);

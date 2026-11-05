@@ -204,3 +204,14 @@ test("CLI: pack -o into a folder not made yet; validate doesn't take a flag for 
     assert.ok(!/no file «--require/.test(v.stdout + v.stderr), v.stdout + v.stderr);
   } finally { rmSync(base, { recursive: true, force: true }); }
 });
+
+test("validate: a title that is the app's name is refused (N-SDK-U12)", () => {
+  const base = mkdtempSync(join(tmpdir(), "sk-cli-title-"));
+  try {
+    const dir = join(base, "svc");
+    write(dir, scaffold({ kind: "service", id: "dev.test.title", title: "SSH Kipper" }));
+    const v = ext(dir, "validate");
+    assert.notEqual(v.status, 0);
+    assert.match(v.stdout + v.stderr, /passes the extension off as the app/);
+  } finally { rmSync(base, { recursive: true, force: true }); }
+});
