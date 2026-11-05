@@ -316,6 +316,12 @@ export type Handlers = { [M in keyof AllMethods]?: (params: Parameters<AllMethod
  *  run concurrently: a `cancel` arrives while the `query` it names is still running. */
 export function serveDatabase(handlers: Handlers, io: { input?: NodeJS.ReadableStream; output?: (line: string) => void } = {}): Promise<void> {
   const write = io.output ?? ((line: string) => { process.stdout.write(line + "\n"); });
+  // stdout carries the protocol only: a stray `console.log` there was lost, or — an object with an `id` — taken for an
+  // answer to another request. As `defineModule` does, the log goes to stderr (the extension's log in the app).
+  if (!io.output) {
+    console.log = (...a: unknown[]) => console.error(...a);
+    console.info = console.log;
+  }
   const rl = createInterface({ input: io.input ?? process.stdin, crlfDelay: Infinity });
   const running = new Set<Promise<void>>();
   rl.on("line", (line) => {
