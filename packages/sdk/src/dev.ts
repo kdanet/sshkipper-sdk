@@ -206,7 +206,14 @@ function answer(output: string, kind: "json" | "text" | "lines"): Json {
 export async function call(dir: string, handler: string, o: CallOptions = {}): Promise<CallResult> {
   const m: Manifest = JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8"));
   const h = m.handlers?.[handler];
-  if (!h) return { ok: false, error: `no handler «${handler}» in handlers — ${Object.keys(m.handlers ?? {}).join(", ") || "the manifest has none"}`, stdout: "", stderr: "", log: [] };
+  if (!h) {
+    // A database driver has no handlers: it speaks spec/database.md over its own command (N-SDK-D08 — «the manifest has
+    // none» sent its author looking for handlers it should never have).
+    const driver = (m as any).contributes?.database?.length
+      ? " — a database driver isn't run by `run`: its command speaks spec/database.md (hello, connect, query…); try it in the app, or pipe JSON lines into its command yourself"
+      : "";
+    return { ok: false, error: `no handler «${handler}» in handlers — ${Object.keys(m.handlers ?? {}).join(", ") || "the manifest has none"}${driver}`, stdout: "", stderr: "", log: [] };
+  }
   const log: string[] = [];
   if (!o.unchecked) {
     // As the app: what an action, a tool or a block passes is checked against its params before anything runs.
