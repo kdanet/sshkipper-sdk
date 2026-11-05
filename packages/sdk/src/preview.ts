@@ -1,6 +1,7 @@
 // A view as text: what the app would draw, block by block — for an agent that can't see the app, a test, the CLI.
 // Templates are expanded first (with the data given), as the app does before drawing.
 
+import { BLOCKS } from "./catalog.ts";
 import type { Json, Op, View } from "./types.ts";
 import { expand, print } from "./template.ts";
 
@@ -48,9 +49,19 @@ export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; p
     return walk(v.blocks);
   };
   const rowID = (r: any, i: number) => (r && !Array.isArray(r) && r.id !== undefined ? String(r.id) : `#${i}`);
+  const types = new Set(BLOCKS.map((b) => b.type));
   ops.forEach((raw, index) => {
     const o = raw as any;
     const fail = (message: string) => problems.push({ index, op: String(o?.op), message });
+    // A block of a type the app doesn't draw: the app skips it with a warning — said here too.
+    const known = (b: any) => {
+      const walk = (x: any) => {
+        if (!x || typeof x !== "object") return;
+        if (typeof x.type === "string" && !types.has(x.type)) fail(`unknown block type «${x.type}» — the app doesn't draw it`);
+        for (const k of ["children", "blocks"]) if (Array.isArray(x[k])) x[k].forEach(walk);
+      };
+      walk(b);
+    };
     const target = (types?: string[]) => {
       const f = typeof o.id === "string" ? find(o.id) : null;
       if (!f) { fail(`no block «${o.id}»`); return null; }
@@ -58,8 +69,9 @@ export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; p
       return f;
     };
     switch (o?.op) {
-      case "replace": { const f = target(); if (f) f.list[f.index] = { ...o.block, id: o.id }; break; }
+      case "replace": { const f = target(); if (f) { known(o.block); f.list[f.index] = { ...o.block, id: o.id }; } break; }
       case "insert": {
+        known(o.block);
         let list: any[] = v.blocks;
         if (o.parent) {
           const f = find(o.parent);
@@ -86,6 +98,9 @@ export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; p
       case "rows": {
         const f = target(["datatable"]);
         if (!f) break;
+        // As the app reads them (N-SDK-U06): an offset below 0 is refused there, a total is capped at 10 000 000.
+        if (o.offset !== undefined && (!Number.isInteger(o.offset) || o.offset < 0)) fail(`offset ${o.offset}: a whole number from 0`);
+        if (o.total !== undefined && (!Number.isInteger(o.total) || o.total < 0 || o.total > 10_000_000)) fail(`total ${o.total}: a whole number from 0 to 10 000 000`);
         const rows: any[] = o.reset ? [] : [...(f.block.rows ?? [])];
         (o.rows ?? []).forEach((r: any, i: number) => { rows[(o.offset ?? 0) + i] = r; });
         f.block.rows = rows;
@@ -158,7 +173,17 @@ export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; p
         break;
       }
       case "text": { const f = target(["editor"]); if (f) f.block.text = o.text ?? ""; break; }
-      case "select": { const f = target(["datatable", "tree"]); if (f) f.block.selected = o.ids ?? []; break; }
+      case "select": {
+        const f = target(["datatable", "tree"]);
+        if (!f) break;
+        if (f.block.type === "datatable") {
+          const ids = new Set((f.block.rows ?? []).map((r: any, i: number) => rowID(r, i)));
+          const paged = typeof f.block.total === "number" && f.block.total > (f.block.rows ?? []).length;
+          for (const id of o.ids ?? []) if (!paged && !ids.has(String(id))) fail(`no row «${id}» to select`);
+        }
+        f.block.selected = o.ids ?? [];
+        break;
+      }
       case "sheet": { const f = target(["sheet"]); if (f) v.sheet = o.id; break; }
       case "close_sheet": delete v.sheet; break;
       case "notice": if (o.text) v.notice = { text: o.text, ...(o.status ? { status: o.status } : {}) }; else delete v.notice; break;

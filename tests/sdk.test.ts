@@ -495,3 +495,22 @@ test("UI-Kit catalog: every tone, status, color and example it teaches passes th
     assert.deepEqual(validateView({ blocks: [b.example as Json] }).filter((i) => i.severity === "error"), [], `the example of ${b.type}`);
   }
 });
+
+// Night review 2026-11-06 (N-SDK-U06): preview says what the app would refuse or skip in ops.
+test("applyOps: an unknown block, bad rows numbers and a row to select that isn't there are problems", async () => {
+  const { applyOps } = await import("../packages/sdk/src/preview.ts");
+  const view = { blocks: [{ type: "datatable", id: "t", columns: ["a"], rows: [{ id: "r1", cells: ["1"] }] }] };
+  const r = applyOps(view, [
+    { op: "insert", block: { type: "hologram" } },
+    { op: "select", id: "t", ids: ["nope"] },
+    { op: "select", id: "t", ids: ["r1"] },
+    // After it the table is paged (a total over its rows): rows not loaded can't be told, nothing more is said.
+    { op: "rows", id: "t", offset: -5, total: 1e12, rows: [] },
+  ] as any);
+  const text = r.problems.map((p: any) => p.message).join("\n");
+  assert.match(text, /unknown block type «hologram»/);
+  assert.match(text, /offset -5/);
+  assert.match(text, /total 1000000000000/);
+  assert.match(text, /no row «nope» to select/);
+  assert.equal(r.problems.length, 4);
+});
