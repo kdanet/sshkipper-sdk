@@ -35,8 +35,8 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
   (an automation's agent at night) it is refused.
 - `params` are checked (types, `required`, `choices`, `pattern` as a full match) and unknown keys dropped before the
   handler runs.
-- The model gets the answer with secrets masked and **at most 20 000 characters** long: a longer one is cut without a
-  mark (and JSON cut is no longer JSON). An answer whose secret couldn't be masked in place is replaced by “[module
+- The model gets the answer with secrets masked and **at most 20 000 characters** long: a longer one is cut, and a
+  line “…[module answer cut…]” tells the model so (cut JSON is no longer JSON — return a summary, not everything). An answer whose secret couldn't be masked in place is replaced by “[module
   answer hidden…]”.
 - Return compact JSON: the model reads it, not a person.
 

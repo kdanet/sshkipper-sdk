@@ -62,7 +62,7 @@ Each needs its permission in the manifest; without it the call fails with `-3200
 
 | Call | Permission | |
 |---|---|---|
-| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | runs on the call's server over the app's SSH session; `{exitCode, stdout, stderr}`; `stderr` is the error stream as it came (empty when the command wrote nothing there). Only servers of the call may be named. On the server itself unless you name a container — `{container: ctx.container}` for the service's own; `stdin` doesn't go into a container. In a container docker runs through `sudo -n` only when the server's Docker settings turn sudo -n on **and** the extension has the `sudo` permission. `timeout` is 1…3600 s (30 by default); past it the call throws “The server didn’t respond within N s” (with `stdin` it returns a non-zero `exitCode` instead). Quote values with `quote()`. |
+| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | runs on the call's server over the app's SSH session; `{exitCode, stdout, stderr}`; `stderr` is the error stream as it came (empty when the command wrote nothing there). Only servers of the call may be named. On the server itself unless you name a container — `{container: ctx.container}` for the service's own; `stdin` doesn't go into a container. In a container docker runs through `sudo -n` only when the server's Docker settings turn sudo -n on **and** the extension has the `sudo` permission. `timeout` is 1…3600 s (30 by default); past it the call throws “The server didn’t respond within N s” (with `stdin` too). Quote values with `quote()`. |
 | `ctx.host.secret(key)` | `secrets` | a secret setting of the call's server |
 | `ctx.host.store.get(key)` / `.set(key, value)` | `store` | the module's JSON storage on this Mac (≤ 1 MB in all); `null` deletes |
 | `ctx.host.notify(title, text)` | `notify` | a notification |
@@ -86,9 +86,10 @@ state in `host.store` and files in `SK_DATA` or `TMPDIR`. For the same reason do
   is the one already open. Forwards close with the program.
 - The program ends (crashes or exits by itself) — its process group gets SIGTERM at once and SIGKILL 2 s later: the
   `curl` and `ssh` it started don't outlive it.
-- Secrets the app handed out (`host.nodeSecret`, a model provider's key) are replaced with “[hidden]” in the
-  extension's log — exact values of 4 characters or more only. It is a safety net, not a licence: don't print secrets.
-  Values of `host.secret` and secret fields of storages and sources aren't masked in the log.
+- Secrets the app handed out (`host.nodeSecret`, `host.secret`, a storage's secret fields, a model provider's key, a
+  server module's secret settings) are replaced with “[hidden]” in the extension's log and in a storage's error text —
+  exact values of 4 characters or more only. It is a safety net, not a licence: don't print secrets (a changed value —
+  `base64`, a piece — isn't recognized).
 
 ## Trying it
 

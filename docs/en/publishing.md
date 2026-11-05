@@ -42,7 +42,8 @@ It copies the package into its own folder and records the SHA-256 of every file.
   version later.
 - **The `id` is for good too, and it is yours.** A package of the same `id` installs over the installed one — whoever
   made it — and gets everything kept by the `id`: settings, secret settings, `host.store`, nodes of its types, blocks in
-  automations. The install window says only “Replaces the installed “…” <version>”; it doesn't compare authors. Take
+  automations. The install window says “Replaces the installed “…” <version>”, and when another author is named — “Another author: it
+  was “…”, now “…”” (a manifest's author isn't verified, so it is a warning, not a guard). Take
   the `id` from your own domain (`dev.acme.queues`), never change it, never take someone else's.
 - An update that adds a permission or a contribution is installed **switched off** until the user switches it on.
 - `sdk` is the protocol's major version. A new major version of the protocol comes with a new number; the app keeps

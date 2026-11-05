@@ -180,8 +180,9 @@ the user approves it again («Разрешить как есть…»). Write st
 never part of a module. Messages are JSON-RPC 2.0 objects, **one per line**
 (UTF-8, `\n`-terminated, no embedded newlines) on stdin (app → module) and stdout (module → app). stderr is the
 module's log. Both sides MAY send requests; ids are unique per sender. A line longer than 16 MB ends the process. A
-line that isn't JSON-RPC, or whose JSON is nested deeper than 64 levels (the message's envelope counted), is dropped
-with «Модуль прислал не JSON-RPC» in the log — an answer lost that way leaves its call waiting until its timeout. When
+line that isn't JSON-RPC is dropped with «Расширение прислало не JSON-RPC» in the log. JSON nested deeper than 64
+levels (the message's envelope counted) isn't read either; when such a line starts with its `"id"`, the call it
+answers fails at once with «Расширение прислало ответ с вложенностью N уровней…» — otherwise it waits for its timeout. When
 the program exits on its own (or crashes) its process group gets SIGTERM at once and SIGKILL 2 s later.
 
 The app starts the program on first use and keeps it while the module is used; it stops it (`shutdown`, stdin closed,
@@ -360,7 +361,7 @@ prompt cache holds.
   The server's Production mark doesn't change it. A parameter value naming a host outside the server (a URL,
   `host:port`) asks at every level but «Полный доступ», and is refused when nobody can be asked.
 - The answer is the handler's JSON (or text), with secrets masked, at most **20 000 characters**: a longer one is cut
-  without a mark (cut JSON is text). An answer whose secret can't be masked in place is replaced by a notice.
+  and a line says so («…[ответ модуля обрезан: показаны первые 20000 из N знаков]»; cut JSON is text). An answer whose secret can't be masked in place is replaced by a notice.
 - `description` is what the model reads to choose the tool: say what it does, what it returns and when to use it.
 
 ## 10. Extensions

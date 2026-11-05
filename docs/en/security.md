@@ -73,7 +73,8 @@ then what each kind of contribution gets and what it never gets.
   key — it can send anywhere. Install programs from people you trust — as with any app.
 - An extension is known by its `id`, not by its author. A package of the same `id` installs over the installed one
   and gets everything kept by the `id`: settings, secret settings, `host.store`, nodes of its types. The install window
-  says “Replaces the installed “…””, but doesn't compare authors (outside the library an author isn't verified anyway).
+  says “Replaces the installed “…”” and warns “Another author…” when `author.name` differs (outside the library an
+  author isn't verified — it can be faked).
 - A server script runs with the rights of the connection's user (and root through `sudo -n` where allowed): it can do
   on the server what that user can. Read an extension's scripts before giving it `sudo`.
 - An agent can call an extension's tools only within the server's AI mode; a tool that changes things is as safe as
