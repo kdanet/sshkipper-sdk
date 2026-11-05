@@ -184,3 +184,23 @@ test("npm package: packed, installed from the tarball into another prefix, its C
     assert.ok(!existsSync(join(lib, "packages/swift/.build")) && !existsSync(join(lib, "examples/swift-hello/bin")));
   } finally { rmSync(base, { recursive: true, force: true }); }
 });
+
+// Night review 2026-11-06 (N-SDK-D08, U07): `pack -o dist/x` makes dist; a flag in the command isn't taken for a file.
+test("CLI: pack -o into a folder not made yet; validate doesn't take a flag for the program's file", () => {
+  const base = mkdtempSync(join(tmpdir(), "sk-cli-night-"));
+  try {
+    const dir = join(base, "svc");
+    write(dir, scaffold({ kind: "service", id: "dev.test.night", title: "Night" }));
+    const p = ext(dir, "pack", ".", "-o", "dist/x.sshkext");
+    assert.equal(p.status, 0, p.stderr);
+    assert.ok(existsSync(join(dir, "dist/x.sshkext")));
+    const proc = join(base, "proc");
+    write(proc, scaffold({ kind: "process", id: "dev.test.nightp", title: "NightP" }));
+    const mf = join(proc, "sshkipper-extension.json");
+    const m = JSON.parse(readFileSync(mf, "utf8"));
+    m.runtime.command = ["node", "--require=/tmp/x.js", ...m.runtime.command.slice(1)];
+    writeFileSync(mf, JSON.stringify(m));
+    const v = ext(proc, "validate");
+    assert.ok(!/no file «--require/.test(v.stdout + v.stderr), v.stdout + v.stderr);
+  } finally { rmSync(base, { recursive: true, force: true }); }
+});

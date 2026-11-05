@@ -18,6 +18,7 @@ sk_json_kv() {
 sk_fail() { printf '%s\n' "$*" >&2; exit 1; }
 sk_has() { command -v "$1" >/dev/null 2>&1; }
 sk_secret() {
+  case "$1" in ''|*[!A-Za-z0-9_]*) sk_fail "secret setting key must be letters, digits, _: $1" ;; esac
   sk_k=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')
   eval "sk_p=\${SK_SECRET_$sk_k:-}"
   [ -n "$sk_p" ] && [ -r "$sk_p" ] || sk_fail "no secret setting $1"

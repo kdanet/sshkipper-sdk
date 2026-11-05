@@ -219,7 +219,8 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
     cmd.forEach((a, i) => {
       if (i > 0 && pointsOutside(a)) err(`runtime.command[${i}]`, `«${a}» is a path outside the module folder: a program is given only its own files`);
     });
-    const program = cmd.slice(1).find((a) => /\.(ts|js|mjs|py|rb)$/.test(a));
+    // A flag (`--require=x.js`) isn't the program's file: it is judged as an argument above.
+    const program = cmd.slice(1).find((a) => !a.startsWith("-") && /\.(ts|js|mjs|py|rb)$/.test(a));
     if (program && files && !files.has(norm(program))) err("runtime.command", `no file «${program}» in the module`);
   }
 

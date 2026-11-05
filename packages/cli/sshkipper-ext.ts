@@ -274,7 +274,8 @@ export async function main(argv: string[]) {
         const at = join(dir, p);
         return { path: p, data: readFileSync(at), executable: (statSync(at).mode & 0o111) !== 0 };
       }));
-      try { writeFileSync(out, archive); } catch (e) { fail(`${out}: ${(e as Error).message}`); }
+      // `-o dist/x.sshkext` with no dist yet (publishing.md shows just that): the folder is made.
+      try { mkdirSync(dirname(out), { recursive: true }); writeFileSync(out, archive); } catch (e) { fail(`${out}: ${(e as Error).message}`); }
       console.log(`${out} — ${files.length} files`);
       break;
     }

@@ -93,6 +93,13 @@ export function checkInput(params: Param[], input: Record<string, Json>): { inpu
   return { input: out, dropped: Object.keys(input).filter((k) => !params.some((p) => p.key === k)) };
 }
 
+/** The non-secret settings' defaults, as the app fills a server's settings nobody set. */
+function defaultSettings(m: Manifest): Record<string, Json> {
+  const out: Record<string, Json> = {};
+  for (const s of m.settings ?? []) if (s.type !== "secret" && s.default !== undefined) out[s.key] = s.default;
+  return out;
+}
+
 export function request(m: Manifest, handler: string, o: CallOptions): Request {
   // As the app: a call has its server, unless it is a program's automation block that takes none.
   const refs = referrers(m, handler);
@@ -103,7 +110,8 @@ export function request(m: Manifest, handler: string, o: CallOptions): Request {
       ...(o.ssh ? { server: { id: DEV_SERVER, name: o.ssh, host: o.ssh.split("@").pop()!, user: o.ssh.includes("@") ? o.ssh.split("@")[0] : undefined } }
         : local ? { server: { id: DEV_SERVER, name: "this machine", host: "localhost" } } : {}),
       ...(o.container ? { container: o.container } : {}),
-      settings: o.settings ?? {}, ...(o.item !== undefined ? { item: o.item } : {}),
+      // As the app: the manifest's defaults, then what was given (`--settings`).
+      settings: { ...defaultSettings(m), ...(o.settings ?? {}) }, ...(o.item !== undefined ? { item: o.item } : {}),
       ...(o.node !== undefined ? { node: o.node } : {}),
       locale: o.locale ?? "en", sdk: 1, app: "sshkipper-ext",
     },
@@ -163,9 +171,14 @@ function listScripts(dir: string): string[] {
 
 function run(command: string, args: string[], stdin: string, timeout: number, cwd?: string): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const p = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    // Its own process group: a timeout ends what the handler started too (`sleep 600 &`), as the app does on a server —
+    // killing the shell alone left the children holding the pipes, and the CLI waited for them.
+    const p = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true });
     let stdout = "", stderr = "";
-    const t = setTimeout(() => { stderr += `\n(stopped after ${timeout} s)`; p.kill("SIGKILL"); }, timeout * 1000);
+    const t = setTimeout(() => {
+      stderr += `\n(stopped after ${timeout} s)`;
+      try { if (p.pid) process.kill(-p.pid, "SIGKILL"); } catch { p.kill("SIGKILL"); }
+    }, timeout * 1000);
     p.stdout.on("data", (d) => (stdout += d));
     p.stderr.on("data", (d) => (stderr += d));
     p.on("close", (code) => { clearTimeout(t); resolve({ code: code ?? 1, stdout, stderr }); });

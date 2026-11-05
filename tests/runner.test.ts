@@ -135,3 +135,24 @@ defineModule({
     assert.match(listed.error!, /isn't a server of a call in progress/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+// Night review 2026-11-06 (N-SDK-M04): a handler's timeout ends what it started; settings take the manifest's defaults.
+test("run: a timeout ends the handler's children too; settings come with their defaults", async () => {
+  const dir = folder({
+    "sshkipper-module.json": JSON.stringify({
+      sdk: 1, id: "dev.test.night", version: "1.0.0", title: "Night", runtime: { kind: "server" },
+      settings: [{ key: "header", title: "Header", type: "text", default: "X-Night" }],
+      handlers: { slow: { script: "scripts/slow.sh", output: "text" }, show: { script: "scripts/show.sh", output: "text" } },
+    }),
+    "scripts/slow.sh": "sleep 123 &\nsleep 124\n",
+    "scripts/show.sh": "printf '%s' \"$SK_SETTING_HEADER\"\n",
+  });
+  try {
+    const started = Date.now();
+    const r = await call(dir, "slow", { timeout: 1 } as any);
+    assert.ok(Date.now() - started < 20_000, "the CLI didn't wait for the handler's children");
+    assert.match(r.stderr, /stopped after 1 s/);
+    const s = await call(dir, "show", {});
+    assert.equal(s.ok ? s.value : s.error, "X-Night");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
