@@ -225,6 +225,8 @@ export async function main(argv: string[]) {
         }
         const r = await callMethod(dir, name, params, opts);
         for (const l of r.log) console.error(`· ${l}`);
+        // What the app would refuse in an import's answer (spec/protocol.md §15) — said here, not only in the app.
+        if (name === "import/parse" && r.ok) for (const w of importProblems(r.value)) console.error(`! ${w}`);
         for (const n of r.notices) {
           // A console's bytes as the terminal would get them (they travel as base64), control characters shown.
           const p = n.params as Record<string, Json> | null;
@@ -314,3 +316,24 @@ export async function main(argv: string[]) {
 // `npm link` runs it through a symbolic link: both sides as real paths.
 const real = (p: string) => { try { return realpathSync(p); } catch { return p; } };
 if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(import.meta.url))) await main(process.argv.slice(2));
+
+/** An import's answer as the app checks it: ports 1…65535, names, depth ≤ 12, at most 5000 nodes. */
+function importProblems(v: Json | undefined): string[] {
+  const out: string[] = [];
+  let count = 0;
+  const walk = (nodes: unknown, at: string, depth: number) => {
+    if (!Array.isArray(nodes)) return;
+    if (depth > 12) { out.push(`${at}: nested deeper than 12 — the app refuses the file`); return; }
+    nodes.forEach((n: any, i) => {
+      const here = `${at}[${i}]`;
+      count++;
+      if (!n || typeof n !== "object") { out.push(`${here}: not an object`); return; }
+      if (typeof n.name !== "string" || !n.name.trim()) out.push(`${here}.name: empty`);
+      if (n.port !== undefined && !(Number.isInteger(n.port) && n.port >= 1 && n.port <= 65535)) out.push(`${here}.port: ${n.port} — a port from 1 to 65535`);
+      walk(n.children, `${here}.children`, depth + 1);
+    });
+  };
+  walk((v as any)?.nodes, "nodes", 1);
+  if (count > 5000) out.push(`${count} nodes — the app takes at most 5000`);
+  return out;
+}

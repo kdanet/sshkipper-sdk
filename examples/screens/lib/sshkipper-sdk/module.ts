@@ -555,7 +555,12 @@ export function sourceMethods(impl: SourceImpl): Record<string, MethodFn> {
     "source/check": async (p, ctx) => {
       if (impl.check) return (await impl.check(p.source as SourceRef, ctx)) as unknown as Json;
       const r = await impl.poll(p.source as SourceRef, ctx);
-      return { text: `${r.hosts.length} host(s)${r.scope ? " · " + r.scope : ""}` };
+      // In the app's language (the check's line is shown as is).
+      const n = r.hosts.length;
+      const ru = ctx.locale?.startsWith("ru");
+      const word = !ru ? (n === 1 ? "host" : "hosts")
+        : n % 10 === 1 && n % 100 !== 11 ? "хост" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "хоста" : "хостов";
+      return { text: `${n} ${word}${r.scope ? " · " + r.scope : ""}` };
     },
   };
 }

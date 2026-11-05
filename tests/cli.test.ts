@@ -215,3 +215,14 @@ test("validate: a title that is the app's name is refused (N-SDK-U12)", () => {
     assert.match(v.stdout + v.stderr, /passes the extension off as the app/);
   } finally { rmSync(base, { recursive: true, force: true }); }
 });
+
+test("run import/parse says what the app would refuse in the answer (N-SDK-D08)", () => {
+  const base = mkdtempSync(join(tmpdir(), "sk-cli-import-"));
+  try {
+    const dir = join(base, "imp");
+    write(dir, scaffold({ kind: "import", id: "dev.test.imp", title: "Imp" }));
+    writeFileSync(join(base, "hosts.txt"), "web-1 10.0.0.5:70000 deploy\n");
+    const r = ext(dir, "run", ".", "import/parse", "--file", join(base, "hosts.txt"), "--importer", "hosts");
+    assert.match(r.stderr, /port: 70000 — a port from 1 to 65535/, r.stderr + r.stdout);
+  } finally { rmSync(base, { recursive: true, force: true }); }
+});
