@@ -231,8 +231,9 @@ call that needs it. Calls the app sends meanwhile wait for `setup`.
 | `host/secret {node}`, `host/open`, `host/ask` | an extension node's secret field; open a node, screen or terminal; ask the user (§14.3) | §14.3 | `secrets` (`node`) / — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
-containers). `timeout` is 1…3600 s (30 by default); past it the request fails with `-32000` «Сервер не ответил за N с»
-(a request with `stdin` answers with a non-zero `exitCode` instead). `stderr` is the command's error stream as it came
+containers). `timeout` is 1…3600 s (30 by default); past it the request fails with `-32000` «Сервер не ответил за N с»,
+with `stdin` too, and the command is stopped on the server (with `stdin` through the server's `timeout`, where it has
+one — coreutils or busybox; without it the command may finish there on its own). `stderr` is the command's error stream as it came
 (empty when it wrote nothing there), never stdout. In a container docker runs through `sudo -n` only when the server's
 Docker settings allow sudo **and** the extension has the `sudo` permission. Only the servers of calls **in progress**
 (their `context.server.id`) may be named — and, for an extension, the servers its open screens and consoles point at
@@ -309,8 +310,10 @@ runs as a script on its server (below); a **process module's block** calls its h
   «Что вернуть» does; `json` (default) also becomes the block's summary — `{"status": "ok" | "warn" | "error",
   "summary" (or "message"), "value", "unit", "items": [{"label", "status", "value", "detail"}], …}`; every other
   top-level key (and each key of a `values` object) whose value is a string, a number or a boolean becomes a value
-  the next blocks read as `{{ in.<key> }}` — arrays, objects and `null` don't, at most 64 keys, strings cut to 2 000
-  characters. The app's own values (`stdout`, `exit_code`, `stdout_bytes`, `duration`) are never overwritten; the
+  the next blocks read as `{{ <input>.<key> }}` — `<input>` is the reading block's input (`data` in «Команда» and
+  «Скрипт», `in` in «Условие» and «Спросить меня», the source block's id in «Итог»); arrays, objects and `null` don't
+  go on, at most 64 keys, strings cut to 2 000 characters. Module blocks themselves have no values input and their
+  parameters aren't templated: they don't read earlier blocks' values. The app's own values (`stdout`, `exit_code`, `stdout_bytes`, `duration`) are never overwritten; the
   format's keys (`items`, `metrics`, `values`, `state`, `series`, `rows`…) keep their meaning.
 - The block runs wherever the extension is on (Settings → Extensions), whatever its service is on the card's server
   in «Службы» — «Выключена» doesn't stop it.
@@ -328,7 +331,7 @@ runs as a script on its server (below); a **process module's block** calls its h
   for a run by the schedule: a 2FA code nobody can type makes the step wait for a person (the call gets an error for
   that `host/exec`, the step shows «нужен человек»), as a command's step would. It needs `exec`. Without `server`
   the block has no server, and `host/exec` is refused.
-- The answer is the block's result as a server block's stdout JSON is (§8 above, `{{ in.<key> }}` the same): with
+- The answer is the block's result as a server block's stdout JSON is (§8 above, `{{ <input>.<key> }}` the same): with
   `returns: json` (default) an object
   `{status, summary, value, unit, items: [{label, value, unit, status, detail}], …}`; with `text`, `number`, `list` — a
   string (or an object's `value` / `text` / `summary`; an array — one line per element) read as «Что вернуть». An
@@ -709,6 +712,7 @@ module's call.
 
 - `tab` — a tab of its own. Opened by a double click (Enter, the palette) on a node whose type names it
   (`nodeType.screen`), by `host/open {screen}`, or — a tab screen no node type names — from the palette by its title.
+  Opened without a node, it has no `context.node` and no `context.server`: `host/exec` there is refused.
   One tab per screen and node: opening it again brings it forward.
 - `section` — a section of a server's services tab, next to modules' sections, on the servers where the extension is
   switched on in «Службы» of the card (or its `service` is shown there). `context.server` is that server.

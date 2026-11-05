@@ -91,7 +91,8 @@ export async function previewScreen(dir: string, id: string | undefined, o: Scre
         if (n.method !== "ui/push") continue;
         const p = n.params as any;
         if (p?.screen !== screenID) { log.push(`ui/push to another screen «${p?.screen}» — dropped`); continue; }
-        const r = applyOps(live, p.ops ?? []);
+        if (depth(p) > 64) { answers.push("push: refused — nested deeper than 64 levels"); continue; }
+        const r = applyOps(live, p.ops ?? [], { push: true });
         live = r.view;
         problems.push(...r.problems);
         answers.push(`push: ${(p.ops ?? []).length} op(s)`);
@@ -111,10 +112,12 @@ export async function previewScreen(dir: string, id: string | undefined, o: Scre
       } else {
         answer = await handler(String(events), { event: event as unknown as Json });
       }
+      // As the app: an answer nested deeper than 64 levels is refused whole, before any op applies.
+      if (depth(answer) > 64) { answers.push(`${e.type}: error — the answer is nested deeper than 64 levels; the app refuses it whole`); continue; }
       const ops = Array.isArray(answer) ? answer : ((answer as any)?.ops ?? []);
       const items = Array.isArray(answer) ? undefined : (answer as any)?.items;
       answers.push(`${e.type}: ${ops.length} op(s)${items ? `, ${items.length} completion(s): ${items.slice(0, 8).map((x: any) => (typeof x === "string" ? x : x.title)).join(", ")}` : ""}`);
-      const r = applyOps(live, ops);
+      const r = applyOps(live, ops, { event: e.type });
       live = r.view;
       problems.push(...r.problems);
       applyPushes();
@@ -127,4 +130,19 @@ export async function previewScreen(dir: string, id: string | undefined, o: Scre
   } finally {
     if (program) await program.close();
   }
+}
+
+/** How deep a JSON value nests (a scalar is 0) — counted without recursion, so a hostile answer can't blow the stack. */
+function depth(v: unknown): number {
+  let max = 0;
+  const stack: [unknown, number][] = [[v, 0]];
+  while (stack.length) {
+    const [x, d] = stack.pop()!;
+    if (x && typeof x === "object") {
+      if (d + 1 > max) max = d + 1;
+      if (max > 64) return max;
+      for (const y of Object.values(x as object)) stack.push([y, d + 1]);
+    }
+  }
+  return max;
 }

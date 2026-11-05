@@ -35,7 +35,11 @@ blocks. The protocol — [spec/protocol.md §14](../../spec/protocol.md). A comp
 - **A secret** is a secret of the document owned by the node: copied and deleted with it. It is never in the settings
   the program gets — only its key in `node.secrets`; the value comes from `host.nodeSecret`.
 - **A screen** `tab` opens on a double click on the node; `section` is a section of a server's services tab (where the
-  extension is switched on in the card's «Services»); `panel` doesn't open yet.
+  extension is switched on in the card's «Services»); `panel` doesn't open yet. A `tab` screen no `nodeType.screen`
+  names is opened by the user from the palette by its title, and by the program with `host.open({screen})`: such a tab
+  has **neither a node nor a server** (`ctx.node` and `ctx.server` are empty, `host.exec` is refused as «not a server
+  of the call»). A screen that needs a server is a `section` (the server whose services are open) or a screen of your
+  node type with a `node` field pointing at the server.
 
 The user creates a node with File → From extensions → «<title>…» (the same in the toolbar's «+» and the tree's
 Create menu) or the palette; the card is a native form

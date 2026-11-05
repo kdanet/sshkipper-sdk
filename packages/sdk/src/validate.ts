@@ -187,11 +187,17 @@ function semantic(m: Manifest, files: Set<string> | undefined, out: Issue[]) {
   if (m.id === "registry.json") err("id", "«registry.json» is taken by the app");
   // As the app refuses it: the title is said in the extension's questions («Asks the extension «…»»), and «SSHKipper»
   // there would read as the app asking.
-  for (const t of typeof m.title === "string" ? [m.title] : Object.values(m.title ?? {})) {
-    if (typeof t !== "string") continue;
-    const letters = t.toLowerCase().replace(/[^\p{L}]/gu, "");
-    if (letters === "sshkipper" || letters === "sshift" || (letters.startsWith("sshkipper") && t.length <= 24)) {
-      err("title", `«${t}» passes the extension off as the app itself — choose a title of its own`);
+  // Every title a user reads as who is speaking — the extension's, its tools', blocks' and contributions' — in each
+  // language, with look-alike letters read as Latin («SSНKipper» with a Cyrillic Н).
+  const titles: [string, unknown][] = [["title", m.title]];
+  (m.tools ?? []).forEach((t: any, i: number) => titles.push([`tools[${i}].title`, t?.title]));
+  (m.automation ?? []).forEach((b: any, i: number) => titles.push([`automation[${i}].title`, b?.title]));
+  for (const [k, list] of Object.entries((m.contributes ?? {}) as Record<string, unknown>)) {
+    if (Array.isArray(list)) list.forEach((x: any, i: number) => titles.push([`contributes.${k}[${i}].title`, x?.title]));
+  }
+  for (const [path, title] of titles) {
+    for (const t of typeof title === "string" ? [title] : Object.values((title ?? {}) as object)) {
+      if (typeof t === "string" && passesForTheApp(t)) { err(path, `«${t}» passes the extension off as the app itself — choose a title of its own`); break; }
     }
   }
   // As the app: a server module's handlers are commands on servers — without «exec» it runs none of them.
@@ -569,4 +575,16 @@ export function pythonIgnoresCachePrefix(cmd: string[]): boolean {
     if (/[cmWX]/.test(a.slice(1))) break;
   }
   return (letters.has("I") || letters.has("E")) && !letters.has("B");
+}
+
+const LOOKALIKES: Record<string, string> = {
+  а: "a", в: "b", с: "c", е: "e", ё: "e", н: "h", і: "i", ї: "i", ј: "j", к: "k", м: "m", о: "o", р: "p", ѕ: "s", т: "t", х: "x",
+  у: "y", һ: "h", ԁ: "d", ԛ: "q", ԝ: "w", α: "a", β: "b", ε: "e", η: "h", ι: "i", κ: "k", μ: "m", ν: "v", ο: "o", ρ: "p",
+  τ: "t", υ: "u", χ: "x", ϲ: "c", ı: "i",
+};
+
+/** «SSHKipper», «SSH Kipper», «SSНKipper» (a Cyrillic Н): a title that is the app's name — as the app checks it. */
+export function passesForTheApp(title: string): boolean {
+  const letters = [...title.normalize("NFKC").toLowerCase()].map((c) => LOOKALIKES[c] ?? c).join("").replace(/[^\p{L}]/gu, "");
+  return letters === "sshkipper" || letters === "sshift" || (letters.startsWith("sshkipper") && [...title].length <= 24);
 }

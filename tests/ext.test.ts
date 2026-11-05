@@ -16,7 +16,7 @@ import type { Json } from "../packages/sdk/src/types.ts";
 import { KINDS, scaffold, slug } from "../packages/sdk/src/scaffold.ts";
 import { previewScreen } from "../packages/sdk/src/screens.ts";
 import { ops } from "../packages/sdk/src/ui.ts";
-import { validateFolder } from "../packages/sdk/src/validate.ts";
+import { passesForTheApp, validateFolder } from "../packages/sdk/src/validate.ts";
 import { serveMCP } from "../packages/mcp/server.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -290,4 +290,24 @@ test("MCP: safe by default — a handler runs without --allow-changes only when 
     assert.ok(!allowed.isError, allowed.content[0].text);
     assert.equal(existsSync(marker), true);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("preview as the app: a sheet only for a press or OK, numbers clamped, one line for unloaded rows (round 2)", () => {
+  const view = { blocks: [{ type: "sheet", id: "s", title: "S", children: [] }, { type: "datatable", id: "t", columns: ["a"], rows: [{ id: "r1", cells: ["x"] }] }] } as unknown as Json;
+  const pushed = applyOps(view, [{ op: "sheet", id: "s" }], { push: true });
+  assert.equal((pushed.view as any).sheet, undefined);
+  assert.match(pushed.problems[0].message, /from ui\/push/);
+  assert.match(applyOps(view, [{ op: "sheet", id: "s" }], { event: "open" }).problems[0].message, /answer to «open»/);
+  assert.equal((applyOps(view, [{ op: "sheet", id: "s" }], { event: "press" }).view as any).sheet, "s");
+  const big = applyOps(view, [{ op: "rows", id: "t", offset: -5, rows: [{ id: "r1", cells: ["y"] }], total: 1e9 }]);
+  assert.equal((big.view as any).blocks[1].total, 10_000_000);
+  assert.equal(big.problems.length, 2);
+  const many = applyOps(view, [{ op: "update_rows", id: "t", rows: Array.from({ length: 200 }, (_, i) => ({ id: `n${i}`, cells: ["z"] })) }]);
+  assert.equal(many.problems.length, 1);
+  assert.match(many.problems[0].message, /and 195 more/);
+});
+
+test("a title can't be the app's, look-alike letters too (round 2)", () => {
+  for (const t of ["SSHKipper", "SSH Kipper", "SSНKipper", "ＳＳＨＫｉｐｐｅｒ", "ЅЅНКірреr"]) assert.equal(passesForTheApp(t), true, t);
+  for (const t of ["Kipper tools", "SSH helper", "Мои серверы"]) assert.equal(passesForTheApp(t), false, t);
 });

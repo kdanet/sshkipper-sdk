@@ -64,7 +64,7 @@ What the handler gets is what a page's handler gets, with three differences:
 
 | | |
 |---|---|
-| `json` (default) | the JSON; its summary keys make the block's line in the run: `{"status": "ok" \| "warn" \| "error", "summary": "3 failed", "value": 3, "unit": "jobs", "items": [{"label", "status", "value", "detail"}]}` (`message` works as `summary`). Other top-level keys are values the next blocks read as `{{ in.<key> }}` (below). |
+| `json` (default) | the JSON; its summary keys make the block's line in the run: `{"status": "ok" \| "warn" \| "error", "summary": "3 failed", "value": 3, "unit": "jobs", "items": [{"label", "status", "value", "detail"}]}` (`message` works as `summary`). Other top-level keys are values the next blocks read as `{{ <input>.<key> }}` (below). |
 | `text`, `number`, `list` | read from stdout the way the automations' “What to return” reads a command's output |
 | `none` | only whether it worked |
 
@@ -76,12 +76,21 @@ st=ok; [ "$n" -gt 0 ] && st=warn; [ "$n" -gt 50 ] && st=error
 printf '{"status": "%s", "summary": %s, "value": %d, "unit": "jobs"}' "$st" "$(sk_json_string "$q: $n failed")" "$n"
 ```
 
-**What the next blocks get.** `{{ in.value }}`, `{{ in.summary }}`, `{{ in.status }}`, `{{ in.unit }}` — from the
-summary; `{{ in.<key> }}` — every other top-level key (and the keys of a `values` object) whose value is a string, a
+**What the next blocks get.** `{{ <input>.value }}`, `.summary`, `.status`, `.unit` — from the
+summary; `{{ <input>.<key> }}` — every other top-level key (and the keys of a `values` object) whose value is a string, a
 number or `true`/`false`: arrays, objects and `null` don't go on, up to 64 keys, a string up to 2 000 characters. Keys
 the app sets itself (`stdout`, `exit_code`, `stdout_bytes`, `duration`) aren't overwritten, and the format's keys
 (`items`, `metrics`, `values`, `state`, `series`, `rows`…) are read for what they mean — give your own values names of
-your own: `{"status": "ok", "summary": "…", "dump_file": "/tmp/x.sql.gz"}` → `{{ in.dump_file }}`.
+your own: `{"status": "ok", "summary": "…", "dump_file": "/tmp/x.sql.gz"}` → `{{ data.dump_file }}` in a «Команда» after it.
+
+**How to refer to them.** The name before the dot is the input of the block that reads the values, not always `in`:
+«Команда» and «Скрипт» call it `data` (`{{ data.dump_file }}`), «Условие» and «Спросить меня» call it `in`
+(`in.value > 80`), and «Итог» uses the id of the block the values came from (`{{ queue_check.value }}` — «Итог» has many
+inputs). **Module blocks** (server
+scripts and program blocks alike) don't read earlier blocks' values: they have no values input, and a card's parameters
+reach the script or program as typed (`{{ … }}` isn't filled in there). That's by design — a module block is described
+by its parameters and is approved by them in the permission window. Working with its result further is the built-in
+blocks' job: «Команда», «Условие», «Спросить меня», «Итог».
 
 **Sudo.** `"sudo": "required"` runs the block through `sudo -n` (the server must allow it); `auto` (the default) and
 `never` run it as the connection's user, without sudo.
@@ -110,7 +119,7 @@ A process module's block calls its handler in the program on this Mac (protocol 
   **automation's sessions** — its profile, its line of logins; at night a 2FA code nobody can type makes the step
   wait for a person. Without `server` there is no server and `host.exec` is refused.
 - Return the result as the same JSON a server block prints on stdout: an object (`{status, summary, value, items:
-  [{label, value, unit, status, detail}], …}` — its keys reach `{{ in.<key> }}` the same way) for `returns: json`, or a
+  [{label, value, unit, status, detail}], …}` — its keys reach `{{ <input>.<key> }}` the same way) for `returns: json`, or a
   string for `text` / `number` / `list`. A thrown `ModuleError` fails the step with its message.
 - The approval shows “extension program” on this Mac, the handler, the parameters and the block's `risk`.
 - Stopping the run aborts `ctx.signal`. Such a block can't run “on the server by cron” (the program is on this Mac):

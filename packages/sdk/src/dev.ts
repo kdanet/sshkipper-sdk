@@ -169,19 +169,20 @@ function listScripts(dir: string): string[] {
   return out;
 }
 
-function run(command: string, args: string[], stdin: string, timeout: number, cwd?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+function run(command: string, args: string[], stdin: string, timeout: number, cwd?: string): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
   return new Promise((resolve) => {
     // Its own process group: a timeout ends what the handler started too (`sleep 600 &`), as the app does on a server —
     // killing the shell alone left the children holding the pipes, and the CLI waited for them.
     const p = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true });
-    let stdout = "", stderr = "";
+    let stdout = "", stderr = "", timedOut = false;
     const t = setTimeout(() => {
+      timedOut = true;
       stderr += `\n(stopped after ${timeout} s)`;
       try { if (p.pid) process.kill(-p.pid, "SIGKILL"); } catch { p.kill("SIGKILL"); }
     }, timeout * 1000);
     p.stdout.on("data", (d) => (stdout += d));
     p.stderr.on("data", (d) => (stderr += d));
-    p.on("close", (code) => { clearTimeout(t); resolve({ code: code ?? 1, stdout, stderr }); });
+    p.on("close", (code) => { clearTimeout(t); resolve({ code: code ?? 1, stdout, stderr, timedOut }); });
     p.on("error", (e) => { clearTimeout(t); resolve({ code: 127, stdout, stderr: e.message }); });
     p.stdin.end(stdin);
   });
@@ -209,10 +210,14 @@ export async function call(dir: string, handler: string, o: CallOptions = {}): P
   if (!h) {
     // A database driver has no handlers: it speaks spec/database.md over its own command (N-SDK-D08 — «the manifest has
     // none» sent its author looking for handlers it should never have).
-    const driver = (m as any).contributes?.database?.length
-      ? " — a database driver isn't run by `run`: its command speaks spec/database.md (hello, connect, query…); try it in the app, or pipe JSON lines into its command yourself"
-      : "";
-    return { ok: false, error: `no handler «${handler}» in handlers — ${Object.keys(m.handlers ?? {}).join(", ") || "the manifest has none"}${driver}`, stdout: "", stderr: "", log: [] };
+    const db = (m as any).contributes?.database as { id?: string; command?: string[] }[] | undefined;
+    if (db?.length) {
+      // Said first, with how the app starts it (e3: «no handler «hello»» led, and the command wasn't named).
+      const cmd = db[0].command ?? (m.runtime as any)?.command ?? [];
+      const how = db[0].command ? `\`${cmd.join(" ")}\`` : `\`SK_ROLE=database ${cmd.join(" ")}\` (runtime.command with SK_ROLE=database)`;
+      return { ok: false, error: `«${handler}» is a database driver's method, and \`run\` doesn't start drivers: the app runs ${how} in this folder and speaks spec/database.md over its stdin/stdout (hello, connect, query…). Try it in the app, or pipe JSON lines into that command yourself.`, stdout: "", stderr: "", log: [] };
+    }
+    return { ok: false, error: `no handler «${handler}» in handlers — ${Object.keys(m.handlers ?? {}).join(", ") || "the manifest has none"}`, stdout: "", stderr: "", log: [] };
   }
   const log: string[] = [];
   if (!o.unchecked) {
@@ -356,7 +361,9 @@ export function startProgram(dir: string, m: Manifest, o: CallOptions = {}): Pro
           if (!servers().has(String(pr.server))) { refuse(msg.id, -32001, notOurs(pr.server)); break; }
           if (pr.container && pr.stdin !== undefined) { refuse(msg.id, -32602, "stdin doesn't go into a container — drop stdin or container (the app refuses the pair)"); break; }
           const r = await shell(pr.sudo ? `sudo -n sh -c ${quote(pr.command)}` : pr.command, { ssh: o.ssh, stdin: pr.stdin, timeout: pr.timeout ?? 30, container: pr.container });
-          log.push(`exec${o.ssh ? " on " + o.ssh : " here"}: ${pr.command} → ${r.code}`);
+          log.push(`exec${o.ssh ? " on " + o.ssh : " here"}: ${pr.command} → ${r.timedOut ? "timed out" : r.code}`);
+          // As in the app: past the timeout the request fails (with stdin too), it isn't an exit code.
+          if (r.timedOut) { refuse(msg.id, -32000, `Сервер не ответил за ${pr.timeout ?? 30} с`); break; }
           send({ id: msg.id, result: { exitCode: r.code, stdout: r.stdout, stderr: r.stderr } });
           break;
         }

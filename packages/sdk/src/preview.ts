@@ -31,7 +31,7 @@ export interface OpProblem { index: number; op: string; message: string }
 
 /** A live screen after ops of `ui/patch` / `ui/push`, as the app applies them (a copy; `view` isn't changed). The
  * preview's own extras: `notice` and `sheet` on the view, `selected` on a datatable or tree. */
-export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; problems: OpProblem[] } {
+export function applyOps(view: Json | View, ops: (Json | Op)[], from?: { push?: boolean; event?: string }): { view: Json; problems: OpProblem[] } {
   const v = structuredClone(view) as any;
   v.blocks ??= [];
   const problems: OpProblem[] = [];
@@ -98,23 +98,35 @@ export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; p
       case "rows": {
         const f = target(["datatable"]);
         if (!f) break;
-        // As the app reads them (N-SDK-U06): an offset below 0 is refused there, a total is capped at 10 000 000.
-        if (o.offset !== undefined && (!Number.isInteger(o.offset) || o.offset < 0)) fail(`offset ${o.offset}: a whole number from 0`);
-        if (o.total !== undefined && (!Number.isInteger(o.total) || o.total < 0 || o.total > 10_000_000)) fail(`total ${o.total}: a whole number from 0 to 10 000 000`);
+        // As the app reads them (N-SDK-U06): a number moves into 0 … 10 000 000 (a fraction rounded), said here.
+        const place = (k: string): number | undefined => {
+          const x = o[k];
+          if (x === undefined) return undefined;
+          if (typeof x !== "number" || !Number.isFinite(x)) { fail(`${k} ${JSON.stringify(x)}: not a number — the app ignores it`); return undefined; }
+          const w = Math.min(Math.max(0, Math.round(x)), 10_000_000);
+          if (w !== x) fail(`${k} ${x}: a whole number from 0 to 10 000 000 — the app takes ${w}`);
+          return w;
+        };
+        const offset = place("offset") ?? 0, total = place("total");
         const rows: any[] = o.reset ? [] : [...(f.block.rows ?? [])];
-        (o.rows ?? []).forEach((r: any, i: number) => { rows[(o.offset ?? 0) + i] = r; });
+        (o.rows ?? []).forEach((r: any, i: number) => { rows[offset + i] = r; });
         f.block.rows = rows;
-        if (typeof o.total === "number") f.block.total = o.total;
+        if (total !== undefined) f.block.total = total;
         break;
       }
       case "update_rows": {
         const f = target(["datatable"]);
         if (!f) break;
         const rows: any[] = f.block.rows ?? [];
+        const missing: string[] = [];
         for (const r of o.rows ?? []) {
           const i = rows.findIndex((x, j) => rowID(x, j) === String(r.id));
-          if (i < 0) fail(`no row «${r.id}» loaded`); else rows[i] = r;
+          if (i < 0) missing.push(String(r.id)); else rows[i] = r;
         }
+        // As the app: a table loaded page by page holds only what was scrolled to — updating the rest is expected,
+        // not a problem; one line for the op, not one a row.
+        const paged = typeof f.block.total === "number" && f.block.total > rows.length;
+        if (missing.length && !paged) fail(`no rows ${missing.slice(0, 5).map((x) => `«${x}»`).join(", ")}${missing.length > 5 ? ` and ${missing.length - 5} more` : ""}`);
         break;
       }
       case "insert_rows": {
@@ -184,7 +196,17 @@ export function applyOps(view: Json | View, ops: (Json | Op)[]): { view: Json; p
         f.block.selected = o.ids ?? [];
         break;
       }
-      case "sheet": { const f = target(["sheet"]); if (f) v.sheet = o.id; break; }
+      case "sheet": {
+        const f = target(["sheet"]);
+        if (!f) break;
+        // As the app: a sheet opens only in the answer to the user's press or OK, never from a push or another event.
+        if (from && (from.push || !["press", "activate", "submit"].includes(from.event ?? ""))) {
+          fail(`sheet «${o.id}» not shown: it came ${from.push ? "from ui/push" : `in the answer to «${from.event}»`} — a sheet opens only in the answer to a press or the user's OK`);
+          break;
+        }
+        v.sheet = o.id;
+        break;
+      }
       case "close_sheet": delete v.sheet; break;
       case "notice": if (o.text) v.notice = { text: o.text, ...(o.status ? { status: o.status } : {}) }; else delete v.notice; break;
       default: fail(`unknown op «${o?.op}»`);

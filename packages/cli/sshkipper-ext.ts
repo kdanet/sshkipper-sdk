@@ -227,6 +227,7 @@ export async function main(argv: string[]) {
         for (const l of r.log) console.error(`· ${l}`);
         // What the app would refuse in an import's answer (spec/protocol.md §15) — said here, not only in the app.
         if (name === "import/parse" && r.ok) for (const w of importProblems(r.value)) console.error(`! ${w}`);
+        if (name === "source/poll" && r.ok) for (const w of sourceProblems(r.value)) console.error(`! ${w}`);
         for (const n of r.notices) {
           // A console's bytes as the terminal would get them (they travel as base64), control characters shown.
           const p = n.params as Record<string, Json> | null;
@@ -235,14 +236,17 @@ export async function main(argv: string[]) {
             console.error(`← console/data ${text}`);
           } else console.error(`← ${n.method} ${JSON.stringify(n.params).slice(0, 200)}`);
         }
-        if (!r.ok) { if (r.stderr.trim()) console.error(r.stderr.trim()); fail(r.error ?? "failed"); }
+        // Its stderr on success too: that's the program's own log while it works.
+        if (r.stderr.trim()) console.error(r.stderr.trim());
+        if (!r.ok) fail(r.error ?? "failed");
         print(r.value);
         break;
       }
       for (const k of ["params", "file", "importer"]) if (f[k] !== undefined) fail(`--${k} is for a method (a name with a slash); a handler takes --input`);
       const r = await call(dir, name, opts);
       for (const l of r.log) console.error(`· ${l}`);
-      if (!r.ok && r.stderr.trim() && r.stderr.trim() !== r.error) console.error(r.stderr.trim());
+      // The handler's stderr on success too — what it logged (sk_log, console.error) while the call went well.
+      if (r.stderr.trim() && r.stderr.trim() !== r.error) console.error(r.stderr.trim());
       if (!r.ok) fail(r.error ?? "failed");
       print(r.value);
       break;
@@ -276,7 +280,11 @@ export async function main(argv: string[]) {
       const name = manifestFile(dir);
       const m: Manifest = JSON.parse(readFileSync(join(dir, name), "utf8"));
       const ext = name === "sshkipper-extension.json" ? "sshkext" : "sshkmod";
-      const out = resolve((f.out as string) ?? `${m.id}-${m.version}.${ext}`);
+      // `-o dist/` (or an existing folder): the package goes into it under its usual name, not an EISDIR.
+      const given = f.out as string | undefined;
+      const fileName = `${m.id}-${m.version}.${ext}`;
+      const isDir = (p: string) => { try { return statSync(p).isDirectory(); } catch { return false; } };
+      const out = given === undefined ? resolve(fileName) : given.endsWith("/") || isDir(given) ? resolve(given, fileName) : resolve(given);
       // Exactly the files the app hashes, at the archive's root.
       const files = packFiles(dir);
       const archive = zip(files.map((p) => {
@@ -316,6 +324,27 @@ export async function main(argv: string[]) {
 // `npm link` runs it through a symbolic link: both sides as real paths.
 const real = (p: string) => { try { return realpathSync(p); } catch { return p; } };
 if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(import.meta.url))) await main(process.argv.slice(2));
+
+/** A source's answer as the app reads it (spec/protocol.md §16): what it would drop or change, said here. */
+function sourceProblems(v: Json | undefined): string[] {
+  const hosts = (v as any)?.hosts;
+  if (!Array.isArray(hosts)) return ["no «hosts» list — the app shows this as the source's error, not an empty source"];
+  const out: string[] = [];
+  if (hosts.length > 5000) out.push(`${hosts.length} hosts — the app takes at most 5000`);
+  const seen = new Set<string>();
+  hosts.slice(0, 5000).forEach((h: any, i: number) => {
+    const at = `hosts[${i}]`;
+    const id = typeof h?.id === "string" ? h.id.trim() : "";
+    if (!id) { out.push(`${at}: no id — dropped`); return; }
+    if (seen.has(id)) { out.push(`${at} «${id}»: the id repeats — dropped`); return; }
+    seen.add(id);
+    const a = typeof h.address === "string" ? h.address.trim() : "";
+    if (!a || a.startsWith("-") || /\s/.test(a)) { out.push(`${at} «${id}»: empty or invalid address — dropped`); return; }
+    if (h.port !== undefined && !(Number.isInteger(h.port) && h.port >= 1 && h.port <= 65535)) out.push(`${at} «${id}»: port ${h.port} — the app takes 22`);
+    if (typeof h.user === "string" && h.user && (h.user.startsWith("-") || /\s/.test(h.user))) out.push(`${at} «${id}»: user «${h.user}» — left out`);
+  });
+  return out;
+}
 
 /** An import's answer as the app checks it: ports 1…65535, names, depth ≤ 12, at most 5000 nodes. */
 function importProblems(v: Json | undefined): string[] {

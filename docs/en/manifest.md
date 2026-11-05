@@ -37,7 +37,7 @@ completes and checks keys); `sshkipper-ext validate` checks the rest. What an ex
 | `sdk` | `1` — the protocol version. The app refuses versions it doesn't know. |
 | `id` | Reverse-DNS, lowercase: `dev.acme.queues`. Unique; settings, the store and automation blocks are keyed by it. |
 | `version` | Semantic version. An installed module that changes asks to be approved again. |
-| `title`, `description` | A string, or one per language: `{"en": "Queues", "ru": "Очереди"}` — the app takes the user's language, then its base language, then English, then any other. |
+| `title`, `description` | A string, or one per language: `{"en": "Queues", "ru": "Очереди"}` — the app takes the user's language, then its base language, then English, then any other. A title can't be the app's name («SSHKipper», «SSH Kipper», «SSНKipper» with look-alike letters of other alphabets, «SSHKipper Tools» and the like — up to 24 characters): it's said in questions («Asks the extension «…»») and would read as the app asking. The same rule holds for the titles of tools, blocks and contributions (`contributes.*[].title`). `author.name` isn't checked: the install window labels it «given by the extension, not verified». |
 | `icon` | `symbol` — one of [schemas/symbols.json](../../schemas/symbols.json) (others show a puzzle piece); `color` — a palette name (`blue green orange red yellow purple pink teal indigo cyan mint brown gray`, they follow the dark theme) or `#RRGGBB`. |
 
 ## Runtime and permissions
