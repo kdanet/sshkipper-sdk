@@ -267,6 +267,9 @@ export async function callMethod(dir: string, method: string, params: Json, o: C
   if (m.runtime.kind !== "process") return { ok: false, error: "a server module has no methods of its own: run a handler", stdout: "", stderr: "", log: [], notices: [] };
   const p = startProgram(dir, m, o);
   const r = await p.request(method, params, o.timeout ?? 60);
+  // A console writes after it opens (its prompt, a banner): kept running a moment, what it sent is seen.
+  const linger = (o as { linger?: number }).linger ?? (method === "console/open" ? 1500 : 0);
+  if (linger > 0) await new Promise((res) => setTimeout(res, linger));
   return { ...r, stdout: "", stderr: await p.close(), log: p.log, notices: p.notices };
 }
 

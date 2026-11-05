@@ -636,7 +636,8 @@ The program answers three methods of its own (on the same connection as its hand
   - `{"type": "text", "text"}` — text of the answer;
   - `{"type": "tool_use", "toolId", "name", "input"?}` — a tool call starts (its whole input may come here);
   - `{"type": "tool_input", "toolId", "json"}` — a piece of its input, JSON text;
-  - `{"type": "progress", "text"}` — a short note shown as a status line, not part of the answer;
+  - `{"type": "progress", "text"}` — a short note shown as a step of the turn in the feed (it stays there after the
+    turn, as other agents' notes do), not part of the answer's text — say what is done, not «working…»;
   - `{"type": "usage", "input", "output", "model"?}` — tokens so far.
   Unknown types are skipped.
 - The result: `stop` — `end_turn`, `tool_use`, `max_tokens`, `refusal` (none: `tool_use` when the answer calls a tool);

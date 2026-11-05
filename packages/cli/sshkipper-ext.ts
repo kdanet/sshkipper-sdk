@@ -225,7 +225,14 @@ export async function main(argv: string[]) {
         }
         const r = await callMethod(dir, name, params, opts);
         for (const l of r.log) console.error(`· ${l}`);
-        for (const n of r.notices) console.error(`← ${n.method} ${JSON.stringify(n.params).slice(0, 200)}`);
+        for (const n of r.notices) {
+          // A console's bytes as the terminal would get them (they travel as base64), control characters shown.
+          const p = n.params as Record<string, Json> | null;
+          if (n.method === "console/data" && p && typeof p.data === "string") {
+            const text = Buffer.from(p.data, "base64").toString("utf8").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
+            console.error(`← console/data ${text}`);
+          } else console.error(`← ${n.method} ${JSON.stringify(n.params).slice(0, 200)}`);
+        }
         if (!r.ok) { if (r.stderr.trim()) console.error(r.stderr.trim()); fail(r.error ?? "failed"); }
         print(r.value);
         break;
