@@ -89,7 +89,8 @@ A name with a slash is a contribution's own method of a program: `run source/pol
 - Change `views/main.json`: blocks are listed in [UI-Kit](ui-kit.md); `{{ data.list.… }}` takes what `list` returned.
 - Add an action: a handler, then `actions: [{"id", "title", "handler", "risk": "change", "confirm": "…"}]`, and put its
   id in a row's `actions` — it shows in the row's menu and asks before it runs.
-- `sshkipper-ext validate` after each change says what the app would.
+- `sshkipper-ext validate` after each change says what the app would of the manifest and the templates of
+  `views/*.json`. A view a `render` handler builds it doesn't see — `sshkipper-ext preview <page> --run` checks that.
 
 ## 6. Share it
 

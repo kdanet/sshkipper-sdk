@@ -88,7 +88,8 @@ sshkipper-ext preview main --run              # страница текстом,
 - `views/main.json` — блоки описаны в [UI-Kit](ui-kit.md); `{{ data.list.… }}` берёт то, что вернул `list`.
 - Действие: обработчик, затем `actions: [{"id", "title", "handler", "risk": "change", "confirm": "…"}]` и его id в
   `actions` строки — оно появится в меню строки и спросит перед запуском.
-- `sshkipper-ext validate` после каждой правки скажет то же, что скажет приложение.
+- `sshkipper-ext validate` после каждой правки скажет о манифесте и шаблонах `views/*.json` то же, что скажет
+  приложение. Вид, который строит обработчик `render`, он не видит — его проверяет `sshkipper-ext preview <страница> --run`.
 
 ## 6. Поделиться
 

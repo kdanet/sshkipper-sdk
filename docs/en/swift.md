@@ -93,4 +93,9 @@ targets: [
 ],
 ```
 
+`package:` in `.product(…)` isn't the name in the SDK's `Package.swift` but the identity SwiftPM derives from the
+location: the last component of the URL (without `.git`) or of the path. The URL above and the folder
+`node_modules/sshkipper-sdk` give `sshkipper-sdk`; a clone in a folder of another name (`~/src/sdk`, a submodule
+`sdk/`) needs `package: "sdk"`, or the build won't find the product.
+
 Then `./build.sh`.

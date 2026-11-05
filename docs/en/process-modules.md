@@ -62,7 +62,7 @@ Each needs its permission in the manifest; without it the call fails with `-3200
 
 | Call | Permission | |
 |---|---|---|
-| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | runs on the call's server over the app's SSH session; `{exitCode, stdout, stderr}`. Only servers of the call may be named. On the server itself unless you name a container — `{container: ctx.container}` for the service's own; `stdin` doesn't go into a container. Quote values with `quote()`. |
+| `ctx.host.exec(command, {stdin?, timeout?, sudo?, container?, server?})` | `exec` (`sudo`) | runs on the call's server over the app's SSH session; `{exitCode, stdout, stderr}`; `stderr` is the error stream as it came (empty when the command wrote nothing there). Only servers of the call may be named. On the server itself unless you name a container — `{container: ctx.container}` for the service's own; `stdin` doesn't go into a container. In a container docker runs through `sudo -n` only when the server's Docker settings turn sudo -n on **and** the extension has the `sudo` permission. `timeout` is 1…3600 s (30 by default); past it the call throws “The server didn’t respond within N s” (with `stdin` it returns a non-zero `exitCode` instead). Quote values with `quote()`. |
 | `ctx.host.secret(key)` | `secrets` | a secret setting of the call's server |
 | `ctx.host.store.get(key)` / `.set(key, value)` | `store` | the module's JSON storage on this Mac (≤ 1 MB in all); `null` deletes |
 | `ctx.host.notify(title, text)` | `notify` | a notification |
@@ -71,9 +71,24 @@ Each needs its permission in the manifest; without it the call fails with `-3200
 The program runs with a clean environment: `PATH` (the folder its program was found in, system paths, Homebrew), `HOME`,
 `TMPDIR`, `LANG`, `SK_SDK`, `SK_MODULE`, `SK_DATA` (a private folder for the module's files),
 `PYTHONPYCACHEPREFIX` (Python's byte code under `SK_DATA`) and `runtime.env`. It doesn't get the user's SSH agent or the
-app's secrets: reach servers through `host.exec`. The module folder is read-only for it: an installed module's files are
-approved by their hashes, and anything written there (a cache, a log, `__pycache__` — so don't start Python with `-I` or
-`-E`, which ignore `PYTHONPYCACHEPREFIX`; add `-B` if you must) makes it a changed module until the user approves it again.
+app's secrets: reach servers through `host.exec`.
+
+**Don't write into the module folder.** The program can (there is no sandbox), but the app hashes the package's files
+before every start of the program: a new or changed file — a cache, a log, `__pycache__` — marks the extension changed,
+and the whole of it stops, every contribution, until the user presses “Allow as it is…” in Settings → Extensions. Keep
+state in `host.store` and files in `SK_DATA` or `TMPDIR`. For the same reason don't start Python with `-I` or `-E`
+(they ignore `PYTHONPYCACHEPREFIX`); add `-B` if you must.
+
+**Limits.**
+
+- `host.ask` — at most 6 questions a minute per extension (refused past that), one on screen, up to 8 waiting.
+- `host.forward` — at most 16 different forwards (node, host, port) per run of the program; the same one asked again
+  is the one already open. Forwards close with the program.
+- The program ends (crashes or exits by itself) — its process group gets SIGTERM at once and SIGKILL 2 s later: the
+  `curl` and `ssh` it started don't outlive it.
+- Secrets the app handed out (`host.nodeSecret`, a model provider's key) are replaced with “[hidden]” in the
+  extension's log — exact values of 4 characters or more only. It is a safety net, not a licence: don't print secrets.
+  Values of `host.secret` and secret fields of storages and sources aren't masked in the log.
 
 ## Trying it
 

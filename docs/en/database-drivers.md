@@ -65,6 +65,14 @@ The rules that matter most:
   one row per update or delete.
 - `cancel` must work while a `query` runs — the example kills the process that runs the statement.
 - Values are text, `null` for NULL, binary as `0x…`.
+- `truncated: true` in a `query` result means “there are more rows than in the answer”: you stopped at `maxRows` (or
+  earlier, the result being too big). The editor then says “first N rows” and “showing the first N — limit” (fewer than
+  `maxRows` — “more than 64 MB of text in one result isn't loaded: narrow the query”), the AI agent sees “there are
+  more”. In `tableData`, with `truncated` and fewer rows than `limit`, the next page starts after what came. Every row
+  given — `truncated: false`.
+- **stdout is for answers only.** `serveDatabase` doesn't redirect `console.log` (unlike `defineModule`): a line of
+  text on stdout is lost (the app looks for `"id"` in each line and skips the rest without a word — it won't be in the
+  log), and a printed object with an `id` is taken as the answer to another request. Log to stderr — `console.error`.
 - Don't answer `connect` with `readOnly: true` unless the session really can't write (a read-only file, a replica):
   the tab becomes «Только чтение», and without verified read commands (§4 below) the editor then runs nothing, not
   even a SELECT.

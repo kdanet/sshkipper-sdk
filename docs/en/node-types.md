@@ -88,7 +88,7 @@ const button = await ctx.host.ask({
   server. The app shows a terminal's command to the user with the command policy's verdict; `false` — they said no.
   At most 5 opens in 10 s.
 - `host.ask` shows the app's dialog signed «Asked by extension «…»»; the answer is the button's index. One question of
-  an extension at a time, the rest wait (up to 8).
+  an extension at a time, the rest wait (up to 8); at most 6 questions a minute — refused past that.
 
 ## 4. Checking it
 

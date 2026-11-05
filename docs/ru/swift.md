@@ -95,4 +95,8 @@ targets: [
 ],
 ```
 
+`package:` в `.product(…)` — не имя из `Package.swift` SDK, а имя, которое SwiftPM выводит из адреса: последний
+компонент URL (без `.git`) или пути. Адрес выше и папка `node_modules/sshkipper-sdk` дают `sshkipper-sdk`; клон в папке с
+другим именем (`~/src/sdk`, подмодуль `sdk/`) — `package: "sdk"`, иначе сборка не найдёт продукт.
+
 Затем `./build.sh`.

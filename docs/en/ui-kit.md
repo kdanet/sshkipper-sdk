@@ -108,9 +108,29 @@ A page with `view` + `data` is a template the app expands before drawing:
   status part goes.
 - Anything else in `{{ }}` stays for the page's live formulas over `state` — so decide statuses and words in the
   handler (`"status": "bad"`), not in the template.
-- Limits: 400 blocks after expansion, 32 levels of JSON (8 levels of blocks are drawn), 2 MB.
+- Limits: 400 blocks after expansion, 32 levels of JSON (8 levels of blocks are drawn), 2 MB (the rest — under “View
+  limits” below).
 
-Check without the app: `sshkipper-ext preview <page> --data data.json` or `--run`.
+Check without the app: `sshkipper-ext preview <page> --data data.json` or `--run`. `sshkipper-ext validate` checks only
+the templates of `views/*.json`; a view a `render` handler builds is seen only by `preview … --run`.
+
+## View limits
+
+A view is checked leniently, so that a page shows even with a mistake in it: keys a block doesn't know aren't read, an
+unknown or broken block is left out — with a warning in the extension's log (for a development folder also as a note
+above the page). What goes past the limits is cut the same way, without a word:
+
+| | |
+|---|---|
+| The whole view | 2 MB of JSON, 400 blocks, 8 levels of nested blocks drawn (deeper ones aren't shown) |
+| A block's text | `text`, `callout` and the like — 4 000 characters; `code`, `diff` — 12 000; `editor` — 1 000 000; `terminal` — 200 000 in the view (appended by ops — up to 1 MB) |
+| Lists | `rows`, `list` and the like — 200 items; `table` — 300 rows, 12 columns, 300 characters a cell; `logs` — 2 000 lines of 2 000 characters |
+| Charts | 8 series, 1 000 points |
+| Titles | 200 characters |
+
+The program's answer itself is a JSON-RPC line: at most 16 MB and at most 64 levels of nesting, the message's envelope
+counted. A deeper answer isn't read (“The module sent something that isn’t JSON-RPC” in the log), and the call waits
+until its timeout.
 
 ## Components
 
@@ -149,6 +169,7 @@ the ops it answers with — only the blocks they name change. Your program can a
 ```ts
 import { datatable, defineModule, ops, screen, tree } from "./lib/sshkipper-sdk/index.ts";
 
+let timer: ReturnType<typeof setInterval> | undefined;
 defineModule({
   handlers: {
     render: () => screen([
@@ -159,7 +180,9 @@ defineModule({
   onEvent: (e, ctx) => {
     if (e.type === "more") return [ops.rows("jobs", e.value.offset, loadPage(e.value.offset, e.value.limit))];
     if (e.type === "expand") return [ops.children("queues", e.value.node, childrenOf(e.value.node))];
-    if (e.type === "open") setInterval(() => ctx.push([ops.append("rate", { points: [[sample()]] })]), 1000);
+    // A timer only for what the program knows by itself (here, a counter on this Mac); see “The server between events”.
+    if (e.type === "open") timer = setInterval(() => ctx.push([ops.append("rate", { points: [[sample()]] })]), 1000);
+    if (e.type === "close") clearInterval(timer);
     return null;
   },
 });
@@ -172,3 +195,35 @@ colors), `toolbar`, `sheet` (a form; OK sends its values), a `chart` with an `id
 answer to an event overtaken by a newer one (a second selection, more typing) is dropped by the app, so answer
 quickly and don't worry about order. See [examples/screens](../../examples/screens); the app's «Инспектор экрана» (the
 page's «⋯» menu) shows the block tree and every event and patch.
+
+### Sheets
+
+The `sheet` op shows a sheet only when it comes **in the answer to the user's own press**: `press` (a button, a toolbar
+item, a row with an action), `activate` (a row's double click) or `submit` (another sheet's OK). From `ui/push`, from the
+answer to `open`, `select`, `change`, `more` and the other events no sheet opens — the screen's journal (the inspector)
+says “sheet “…” not shown”. A button with `{"sheet": "<id>"}` opens its sheet by itself. A sheet is captioned “Window
+of the extension “<title>””, and an extension's screen tab has a “Screen of the extension “<title>”” line along its
+top.
+
+Why: a sheet is modal over the main window. If a program could open one whenever it liked, a screen in the background
+could put “Session expired — enter the root password” over the user's work, indistinguishable from SSHKipper's own. The
+app never asks for a document's or a server's password on an extension's screen — and the caption shows whose it is.
+
+### The server between events
+
+`host.exec` and `host.secret` name the server **of a call in progress**: `render`, `ui/event` (30 s), an action. A timer
+started on `open` runs between calls, so:
+
+- on a **service page** (`pages`, a service's section) `host.exec` from a timer is refused (“the server isn’t one of
+  the module call’s”): live data from the server there comes by the page's `refresh` or in an event's answer;
+- **screens of the `screen` and `nodeType` contributions** ([your own node type](node-types.md), protocol §14) see their
+  server between events too, while they are open: the screen's node, the nodes it points at, a section's server. A
+  timer with `host.exec` belongs there.
+
+### Rows that aren't there yet
+
+In a paged table (`total` larger than what's loaded) the app keeps only the pages it asked for (up to 200 000 rows;
+those far from sight are forgotten). `update_rows` and `remove_rows` for rows it doesn't have do nothing and write “no
+rows …” to the screen's journal. That's not a mistake: keep the truth in your program and give it in the answer to
+`more` — the user reaches a row not loaded yet through `more` anyway. Much changed, or the order did — `rows` with
+`reset: true` (and a new `total`).

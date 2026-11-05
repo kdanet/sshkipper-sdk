@@ -28,6 +28,17 @@ An extension can add a **kind of storage** — files in the app's file panel, th
   public links, free space, the program's own «Проверить». What isn't declared isn't in the menus.
 - `signIn: "browser"` adds «Войти через браузер…» to the card (needs `oauth`): the app calls `storage/signIn`, the
   program calls `host.oauth(...)`, the token becomes the node's secret and comes back as `settings.oauth`.
+  `keys`, `login` and `none` (the default) add nothing: for all three the card is drawn from `fields` alone — declare
+  an access key, a login or a password as fields yourself (`secret` for the secret part). The value only describes
+  the kind.
+- Call timeouts: 60 s for `storage/list`, `stat`, `write/begin`, `mkdir`, `rename`, `link`, `check`; 120 s for
+  `read`, `write/chunk`, `write/commit`; 300 s for `delete`; 11 minutes for `signIn` (while the user signs in in the
+  browser). Past it the call fails; a transfer then gets `abort`.
+- An item of an answer without a name or with a name that can't be (empty, with `/`, `.`, `..`) is dropped without a
+  word. The rest is forgiven without a word too: `type` is `folder` (or `directory`), anything else a file; a `size`
+  that isn't a whole number ≥ 0 is an unknown size (a read without `eof` then stops at 16 GB); an unreadable
+  `modified` — no date; a `digest` of an unknown algorithm — no check. A `storage/list` answer without `items` is an
+  empty folder, not an error.
 
 ```ts
 import { defineModule, storageMethods } from "./lib/sshkipper-sdk/index.ts";
@@ -47,7 +58,8 @@ defineModule({
 **Through a server.** The user may bind the storage to a server («Через сервер» in its card); `storage.throughServer`
 is then true. With the `forward` permission, `ctx.host.forward({ node: storage.node, host, port })` gives a port on
 127.0.0.1 of this Mac forwarded over the app's SSH session (bastions, 2FA included); it closes with the program and when
-nothing uses the storage any more.
+nothing uses the storage any more. At most 16 forwards (node, host, port) per run of the program; the same one asked
+again is the one already open.
 
 **What the app doesn't do for an extension's kind:** copy between a server and the storage directly, or upload from
 a server by its cron in automations — those need the storage's protocol on the server. Automations upload from this
@@ -80,7 +92,13 @@ defineModule({
 
 - `id` must stay the same between polls (an API id, not an address): open tabs and the user's settings of the host
   follow it.
-- `jump` names a bastion by a connection's name in the user's document; `group` makes a folder under the source.
+- `jump` names a bastion by a connection's name in the user's document; `group` makes a folder under the source — one
+  level: `"eu/fsn1"` is one folder of that name, not two nested ones.
+- `source/poll` and `source/check` have 120 s. Hosts the app can't take are dropped and said in the extension's log
+  (Settings → Extensions → «⋯» → Log…, the first 10 and how many more): no `id`, an `id` repeated, an empty address or
+  one with spaces or a leading `-`, past 5 000 hosts; a port outside 1…65535 becomes 22, a `user` with spaces or a
+  leading `-` is left out. The tree shows only the hosts that stayed — look in the log when one is missing. An answer
+  without a `hosts` list is an error of the source («Расширение ответило без списка hosts»), not an empty one.
 - Host keys are never taken from a source: the first connection shows the key for checking.
 - The user's filters (offline, tags, name) and hidden hosts are applied by the app.
 

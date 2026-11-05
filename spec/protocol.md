@@ -103,14 +103,20 @@ when the handler's `sudo` and the server's settings allow it). The script gets:
   - `SK_HANDLER`, `SK_MODULE`, `SK_SDK=1`, `SK_LOCALE`;
   - `SK_INPUT_<KEY>` for each top-level input value (strings; numbers as text; booleans `1`/`0`; a list or an
     object as its JSON text, `["a","b"]` — the full value is in the request on stdin);
-  - `SK_SETTING_<KEY>` for each non-secret setting, the same way (a `list` setting — `["a","b"]`; if the server has
+  - `SK_SETTING_<KEY>` for each non-secret setting, the same way — as the user typed it: settings have no `pattern`,
+    so a script quotes and checks them itself (a `list` setting — `["a","b"]`; if the server has
     `jq`, read it from `context.settings` of the request instead; a process module (§4) gets a real array
     there — `http-checks` reads its `urls` that way);
   - `SK_ITEM_ID` when there is an item;
   - `SK_CONTAINER` — the container's name when the service runs in one;
   - `SK_AUTOMATION=1` when the handler runs as an automation block (§8);
-  - `SK_TMP` — a private temporary directory (0700), removed after the run;
-  - `SK_SECRET_<KEY>` — the **path** of a 0600 file holding a secret setting (never its value).
+  - `SK_TMP` — a private temporary directory (0700), removed after the run, the script's working directory. It
+    already holds the app's files — `handler.sh` (the prelude and the script), `env.sh` (the variables),
+    `request.json` (the request), `secret_<key>` (secret settings); a script names its own files otherwise;
+  - `SK_SECRET_<KEY>` — the **path** of a 0600 file holding a secret setting (never its value);
+  - `SK_UMASK` — the session's umask: the script itself runs under `umask 077` (not under sudo, not in a container);
+  - `SK_SUDO` — the wrapper's own: `0` when the script runs without sudo; under sudo it is gone (sudo resets the
+    environment) — a script that needs to know asks `id -u`.
   Keys are upper-cased. Values are passed through the session, not on the command line: other users of the server
   can't see them in `ps`.
 - **In a container** (`service.containers`, the service runs in Docker): the handler's script — with the request,
@@ -154,7 +160,7 @@ Defined before each script (POSIX sh, no dependencies — `jq` is not assumed):
 | `sk_fail <message>` | Prints the message to stderr and exits 1. |
 | `sk_has <command>` | True when the command is on `PATH`. |
 | `sk_file <relative path>` | Prints a file of the module's `scripts/` folder (shipped with the call). |
-| `sk_secret <key>` | Prints a secret setting (reads `$SK_SECRET_<KEY>`). |
+| `sk_secret <key>` | Prints a secret setting (reads `$SK_SECRET_<KEY>`). The key MUST be `[A-Za-z0-9_]+`; another fails the script with a message (it is never evaluated). |
 
 ## 4. Process runtime
 
@@ -167,12 +173,16 @@ read and written there, never in the module folder), plus `runtime.env` — exce
 outside the module: `DYLD_*`, `LD_*`, `*_OPTIONS`, `*OPT`, `PYTHONSTARTUP`, `PYTHONPATH`, `PYTHONPYCACHEPREFIX`,
 `NODE_PATH`, `PHPRC`, `PERL5DB`, `BASH_ENV`… are refused by the check and never set, and the app's own `PATH`, `HOME`,
 `TMPDIR`, `LANG`, `SK_*` can't be changed). Arguments of `runtime.command` are files of the package: an absolute path,
-`~` or `..` (also after `=`, `--require=/tmp/x.js`) is refused by the check. The program runs with the user's rights and **no sandbox**. **The module folder is read-only for the module**: an
-installed module's files are hashed and approved, and a file written there (a cache, a log) reads as a changed module,
-which stops until the user approves it again — write state to `SK_DATA` or `host/store`. `.git` and `.DS_Store` are
+`~` or `..` (also after `=`, `--require=/tmp/x.js`) is refused by the check. The program runs with the user's rights and **no sandbox**. **A program MUST NOT write into its module folder**: it
+can, but an installed module's files are hashed and approved, hashed again before every start, and a file written
+there (a cache, a log, `__pycache__`) reads as a changed module — the whole extension, every contribution, stops until
+the user approves it again («Разрешить как есть…»). Write state to `SK_DATA`, `TMPDIR` or `host/store`. `.git` and `.DS_Store` are
 never part of a module. Messages are JSON-RPC 2.0 objects, **one per line**
 (UTF-8, `\n`-terminated, no embedded newlines) on stdin (app → module) and stdout (module → app). stderr is the
-module's log. Both sides MAY send requests; ids are unique per sender. A line longer than 16 MB ends the process.
+module's log. Both sides MAY send requests; ids are unique per sender. A line longer than 16 MB ends the process. A
+line that isn't JSON-RPC, or whose JSON is nested deeper than 64 levels (the message's envelope counted), is dropped
+with «Модуль прислал не JSON-RPC» in the log — an answer lost that way leaves its call waiting until its timeout. When
+the program exits on its own (or crashes) its process group gets SIGTERM at once and SIGKILL 2 s later.
 
 The app starts the program on first use and keeps it while the module is used; it stops it (`shutdown`, stdin closed,
 then SIGTERM to its process group after 3 s and SIGKILL to what is left 2 s later; at quit at once) when the module is
@@ -220,12 +230,15 @@ call that needs it. Calls the app sends meanwhile wait for `setup`.
 | `host/secret {node}`, `host/open`, `host/ask` | an extension node's secret field; open a node, screen or terminal; ask the user (§14.3) | §14.3 | `secrets` (`node`) / — |
 
 `host/exec` runs over the app's session to that server, the same way as the server runtime (bastions, 2FA,
-containers); only the servers of calls **in progress** (their `context.server.id`) may be named — and, for an
-extension, the servers its open screens and consoles point at (§14): between calls a program reaches only those.
-Without `container` the command runs on the server itself, also for a call whose service runs in a container: a
-program names `"container": context.container` to run inside it — the SDKs never fill it in. `stdin` and `container`
-don't go together (a container's command line is readable on the server); the request fails with `-32602`. A method the
-module may not use returns error `-32001` ("permission").
+containers). `timeout` is 1…3600 s (30 by default); past it the request fails with `-32000` «Сервер не ответил за N с»
+(a request with `stdin` answers with a non-zero `exitCode` instead). `stderr` is the command's error stream as it came
+(empty when it wrote nothing there), never stdout. In a container docker runs through `sudo -n` only when the server's
+Docker settings allow sudo **and** the extension has the `sudo` permission. Only the servers of calls **in progress**
+(their `context.server.id`) may be named — and, for an extension, the servers its open screens and consoles point at
+(§14): between calls a program reaches only those. Without `container` the command runs on the server itself, also for
+a call whose service runs in a container: a program names `"container": context.container` to run inside it — the SDKs
+never fill it in. `stdin` and `container` don't go together (a container's command line is readable on the server);
+the request fails with `-32602`. A method the module may not use returns error `-32001` ("permission").
 
 ### 4.4 Errors
 
@@ -293,8 +306,13 @@ runs as a script on its server (below); a **process module's block** calls its h
 - `sudo: required` runs the block through `sudo -n` (the server must allow it); `auto` runs it as the user.
 - `returns` says what goes to the next block: `text`, `number` and `list` are read from stdout as the automations'
   «Что вернуть» does; `json` (default) also becomes the block's summary — `{"status": "ok" | "warn" | "error",
-  "summary" (or "message"), "value", "unit", "items": [{"label", "status", "value", "detail"}], …}`; other keys
-  become values the next blocks read as `{{ in.<key> }}`.
+  "summary" (or "message"), "value", "unit", "items": [{"label", "status", "value", "detail"}], …}`; every other
+  top-level key (and each key of a `values` object) whose value is a string, a number or a boolean becomes a value
+  the next blocks read as `{{ in.<key> }}` — arrays, objects and `null` don't, at most 64 keys, strings cut to 2 000
+  characters. The app's own values (`stdout`, `exit_code`, `stdout_bytes`, `duration`) are never overwritten; the
+  format's keys (`items`, `metrics`, `values`, `state`, `series`, `rows`…) keep their meaning.
+- The block runs wherever the extension is on (Settings → Extensions), whatever its service is on the card's server
+  in «Службы» — «Выключена» doesn't stop it.
 - The block's id in graphs is derived from the module id and the block id, so an automation shared with someone who
   has the module installed finds the block.
 
@@ -309,7 +327,8 @@ runs as a script on its server (below); a **process module's block** calls its h
   for a run by the schedule: a 2FA code nobody can type makes the step wait for a person (the call gets an error for
   that `host/exec`, the step shows «нужен человек»), as a command's step would. It needs `exec`. Without `server`
   the block has no server, and `host/exec` is refused.
-- The answer is the block's result as the server block's `$SK_RESULT` is: with `returns: json` (default) an object
+- The answer is the block's result as a server block's stdout JSON is (§8 above, `{{ in.<key> }}` the same): with
+  `returns: json` (default) an object
   `{status, summary, value, unit, items: [{label, value, unit, status, detail}], …}`; with `text`, `number`, `list` — a
   string (or an object's `value` / `text` / `summary`; an array — one line per element) read as «Что вернуть». An
   error of the handler fails the step with its message alone.
@@ -328,9 +347,20 @@ prompt cache holds.
 
 - The model gives `target` (an open session), `module`, `tool` and `input`; the input is checked against `params`
   (types, `required`, `choices`, `pattern` as a full match) and unknown keys are dropped.
-- `risk` goes through the server's AI mode like any command: `read` — as a check, `change` — as a service action,
-  `danger` — as a disruptive one; the user confirms what the mode asks for.
-- The answer is the handler's JSON (or text), with secrets masked, cut to what a model reads.
+- `risk` goes through the agent's level on the server like any command: `read` — as a check, `change` — as a
+  service action, `danger` — as a disruptive one:
+
+  | Level | `read` | `change` | `danger` |
+  |---|---|---|---|
+  | «Запрашивать разрешение» | asks | asks | asks |
+  | «Подтверждать за меня» (default) | runs | runs | asks |
+  | «Полный доступ» | runs | runs | runs |
+  | «Только чтение» | runs | refused | refused |
+
+  The server's Production mark doesn't change it. A parameter value naming a host outside the server (a URL,
+  `host:port`) asks at every level but «Полный доступ», and is refused when nobody can be asked.
+- The answer is the handler's JSON (or text), with secrets masked, at most **20 000 characters**: a longer one is cut
+  without a mark (cut JSON is text). An answer whose secret can't be masked in place is replaced by a notice.
 - `description` is what the model reads to choose the tool: say what it does, what it returns and when to use it.
 
 ## 10. Extensions
@@ -398,7 +428,7 @@ patched (the app gives one to those without, but a program can't name it).
 | `editor` | `text`, `language` (sql, sh, python, js colored), `keywords`, `completion`, `editable` | `change {text}` (half a second after typing stops); `complete {text, cursor, prefix}` — answer with `{"items": [...]}` |
 | `terminal` | `text` (ANSI colors kept), `maxLines` (5000) | — (append with ops) |
 | `toolbar` | `items` [{id, title, symbol, status: bad, action}] | `press {item}` |
-| `sheet` | `title`, `text`, `subtitle` — the OK button, `children` — fields | `submit {values}` — the values of its fields' `bind`s; shown by a button's `{"sheet": id}` or the `sheet` op |
+| `sheet` | `title`, `text`, `subtitle` — the OK button, `children` — fields | `submit {values}` — the values of its fields' `bind`s; shown by a button's `{"sheet": id}` or the `sheet` op (§11.4: only in the answer to the user's press) |
 | `chart` with an `id` | `window` — points kept (300) | — (append points with ops) |
 
 A button's `{"event": "name", "params": {...}}` sends `press {event, params}`; a row's item with such an action — also
@@ -418,7 +448,9 @@ paths on this Mac (`source: "finder"`).
 `type` is one of `open`, `close`, `press`, `activate`, `select`, `change`, `submit`, `expand`, `collapse`, `more`,
 `sort`, `edit`, `menu`, `drop`, `move`, `complete`. `open` comes when the screen is shown (a program may start pushing),
 `close` when it goes. `state` — the screen's variables now. For a process module the call counts as a call on the
-page's server: `host/exec` and `host/secret` may name `context.server.id` while it runs. Its timeout is 30 s.
+page's server: `host/exec` and `host/secret` may name `context.server.id` while it runs. Its timeout is 30 s. Between
+calls (a timer started on `open`) a **service page** (`pages`) reaches no server — `host/exec` is refused with
+`-32001`; the screens of `screen` and `nodeType` contributions reach theirs while they are open (§14.3).
 
 **Order.** Events are numbered (`seq`). An answer the app gets after a newer event of the same kind was sent is
 **dropped**: `select`, `change`, `complete`, `sort` of a block; `expand`/`collapse` of a node; `more` of a table sorted
@@ -440,7 +472,7 @@ screen's inspector, the module's log) and skipped — the others still apply.
 | `state` | `values` | Variables of the screen |
 | `title` | `text` | The screen's title |
 | `rows` | `id`, `offset`, `rows`, `total`?, `reset`? | A page of a datatable; `reset` — every other loaded row is forgotten (a new sort, a new filter) |
-| `update_rows` | `id`, `rows` (with ids) | Rows in place — only they are drawn again |
+| `update_rows` | `id`, `rows` (with ids) | Rows in place — only they are drawn again. A row the app hasn't loaded (a paged table) is skipped and reported («нет строк …»): it comes up to date with the answer to `more` |
 | `insert_rows` | `id`, `index`, `rows` | Rows inserted; those below move |
 | `remove_rows` | `id`, `ids` | Rows removed |
 | `children` | `id`, `node`? (none — the top), `nodes` | A tree node's children |
@@ -448,15 +480,21 @@ screen's inspector, the module's log) and skipped — the others still apply.
 | `clear` | `id` | A terminal, logs or chart emptied |
 | `text` | `id`, `text` | An editor's text replaced |
 | `select` | `id`, `ids` | Rows (nodes) selected and shown |
-| `sheet` / `close_sheet` | `id` / — | A sheet shown / closed |
+| `sheet` / `close_sheet` | `id` / — | A sheet shown / closed. `sheet` applies only in the answer to `press`, `activate` or `submit`; from `ui/push` or any other event's answer it is skipped and reported («лист «…» не показан»). The sheet is captioned «Окно расширения «<title>»» |
 | `notice` | `text`, `status`? | A note over the screen (empty `text` removes it) |
 
 A completion: `"status"` or `{"title", "insert"?, "detail"?}`.
 
-Limits: 8 MB of an answer, 2 000 ops, 10 000 rows (row ids) an op, 10 000 000 rows a table (the app keeps up to
-200 000 loaded — pages far from sight are forgotten and asked again), 50 000 nodes a tree, 400 blocks a screen; a
-`terminal` keeps its last `maxLines` lines and at most 1 MB of text, breaks a line longer than 16 KB, and reads `\r`
-as a carriage return (the text after it starts its line anew — a progress bar).
+Limits: 8 MB of an answer (or a push) of ops, 2 000 ops, 10 000 rows (row ids) an op, 10 000 000 rows a table (the
+app keeps up to 200 000 loaded — pages far from sight are forgotten and asked again), 50 000 nodes a tree, 400 blocks
+a screen; a `terminal` keeps its last `maxLines` lines and at most 1 MB of text appended by ops (its `text` in a view
+is cut to 200 000 characters), breaks a line longer than 16 KB, and reads `\r` as a carriage return (the text after it
+starts its line anew — a progress bar). The view itself (a `render`, a page) has the limits of §6: 2 MB, 400 blocks.
+
+**Why sheets only on a press.** A sheet is modal over the main window. Opened at a program's will, a screen in the
+background could put «session expired, enter the root password» over the user's work, indistinguishable from the
+app's own. So a sheet answers the user's own gesture, carries the extension's name, and an extension's screen tab
+has «Экран расширения «<title>»» along its top; the app never asks for a document's or server's password there.
 
 - Numbers are counts and places: `offset`, `index`, `total` move into `0 … 10 000 000` (a fraction is rounded);
   rows past 10 000 000 aren't kept and the op says how many («строки дальше … не показываются»). Rows past 10 000 an
@@ -485,11 +523,15 @@ Every call carries `storage` — which storage node it is for:
 {"node": "<uuid>", "kind": "folder", "settings": {"root": "/tmp/x", "token": "…"}, "readOnly": false, "throughServer": false}
 ```
 
+`signIn`: `browser` adds «Войти через браузер…» to the card (`storage/signIn`, §12.3); `keys`, `login` and `none`
+(the default) add nothing — the card is the contribution's `fields` alone (declare the key, login and password as
+fields), the value only describes the kind.
+
 `settings` holds every field of the contribution's `fields` (its value, else its `default`); a `secret` field comes as
 text — the program is trusted with its own node's secrets, and only with a record that is that node's field and
 nothing else's. A browser sign-in's token comes as `settings.oauth`. Paths are `/`-rooted inside the storage (`/`,
 `/a/b.txt`); the app drops entries whose names are empty, have `/` or NUL, or are `.` / `..` — in every answer, for
-the file panel, automations and folder pickers alike. An item:
+the file panel, automations and folder pickers alike, without a word. An item:
 
 ```json
 {"name": "b.txt", "type": "file" | "folder", "size": 11, "modified": 1767225600, "digest": {"algorithm": "sha256" | "md5", "value": "<hex>"}}
@@ -497,7 +539,12 @@ the file panel, automations and folder pickers alike. An item:
 
 `modified` — seconds since 1970, or an ISO 8601 date and time (`2026-01-01T00:00:00.000Z`, fractional seconds and an
 offset optional; without an offset it is UTC); `digest` — optional: the app checks the downloaded file
-against it and fails the download on a mismatch.
+against it and fails the download on a mismatch. The rest is read leniently, without a word: a `type` other than
+`folder` (or `directory`) is a file; a `size` that isn't a whole number ≥ 0 is no size; an unreadable `modified` is no
+date; a `digest` of an unknown algorithm isn't checked; a `storage/list` answer without `items` is an empty folder.
+
+Timeouts: 60 s for every method but `storage/read`, `storage/write/chunk`, `storage/write/commit` (120 s),
+`storage/delete` (300 s) and `storage/signIn` (660 s — the user signs in meanwhile).
 
 | Method | Params (besides `storage`) | Result | Capability |
 |---|---|---|---|
@@ -535,13 +582,17 @@ Every call carries `source`: `{"node": "<uuid>", "kind": "hetzner-cloud", "setti
 | `source/poll` | `source` | `{"hosts": [host…], "scope"?: "api.hetzner.cloud"}` |
 | `source/check` | `source` | `{"text": "…"}` — «Проверить» in the source's card (the SDK polls and counts by default) |
 
-A host: `{"id", "name", "address", "port"?, "user"?, "jump"?, "online"? (true), "os"?, "tags"?, "group"?, "addresses"?,
-"details"?, "lastSeen"?}`. `id` must be stable in the source (not the address): the app derives the tree node's id
+`source/poll` and `source/check` have 120 s. A host: `{"id", "name", "address", "port"?, "user"?, "jump"?, "online"?
+(true), "os"?, "tags"?, "group"?, "addresses"?, "details"?, "lastSeen"?}`. `id` must be stable in the source (not the address): the app derives the tree node's id
 from the source and it, so open tabs, settings the user gave the host and its expansion survive polls. `group` — a
-folder under the source; `jump` — a bastion **by the name of a connection of the user's document** (a name that
+folder under the source, one level (`"eu/fsn1"` is one folder of that name); `jump` — a bastion **by the name of a connection of the user's document** (a name that
 isn't there, or names two, is ignored). Hosts are never written into the document; the user's own settings for a
 host are kept in the source by its `id`. **Host keys are never taken from an extension**: the first connection shows
-the server's key for checking, as for any new server. At most 5000 hosts; text fields are cut to one line.
+the server's key for checking, as for any new server. At most 5000 hosts; text fields are cut to one line. A host
+without `id`, with an `id` already given, or with an empty address, one with spaces or starting with `-` is dropped;
+a port outside 1…65535 becomes 22; a `user` with spaces or a leading `-` is left out. Each is said in the extension's
+log (the first 10, then how many more) — the tree shows only what stayed. An answer without a `hosts` list is the
+source's error, not an empty source.
 
 The source is polled every `refresh` seconds of the manifest (60…86400; the user may change it in the card), not on
 the app's activation.
@@ -556,7 +607,7 @@ the app's activation.
 - **`host/forward`** — a port forwarded through the SSH session of the server the user bound the node to («Через
   сервер» in a storage's card; bastions and 2FA as for any session). It listens on 127.0.0.1 of this Mac only. The
   same node and target share one forward; it closes when the program stops and when the node's panes and transfers
-  are gone. Only the node of a call **in progress** may be named; a node not reached through a server is an error.
+  are gone. At most 16 forwards (node, host, port) per run of the program; past it the request fails. Only the node of a call **in progress** may be named; a node not reached through a server is an error.
 - **`host/oauth`** — only while the app's `storage/signIn` for that node runs (the user pressed «Войти»). The app
   opens `authURL` in the browser (PKCE, `redirect_uri` on 127.0.0.1 of a one-shot listener), exchanges the code at
   `tokenURL` (https, or http on 127.0.0.1 for a stand-in), keeps the refresh token as the node's secret `oauth` once the
@@ -594,6 +645,12 @@ The program answers three methods of its own (on the same connection as its hand
   `{"type": "tool_use", "id", "name", "input"}`, `{"type": "tool_result", "id", "content", "is_error"}` or
   `{"type": "opaque", "value"}`. Tool results of one turn come in one user message. `tools` —
   `[{name, description, input_schema}]`.
+- **The app's context.** In the AI panel the user's message starts with a text block of its own before the user's
+  text: `<sshkipper_context>\n…\n</sshkipper_context>` — the date and time (ISO 8601), the chat's server and the tab
+  the user is in, the brief of the server's agent folders, the open sessions (`s1=web-1[доступ есть, safeWrite,
+  production], …`). It stays in the history like any block; a provider passes it to its model as it is. The agent
+  block of automations puts its own `<sshkipper_context>` (what the blocks linked to it gave) inside its first message's text;
+  «Составить запрос» and AI filters send none.
 - **What the program gets** is what every provider gets: the request after the app's masking of secrets and its
   policy (what a session may show the model, Production, what is hidden from AI). The answer is a model's like any
   other: a tool call goes through the AI mode's rules and the user's confirmations — the program can't run a tool
@@ -602,9 +659,12 @@ The program answers three methods of its own (on the same connection as its hand
   request; a late answer is dropped.
 - An error of `ai/chat` (`{"code", "message"}`) is shown as the provider's error, never retried by the app. An answer
   over 4 MB (text, tool inputs, tool calls) is cut and fails at once: the program gets `cancel` and `ai/cancel`.
+- Timeouts: `ai/models` 60 s; `ai/chat` 30 minutes for the whole answer, however it streams — before that only the
+  user's «Стоп» (`ai/cancel`) ends it.
 - Token counts in `usage` are kept to 0 … 10^12.
-- `secrets` — the profile's secret fields; never put them in an answer or the log (the app masks each value in what it
-  shows anyway).
+- `secrets` — the profile's secret fields; never put them in an answer or the log. The app replaces each value of 4
+  characters or more wherever it shows up — in every `ai/delta`, in the result, in the extension's log, in the
+  provider's errors — but a value encoded or split across pieces isn't recognized.
 
 In TypeScript: `defineModule({ handlers: {}, ai: { models(req), async chat(req, ctx) { ctx.delta({type: "text",
 text: "…"}); return { stop: "end_turn" }; } } })` — `examples/ai-echo-provider`.
@@ -686,7 +746,7 @@ node's id, a guessed one, another extension's node — is refused (`-32001`).
 - `host/ask`: the app's dialog says which extension asks. `buttons[0]` is the main one; `risk: danger` makes it red
   and never the Return default; Esc answers `cancel` (the last button by default) — an index of a button exactly,
   anything else (a fraction, a huge number) is `-32602`. One question of an extension on screen at a time, at most 8
-  waiting; with no window to ask over (closed to the menu bar, everything locked) a question waits for one.
+  waiting, at most 6 a minute (past it `-32001`); with no window to ask over (closed to the menu bar, everything locked) a question waits for one.
 - While a question of the program is on screen (`host/ask`, the command of `host/open terminal`), the timeouts of its
   calls stop: an event that waits for the user's answer isn't cancelled after 30 s. So do they while the login behind
   its `host/exec` (or a forward) asks the user — a new server's key, a password, a 2FA code; if the user declines, the

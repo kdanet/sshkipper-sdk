@@ -27,8 +27,15 @@ then what each kind of contribution gets and what it never gets.
   on a command line and never into a container; to a program on `host.secret` / `host.nodeSecret`, or in its own
   node's `settings` (storages, sources) — never in `context.settings` of a page.
 - **Values are checked.** Parameters of actions, tools and blocks are checked against their `params` (types,
-  choices, `pattern` in full) before a handler runs; unknown keys are dropped. Answers are checked too: views against
-  the schema, an import before anything changes, console output against its limits.
+  choices, `pattern` in full) before a handler runs; unknown keys are dropped. Answers are checked too, if more
+  leniently: a view so that the page still shows (keys a block doesn't know aren't read, an unknown block is left out
+  with a warning in the log, what is too long is cut — [UI-Kit, “View limits”](ui-kit.md#view-limits)); an import
+  strictly, before anything changes; console output against its limits.
+- **An extension's screen doesn't pass for the app.** An extension's screen tab is captioned along its top “Screen
+  of the extension “…””, its sheet “Window of the extension “…””, a `host.ask` question with the extension's name. A
+  sheet opens only in answer to the user's press on that screen — never from `ui/push` or the background. SSHKipper
+  never asks for a document's or a server's password on an extension's screen: a password field there is always the
+  extension's.
 - **Changes ask.** `change` and `danger` actions ask the user first; the agent's calls go through the server's AI mode
   and confirmations like its own commands; automation steps go through the automation's approval; a database
   engine's statements through the node's mode (Production asks, «Только чтение» refuses).
@@ -40,8 +47,10 @@ then what each kind of contribution gets and what it never gets.
   for ten minutes, a document locked that it worked for (every program once no document is left open), or the app
   quitting — SIGTERM to the group, SIGKILL to what is left a few seconds later. `runtime.env` can't set variables that
   load code from outside the extension (`NODE_OPTIONS`, `DYLD_*`, `LD_*`, `PYTHONSTARTUP`, `*_OPTIONS`…).
-- **Limits.** Timeouts stop the whole process group on the server; output is capped (8 MB from a script, 16 MB a
-  JSON-RPC line); views are capped (400 blocks, 2 MB); closed pages stop their calls.
+- **Limits.** Timeouts stop the whole process group on the server; closed pages stop their calls. Sizes: a server
+  script's stdout — 8 MB; a program's JSON-RPC line — 16 MB and 64 levels of nesting; a view (a page, `render`) — 2 MB
+  and 400 blocks; the answer to a live screen's event and a `ui/push` — 8 MB and 2 000 ops; a model provider's answer —
+  4 MB; a tool's answer the model reads — 20 000 characters.
 
 ## What each contribution gets
 
@@ -62,6 +71,9 @@ then what each kind of contribution gets and what it never gets.
 - A program is a program with the user's rights on this Mac: `network` (and what it does with files) is a declaration
   the user reads, not a sandbox. What a program is given — a database's password, a storage's token, a profile's API
   key — it can send anywhere. Install programs from people you trust — as with any app.
+- An extension is known by its `id`, not by its author. A package of the same `id` installs over the installed one
+  and gets everything kept by the `id`: settings, secret settings, `host.store`, nodes of its types. The install window
+  says “Replaces the installed “…””, but doesn't compare authors (outside the library an author isn't verified anyway).
 - A server script runs with the rights of the connection's user (and root through `sudo -n` where allowed): it can do
   on the server what that user can. Read an extension's scripts before giving it `sudo`.
 - An agent can call an extension's tools only within the server's AI mode; a tool that changes things is as safe as
@@ -79,5 +91,8 @@ then what each kind of contribution gets and what it never gets.
 - Keep secrets you are given in memory: don't write a storage's token or a database's password to `SK_DATA` or logs.
 - A database driver: open a «Только чтение» node read-only where the engine can (`connection.readOnly`), and keep
   `tableData` and `readOnly` queries on a read-only connection.
+- Take an `id` of your own domain and never change it: a package of the same `id` from anyone installs over yours and
+  gets your users' settings, secrets and `host.store` ([Publishing](publishing.md#versions)). For users: “Replaces the
+  installed…” in the install window of a package from an unfamiliar source is a reason to stop.
 - Don't fetch code at run time (`curl … | sh`, a plugin downloaded on start): what runs should be what the user
   approved.

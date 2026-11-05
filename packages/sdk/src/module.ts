@@ -97,7 +97,7 @@ export interface ConsoleSession {
   /** The terminal's size now (updated before `onResize` callbacks run). */
   readonly cols: number;
   readonly rows: number;
-  /** Bytes to the terminal: a string goes as UTF-8. Big writes are split into chunks the app takes (≤ 64 KB). */
+  /** Bytes to the terminal: a string goes as UTF-8. Big writes go as `console/data` chunks of 48 KB (the app takes up to ≈ 1 MB a chunk). */
   write(data: string | Uint8Array): void;
   /** Ends the console from this side: the tab says it closed (with `reason`). */
   close(reason?: string): void;

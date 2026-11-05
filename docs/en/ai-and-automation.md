@@ -20,10 +20,24 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
 - `description` is all the model reads to choose: what it does, what it returns, when to use it.
 - `title` (optional) is for people: the confirmation of a call says «Модуль «Очереди»: Повторить задания очереди», not
   `queue_retry`.
-- `risk` goes through the server's AI mode like any command: `read` — a check, `change` — a service action,
-  `danger` — a disruptive one; the user confirms what the mode asks for. Production servers stay protected.
+- `risk` goes through the agent's level on the server like any command: `read` — a check, `change` — a service action,
+  `danger` — one that interrupts work. What asks:
+
+  | Agent level | `read` | `change` | `danger` |
+  |---|---|---|---|
+  | “Ask for permission” | asks | asks | asks |
+  | “Approve for me” (the default) | runs | runs | asks |
+  | “Full access” | runs | runs | runs |
+  | “Read-only” | runs | refused | refused |
+
+  A server's Production mark doesn't change this table — which is why an honest `risk` matters. Besides, a parameter
+  holding an address outside the server (a URL, `host:port`) asks at every level but “Full access”; with nobody to ask
+  (an automation's agent at night) it is refused.
 - `params` are checked (types, `required`, `choices`, `pattern` as a full match) and unknown keys dropped before the
-  handler runs; secrets in the answer are masked; long answers are cut.
+  handler runs.
+- The model gets the answer with secrets masked and **at most 20 000 characters** long: a longer one is cut without a
+  mark (and JSON cut is no longer JSON). An answer whose secret couldn't be masked in place is replaced by “[module
+  answer hidden…]”.
 - Return compact JSON: the model reads it, not a person.
 
 ## Automation blocks
@@ -50,7 +64,7 @@ What the handler gets is what a page's handler gets, with three differences:
 
 | | |
 |---|---|
-| `json` (default) | the JSON; its summary keys make the block's line in the run: `{"status": "ok" \| "warn" \| "error", "summary": "3 failed", "value": 3, "unit": "jobs", "items": [{"label", "status", "value", "detail"}]}` (`message` works as `summary`). Other keys are values the next blocks read as `{{ in.<key> }}`. |
+| `json` (default) | the JSON; its summary keys make the block's line in the run: `{"status": "ok" \| "warn" \| "error", "summary": "3 failed", "value": 3, "unit": "jobs", "items": [{"label", "status", "value", "detail"}]}` (`message` works as `summary`). Other top-level keys are values the next blocks read as `{{ in.<key> }}` (below). |
 | `text`, `number`, `list` | read from stdout the way the automations' “What to return” reads a command's output |
 | `none` | only whether it worked |
 
@@ -61,6 +75,20 @@ n=$(php "$SK_SETTING_ARTISAN" queue:failed --queue="$q" 2>/dev/null | grep -c '^
 st=ok; [ "$n" -gt 0 ] && st=warn; [ "$n" -gt 50 ] && st=error
 printf '{"status": "%s", "summary": %s, "value": %d, "unit": "jobs"}' "$st" "$(sk_json_string "$q: $n failed")" "$n"
 ```
+
+**What the next blocks get.** `{{ in.value }}`, `{{ in.summary }}`, `{{ in.status }}`, `{{ in.unit }}` — from the
+summary; `{{ in.<key> }}` — every other top-level key (and the keys of a `values` object) whose value is a string, a
+number or `true`/`false`: arrays, objects and `null` don't go on, up to 64 keys, a string up to 2 000 characters. Keys
+the app sets itself (`stdout`, `exit_code`, `stdout_bytes`, `duration`) aren't overwritten, and the format's keys
+(`items`, `metrics`, `values`, `state`, `series`, `rows`…) are read for what they mean — give your own values names of
+your own: `{"status": "ok", "summary": "…", "dump_file": "/tmp/x.sql.gz"}` → `{{ in.dump_file }}`.
+
+**Sudo.** `"sudo": "required"` runs the block through `sudo -n` (the server must allow it); `auto` (the default) and
+`never` run it as the connection's user, without sudo.
+
+**No service needed.** The block runs on the card's server whenever the extension is on in Settings → Extensions —
+whatever its service is on that server in “Services” (“Off” too). Check for the program you need in the script
+itself (`sk_has … || sk_fail …`).
 
 A block's id in a graph comes from the module id and the block id: an automation shared with someone who has the
 module installed finds the block.
@@ -81,8 +109,9 @@ A process module's block calls its handler in the program on this Mac (protocol 
 - `server: true` gives the block a server input (needs `exec`): `ctx.host.exec` there goes through the
   **automation's sessions** — its profile, its line of logins; at night a 2FA code nobody can type makes the step
   wait for a person. Without `server` there is no server and `host.exec` is refused.
-- Return the result as an object (`{status, summary, value, items: [{label, value, unit, status, detail}]}`) for
-  `returns: json`, or a string for `text` / `number` / `list`. A thrown `ModuleError` fails the step with its message.
+- Return the result as the same JSON a server block prints on stdout: an object (`{status, summary, value, items:
+  [{label, value, unit, status, detail}], …}` — its keys reach `{{ in.<key> }}` the same way) for `returns: json`, or a
+  string for `text` / `number` / `list`. A thrown `ModuleError` fails the step with its message.
 - The approval shows “extension program” on this Mac, the handler, the parameters and the block's `risk`.
 - Stopping the run aborts `ctx.signal`. Such a block can't run “on the server by cron” (the program is on this Mac):
   installing the automation on a server is refused.
@@ -117,5 +146,13 @@ defineModule({
   `tools`, `max_tokens`, `effort` — already masked by the app; `settings` and `secrets` are the profile's (secret
   fields live in the keychain and need the `secrets` permission).
 - A tool call goes through the AI mode's rules and the user's confirmations; the program never runs a tool itself.
+- In the AI panel the user's last message starts with a text block of the app's own,
+  `<sshkipper_context>…</sshkipper_context>`: the date and time, the chat's server and the user's tab, the brief of the
+  agent folders, the open sessions (`s1=web-1[доступ есть, safeWrite, production]`). Pass it to the model as it is —
+  it is how the model knows which `s1`, `s2` it may use.
 - `ctx.signal` aborts when the user presses Stop (`ai/cancel`). An error you throw is shown as the provider's error.
+  `ai/chat` has 30 minutes for the whole answer (`ai/models` 60 s): until then only Stop ends it.
+- The values of the profile's secret fields (4 characters or more) are replaced by the app in every `ai/delta`, in the
+  result, in errors and in the extension's log. It is a safety net: a value encoded or split across pieces isn't
+  recognized — don't print the key at all.
 - `examples/ai-echo-provider` — a deterministic stand-in with streaming and tool calls, no network.

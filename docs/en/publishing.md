@@ -4,7 +4,7 @@
 
 ```sh
 sshkipper-ext pack            # validates, then → <id>-<version>.sshkext (or .sshkmod for sshkipper-module.json)
-sshkipper-ext pack -o dist/queues.sshkext
+sshkipper-ext pack -o dist/queues.sshkext   # makes dist/ itself
 ```
 
 A package is a ZIP of the folder with the manifest at its root: `.sshkext` for an extension
@@ -30,8 +30,20 @@ It copies the package into its own folder and records the SHA-256 of every file.
 
 ## Versions
 
-- `version` is semantic. A new version installed over an old one keeps the users' settings (they are keyed by `id`
-  and setting `key`): rename a setting only with a major version, and read the old key for a while.
+- `version` is semantic. A new version installed over an old one keeps the users' settings and their nodes' fields:
+  they are keyed by the extension's `id` and the field's `key`.
+- **A field's key is for good.** The program gets only what the manifest declares now. Rename the key of a setting or
+  of a field of your node type and the value under the old key stays in the document but never reaches the program: a
+  plain field is gone from `settings`, a secret can't be read (`host.nodeSecret` of the old key — “no such secret
+  field”; the new key has no secret), a `node` link gives nothing and is listed in the node's card under “Links not in
+  the schema”. The program can't move values itself. If you must rename: in a major version declare the new key
+  **next to** the old one (the old one titled “… (deprecated)”), read the new one and fall back to the old when it is
+  empty (`ctx.host.nodeSecret("old_token")`), tell users in the README what to enter again; drop the old key a
+  version later.
+- **The `id` is for good too, and it is yours.** A package of the same `id` installs over the installed one — whoever
+  made it — and gets everything kept by the `id`: settings, secret settings, `host.store`, nodes of its types, blocks in
+  automations. The install window says only “Replaces the installed “…” <version>”; it doesn't compare authors. Take
+  the `id` from your own domain (`dev.acme.queues`), never change it, never take someone else's.
 - An update that adds a permission or a contribution is installed **switched off** until the user switches it on.
 - `sdk` is the protocol's major version. A new major version of the protocol comes with a new number; the app keeps
   running extensions of the versions it knows and refuses newer ones with «update SSHKipper».

@@ -11,14 +11,19 @@ lives in one, through `sudo -n` when allowed. Nothing is installed on the server
 | stdin | the request as JSON: `{"handler", "input", "context": {"server", "container", "settings", "item", "locale", "sdk", "app"}}` |
 | `SK_INPUT_<KEY>` | each value of `input` (numbers as text, booleans `1`/`0`, lists and objects as JSON) |
 | `SK_SETTING_<KEY>` | each non-secret setting of the connection |
-| `SK_SECRET_<KEY>` | the **path** of a 0600 file with a secret setting (needs `secrets`); `sk_secret key` prints it |
+| `SK_SECRET_<KEY>` | the **path** of a 0600 file with a secret setting (needs `secrets`); `sk_secret key` prints it — the key of `[A-Za-z0-9_]` only, another one is refused with a message |
 | `SK_ITEM_ID` | the row's id, for `on: item` actions and item pages |
 | `SK_CONTAINER` | the container's name when it runs in one |
 | `SK_AUTOMATION` | `1` when it runs as an automation block |
-| `SK_TMP` | a private 0700 folder, removed after the run (also the working directory) |
+| `SK_TMP` | a private 0700 folder, removed after the run (also the working directory). The app's files are already there — `handler.sh` (the prelude and your script), `env.sh` (the variables), `request.json` (the request), `secret_<key>` (secrets): name yours otherwise and leave theirs alone |
+| `SK_UMASK` | the umask the session had: the script itself runs under `umask 077` (its files are its owner's only); to differ — `umask "$SK_UMASK"`. Not under sudo, not in a container |
+| `SK_SUDO` | the wrapper's own variable: `0` — the script runs without sudo. Under sudo it is gone (sudo clears the environment): ask `[ "$(id -u)" = 0 ]` |
 | `SK_HANDLER`, `SK_MODULE`, `SK_SDK`, `SK_LOCALE` | which handler, which module, `1`, `ru`/`en`/… |
 
-Values come over the session, not on the command line: other users of the server don't see them in `ps`.
+Values come over the session, not on the command line: other users of the server don't see them in `ps`. **Except in
+a container**: there the script with the request, the settings and the item goes to `docker exec` as an argument, and
+while it runs any user of the server (unless `/proc` is mounted with `hidepid`) and the container's processes see it
+in `ps` ([protocol §3.1](../../spec/protocol.md)). Secrets never go into a container.
 
 ## The prelude
 
@@ -78,6 +83,8 @@ a handler that needs one fails with a message.
 - Prefer `printf` to `echo`; quote every variable.
 - `command -v` (or `sk_has`) before a tool that may be missing, with a message that says what to install.
 - Text parameters reach your script: give them a `pattern` in the manifest — the app checks values before running.
+  Settings have no `pattern`: `SK_SETTING_*` come as the user typed them — quote them and check them yourself. A
+  `number` is any number (fractions, negatives); check for a whole number and bounds yourself.
 - Keep handlers quick: a page waits for its data handlers.
 
 ## Trying them

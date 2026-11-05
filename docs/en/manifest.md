@@ -81,7 +81,9 @@ every server in it has it.
 ```
 
 Types: `text`, `number`, `bool`, `choice`, `path`, `list` (strings), `secret` (stored encrypted in the document,
-never in `context.settings`). Handlers read them as `SK_SETTING_<KEY>` (server) or `ctx.settings` (process). A node
+never in `context.settings`). Settings have no `pattern`: a `text`, `path` or `list` value reaches the script as the
+user typed it — quote `"$SK_SETTING_…"` and check it in the script yourself; a `number` is any number (fractions and
+negatives too). Handlers read them as `SK_SETTING_<KEY>` (server) or `ctx.settings` (process). A node
 type's fields (`contributes.nodeType[].fields`) may also be `node` — a link to another node of the document, with
 `nodeKinds` ([node types](node-types.md)).
 
@@ -127,7 +129,7 @@ A row's `action: {"page": "queue"}` opens a page with that row as `item`; “Bac
 |---|---|
 | `script` | Server runtime: the file run with `sh` on the server. Process runtime: not used — the key is the name the program answers. |
 | `timeout` | Seconds, 30 by default. |
-| `sudo` | `auto` (default): through `sudo -n` when the server allows it and the module has `sudo`; `required`; `never`. |
+| `sudo` | `auto` (default): through `sudo -n` when the server allows it and the module has `sudo`; `required`; `never`. In an automation block `auto` means **no** sudo: only `required` runs it through `sudo -n`. |
 | `output` | `json` (default), `text`, `lines`. |
 
 ## Actions
@@ -145,8 +147,20 @@ A row's `action: {"page": "queue"}` opens a page with that row as `item`; “Bac
 - `on: "service"` (default) — in the page's “⋯” menu; `on: "item"` — in rows that list its id in `actions`.
 - `risk`: `read` runs at once; `change` asks; `danger` asks with a red button. `confirm` is the question
   (`{{ item.* }}`, `{{ params.* }}`, `{{ server.* }}`, `{{ settings.* }}`).
-- `params` — a small form before it runs: `text` (always give a `pattern` when it reaches a script), `number`,
-  `bool`, `choice`. Values are checked against them before anything runs.
+- `params` — a small form before it runs: `text` (always give a `pattern` when it reaches a script), `number` (any
+  number: there is no integer, `min` or `max` — check in the handler), `bool`, `choice`. Values are checked against
+  them before anything runs. A parameter's `choices` is **an array of strings** (the value is its label), a setting's
+  an array of objects:
+
+  ```json
+  "params":   [{ "key": "signal", "title": "Signal", "type": "choice", "choices": ["TERM", "HUP", "KILL"], "default": "TERM" }]
+  "settings": [{ "key": "scope", "title": "Scope", "type": "choice", "default": "system",
+                 "choices": [{ "value": "system", "title": "System" }, { "value": "user", "title": "User" }] }]
+  ```
+
+- What the user sees when an action ends: above the page for 4 seconds — the answer's `message` (up to 400
+  characters), the string if the handler returned one, else “Done”; then the page reloads. A handler's error (a
+  non-zero exit, a `ModuleError`) — its message, in red, and a line in the log.
 
 ## AI tools and automation blocks
 

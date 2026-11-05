@@ -69,6 +69,12 @@ extension's log in Settings → Extensions). **Not JSON-RPC**: no `jsonrpc` fiel
   and repeats the request once — unless the editor holds a transaction), `invalidRequest`, `internalError`. An unknown code reads as
   `internalError`; the message is shown as is.
 - Values in results are text (`null` for NULL); binary as `0x…` hex.
+- stdout carries responses only. A line the app can't read an `id` from is skipped without a trace (it is not in the
+  extension's log); a line with an `id` is taken as that request's response. Log to stderr — `serveDatabase` doesn't
+  redirect `console.log` the way `defineModule` does.
+- `truncated` (a `Result`): there are more rows than the answer holds — the driver stopped at `maxRows`, or earlier
+  because the result was too big. The editor shows «первые N строк» and a note on the limit, the agent «есть ещё»;
+  with fewer rows than `limit`, `tableData`'s next page starts after the rows that came. `false` when every row came.
 
 ## 4. Methods
 
