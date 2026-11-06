@@ -70,7 +70,8 @@ sshkipper-ext preview main --run              # страница текстом,
 `run` даёт обработчику то же, что приложение: запрос на stdin, переменные `SK_*`, прелюдию SDK, остальные файлы
 `scripts/` для `sk_file`. Ещё: `--input '{"mount": "/var"}'`, `--settings '{…}'`, `--secret ключ=значение`. Имя с
 косой чертой — собственный метод вклада программы: `run source/poll --params '{…}'`,
-`run import/parse --file servers.txt --importer hosts`. `preview` проводит живой экран через события:
+`run import/parse --file servers.txt --importer hosts`. `preview` (программе не передаются переменные окружения, с которыми запущен CLI: только `runtime.env` и то, что задаёт
+приложение — как в приложении) проводит живой экран через события:
 `preview tasks --events '[{"type": "open"}, {"type": "press", "value": {"item": "add"}}]'`.
 
 ## 4. В SSHKipper

@@ -125,6 +125,9 @@ A row's `action: {"page": "queue"}` opens a page with that row as `item`; “Bac
 }
 ```
 
+A handler's name is lowercase Latin letters, digits and `_`, starting with a letter, up to 40 characters
+(`render_details`, not `renderDetails`): the same name the program answers and `render`, `events`, `handler` point at.
+
 | Key | |
 |---|---|
 | `script` | Server runtime: the file run with `sh` on the server. Process runtime: not used — the key is the name the program answers. |

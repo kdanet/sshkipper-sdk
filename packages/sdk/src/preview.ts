@@ -48,7 +48,7 @@ export function applyOps(view: Json | View, ops: (Json | Op)[], from?: { push?: 
     };
     return walk(v.blocks);
   };
-  const rowID = (r: any, i: number) => (r && !Array.isArray(r) && r.id !== undefined ? String(r.id) : `#${i}`);
+  const rowID = (r: any, i: number) => (r && !Array.isArray(r) && r.id !== undefined ? String(r.id) : r == null ? `\u0000hole${i}` : `#${i}`);
   const types = new Set(BLOCKS.map((b) => b.type));
   ops.forEach((raw, index) => {
     const o = raw as any;
@@ -283,13 +283,16 @@ function block(b: any, depth: number, out: string[]) {
     // A live screen's own blocks.
     case "datatable": {
       const cols = (b.columns ?? []).map((c: any) => (typeof c === "string" ? c : c.title ?? c.id));
-      const rows = b.rows ?? [];
-      head(`[datatable #${b.id ?? "?"}]${t}: ${cols.join(" | ")} — ${rows.length} of ${b.total ?? rows.length} rows${b.menu?.length ? ` ⋯ ${b.menu.map((m: any) => m.title).join(", ")}` : ""}`);
+      // A page put past the loaded rows leaves places not loaded yet (holes): skipped, as the app shows them empty.
+      const rows = (b.rows ?? []).filter((r: any) => r !== undefined && r !== null);
+      // As the app: a total moves into 0 … 10 000 000 (validate says so as an error).
+      const total = typeof b.total === "number" ? Math.min(Math.max(0, Math.round(b.total)), 10_000_000) : rows.length;
+      head(`[datatable #${b.id ?? "?"}]${t}: ${cols.join(" | ")} — ${rows.length} of ${total} rows${b.menu?.length ? ` ⋯ ${b.menu.map((m: any) => m.title).join(", ")}` : ""}`);
       for (const r of rows.slice(0, 10)) {
         const cells = Array.isArray(r) ? r : r.cells ?? (b.columns ?? []).map((c: any) => r.values?.[typeof c === "string" ? c : c.id] ?? "");
         head(`  ${r.status ? `${dot[r.status] ?? "·"} ` : ""}${cells.map((c: any) => print(c ?? "")).join(" | ")}`);
       }
-      if ((b.total ?? rows.length) > Math.min(rows.length, 10)) head(`  … the rest come page by page (more)`);
+      if (total > Math.min(rows.length, 10)) head(`  … the rest come page by page (more)`);
       return;
     }
     case "tree": {

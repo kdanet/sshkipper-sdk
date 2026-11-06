@@ -56,6 +56,8 @@ function matches(r: Row, f: Filter): boolean {
 await serveDatabase({
   hello: () => ({
     protocolVersion: 1, pluginVersion: "0.1.0", features: ["passwordBytes"],
+    // `engine` must be the manifest's `contributes.database[].id` — rename both together, or the app says the
+    // program «doesn't name the engine in hello».
     engines: [{ engine: "__SLUG__", title: "__TITLE__", keywords: [], functions: [], identifierQuote: "\"", supportsEditing: false, supportsTransactions: false, hasDatabases: false }],
   }),
   connect: ({ session: id, connection }) => {

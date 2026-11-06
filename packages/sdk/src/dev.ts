@@ -86,7 +86,7 @@ export function checkInput(params: Param[], input: Record<string, Json>): { inpu
       if ([...v].length > 4000) throw new Error(`«${name(p)}»: too long`);
       if (p.type === "choice" && !(p.choices ?? []).includes(v)) throw new Error(`«${name(p)}»: no choice «${v}»`);
       // The whole value, as the app matches it (JavaScript's «$» without the m flag is the very end, as ICU's \z).
-      if (p.pattern !== undefined && !new RegExp(`^(?:${p.pattern})$`).test(v)) throw new Error(`«${name(p)}»: the value doesn't match the extension's pattern`);
+      if (p.pattern !== undefined && !new RegExp(`^(?:${p.pattern})$`).test(v)) throw new Error(`«${name(p)}»: the value doesn't match the extension's pattern — expected ${p.pattern.length <= 80 ? p.pattern : p.pattern.slice(0, 80) + "…"}`);
     }
     out[p.key] = v;
   }

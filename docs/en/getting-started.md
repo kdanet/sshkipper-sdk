@@ -71,7 +71,8 @@ sshkipper-ext preview main --run              # the page as text, with what its 
 `run` gives the handler what the app gives it: the request on stdin, `SK_*` variables, the SDK prelude, other
 files of `scripts/` for `sk_file`. `--input '{"mount": "/var"}'`, `--settings '{…}'`, `--secret key=value` — the rest.
 A name with a slash is a contribution's own method of a program: `run source/poll --params '{…}'`,
-`run import/parse --file servers.txt --importer hosts`. `preview` lives a live screen through events:
+`run import/parse --file servers.txt --importer hosts`. `preview` (the program doesn't get the CLI's own environment variables: only `runtime.env` and what the app sets — as
+in the app) lives a live screen through events:
 `preview tasks --events '[{"type": "open"}, {"type": "press", "value": {"item": "add"}}]'`.
 
 ## 4. In SSHKipper

@@ -199,7 +199,8 @@ test("preview: the screens example lives through open and more, its pushes appli
   const r = await previewScreen(join(root, "examples/screens"), undefined, { events: [{ type: "open" }, { type: "more", block: "jobs", value: { offset: 200, limit: 100 } }], wait: 1200 });
   assert.deepEqual(r.issues, []);
   assert.deepEqual(r.problems, []);
-  assert.match(r.text, /300 of 50000 rows/);
+  // The first 100 and the page at 200…299: 200 loaded (the places between aren't rows yet, as in the app).
+  assert.match(r.text, /200 of 50000 rows/);
   assert.match(r.answers.join("\n"), /push: 1 op/);
 });
 
@@ -308,6 +309,14 @@ test("preview as the app: a sheet only for a press or OK, numbers clamped, one l
 });
 
 test("a title can't be the app's, look-alike letters too (round 2)", () => {
-  for (const t of ["SSHKipper", "SSH Kipper", "SSНKipper", "ＳＳＨＫｉｐｐｅｒ", "ЅЅНКірреr"]) assert.equal(passesForTheApp(t), true, t);
+  for (const t of ["SSHKipper", "SSH Kipper", "SSНKipper", "ＳＳＨＫｉｐｐｅｒ", "ЅЅНКірреr", "ꜱꜱʜKipper", "SSHKiⲣⲣer", "SSHKìpper"]) assert.equal(passesForTheApp(t), true, t);
   for (const t of ["Kipper tools", "SSH helper", "Мои серверы"]) assert.equal(passesForTheApp(t), false, t);
+});
+
+test("preview draws a page put past the loaded rows (round 3: it threw on the holes)", () => {
+  const view = { blocks: [{ type: "datatable", id: "dt", columns: ["a"], rows: [] }] } as unknown as Json;
+  const r = applyOps(view, [{ op: "rows", id: "dt", offset: 5, rows: [{ id: "x", cells: ["1"] }], total: 10 }]);
+  const text = preview(r.view);
+  assert.match(text, /1 of 10 rows/);
+  assert.match(text, /\b1\b/);
 });

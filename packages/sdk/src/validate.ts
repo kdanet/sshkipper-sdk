@@ -581,10 +581,13 @@ const LOOKALIKES: Record<string, string> = {
   а: "a", в: "b", с: "c", е: "e", ё: "e", н: "h", і: "i", ї: "i", ј: "j", к: "k", м: "m", о: "o", р: "p", ѕ: "s", т: "t", х: "x",
   у: "y", һ: "h", ԁ: "d", ԛ: "q", ԝ: "w", α: "a", β: "b", ε: "e", η: "h", ι: "i", κ: "k", μ: "m", ν: "v", ο: "o", ρ: "p",
   τ: "t", υ: "u", χ: "x", ϲ: "c", ı: "i",
+  // Small capitals, Coptic, Armenian («ꜱꜱʜKipper», «SSHKiⲣⲣer»).
+  "ᴀ": "a", "ʙ": "b", "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ꜰ": "f", "ɢ": "g", "ʜ": "h", "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l", "ᴍ": "m", "ɴ": "n", "ᴏ": "o", "ᴘ": "p", "ʀ": "r", "ꜱ": "s", "ᴛ": "t", "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ʏ": "y", "ᴢ": "z", "ⲁ": "a", "ⲃ": "b", "ⲥ": "c", "ⲇ": "d", "ⲉ": "e", "ⲏ": "h", "ⲓ": "i", "ⲕ": "k", "ⲙ": "m", "ⲛ": "n", "ⲟ": "o", "ⲣ": "p", "ⲧ": "t", "ⲩ": "y", "ⲭ": "x", "օ": "o", "ս": "u", "հ": "h", "ք": "p", "ց": "g", "ⅼ": "l", "ⅰ": "i",
 };
 
 /** «SSHKipper», «SSH Kipper», «SSНKipper» (a Cyrillic Н): a title that is the app's name — as the app checks it. */
 export function passesForTheApp(title: string): boolean {
-  const letters = [...title.normalize("NFKC").toLowerCase()].map((c) => LOOKALIKES[c] ?? c).join("").replace(/[^\p{L}]/gu, "");
+  // Diacritics off too («SSHKìpper»): NFKD splits them off as marks, which the letter filter drops.
+  const letters = [...title.normalize("NFKC").normalize("NFKD").toLowerCase()].map((c) => LOOKALIKES[c] ?? c).join("").replace(/[^\p{L}]/gu, "");
   return letters === "sshkipper" || letters === "sshift" || (letters.startsWith("sshkipper") && [...title].length <= 24);
 }

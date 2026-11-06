@@ -17,6 +17,8 @@ The same handlers that fill pages can serve the app's AI agent and its automatio
 
 - The agent sees two fixed tools — `module_tools` (what the modules of a server offer) and `module_call` — so its
   tool list doesn't change as modules come and go (the prompt cache holds).
+- The agent passes a call's parameters in `input`: `module_call {"target": "s1", "module": "dev.acme.queues", "tool":
+  "queue_retry", "input": {"queue": "emails"}}` (spec: `spec/protocol.md` §9).
 - `description` is all the model reads to choose: what it does, what it returns, when to use it.
 - `title` (optional) is for people: the confirmation of a call says «Модуль «Очереди»: Повторить задания очереди», not
   `queue_retry`.
@@ -86,7 +88,7 @@ your own: `{"status": "ok", "summary": "…", "dump_file": "/tmp/x.sql.gz"}` →
 **How to refer to them.** The name before the dot is the input of the block that reads the values, not always `in`:
 «Команда» and «Скрипт» call it `data` (`{{ data.dump_file }}`), «Условие» and «Спросить меня» call it `in`
 (`in.value > 80`), and «Итог» uses the id of the block the values came from (`{{ queue_check.value }}` — «Итог» has many
-inputs). **Module blocks** (server
+inputs; the block must be linked to «Итог», or the editor says it isn't connected). **Module blocks** (server
 scripts and program blocks alike) don't read earlier blocks' values: they have no values input, and a card's parameters
 reach the script or program as typed (`{{ … }}` isn't filled in there). That's by design — a module block is described
 by its parameters and is approved by them in the permission window. Working with its result further is the built-in

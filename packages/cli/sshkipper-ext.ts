@@ -203,6 +203,20 @@ export async function main(argv: string[]) {
         if (!s.includes("=")) fail(`--secret ${s}: key=value`);
         secrets[s.slice(0, s.indexOf("="))] = s.slice(s.indexOf("=") + 1);
       }
+      // What it was given stays out of what it prints, as the app masks it (round 3: «token is supersecret123»).
+      const hidden = Object.values(secrets).filter((v) => v.length >= 4).sort((a, b) => b.length - a.length);
+      if (hidden.length) {
+        const mask = (chunk: unknown) => {
+          if (typeof chunk !== "string" && !(chunk instanceof Uint8Array)) return chunk;
+          let t = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+          for (const v of hidden) t = t.split(v).join("[hidden]");
+          return t;
+        };
+        for (const stream of [process.stdout, process.stderr]) {
+          const write = stream.write.bind(stream) as (...a: unknown[]) => boolean;
+          (stream as any).write = (chunk: unknown, ...rest: unknown[]) => write(mask(chunk), ...rest);
+        }
+      }
       const opts = {
         input: jsonFlag(f, "input") as Record<string, Json>, settings: jsonFlag(f, "settings") as Record<string, Json>, item: jsonFlag(f, "item"),
         node: jsonFlag(f, "node"), ssh: f.ssh as string | undefined, container: f.container as string | undefined, secrets, locale: (f.locale as string) ?? "en",
@@ -223,6 +237,14 @@ export async function main(argv: string[]) {
           try { data = readFileSync(f.file); } catch (e) { fail(`--file: ${(e as Error).message}`); }
           params = { importer: f.importer, name: basename(f.file), size: data.length, data: data.toString("base64"), locale: opts.locale, ...params };
         }
+        // A source's call carries {node, kind, settings} (spec/protocol.md §12.2): a wrong shape said here, not as the
+        // program's «Cannot read properties of undefined».
+        if (name.startsWith("source/") && params.source !== undefined) {
+          const src = params.source as any;
+          if (!src || typeof src !== "object" || Array.isArray(src) || (src.settings !== undefined && (typeof src.settings !== "object" || Array.isArray(src.settings)))) {
+            fail(`--params: «source» is an object {"node": "<any id>", "kind": "<your source id>", "settings": {…}} (spec/protocol.md §12.2)`);
+          }
+        }
         const r = await callMethod(dir, name, params, opts);
         for (const l of r.log) console.error(`· ${l}`);
         // What the app would refuse in an import's answer (spec/protocol.md §15) — said here, not only in the app.
@@ -242,7 +264,9 @@ export async function main(argv: string[]) {
         print(r.value);
         break;
       }
-      for (const k of ["params", "file", "importer"]) if (f[k] !== undefined) fail(`--${k} is for a method (a name with a slash); a handler takes --input`);
+      // A database driver's methods (hello, query…) aren't run here at all: said first, whatever the flags.
+      const isDriver = (() => { try { return !!JSON.parse(readFileSync(join(dir, manifestFile(dir)), "utf8")).contributes?.database?.length; } catch { return false; } })();
+      if (!isDriver) for (const k of ["params", "file", "importer"]) if (f[k] !== undefined) fail(`--${k} is for a method (a name with a slash); a handler takes --input`);
       const r = await call(dir, name, opts);
       for (const l of r.log) console.error(`· ${l}`);
       // The handler's stderr on success too — what it logged (sk_log, console.error) while the call went well.
