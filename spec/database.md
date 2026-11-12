@@ -87,7 +87,7 @@ Types are in `packages/sdk/src/database.ts` (`Methods`). All but `hello` name a 
 | `disconnect` | `{session}` | `{}` | Also stops what still runs. |
 | `ping` | `{session}` | `{}` | |
 | `query` | `{session, sql, database?, maxRows, queryID, readOnly?, isolated?}` | `Result` | One statement (the app splits scripts by the dialect). `readOnly` — the app wants a read the engine guarantees; `isolated` — not on the editor's connection state. Report `inTransaction` after it when the engine has editor transactions. |
-| `cancel` | `{session, queryID}` | `{}` | Stop the `query` or `tableData` with this id; answer at once. The cancelled request answers `cancelled`. |
+| `cancel` | `{session, queryID}` | `{state?, message?, serverCode?}` (or `{}`) | Stop the `query` or `tableData` with this id; answer as soon as the server took the stop or refused it — never wait without a deadline. `state`: `interrupted` (the server took it), `notStarted` (not started yet: it won't run), `failed` (`message` says why, shown to the user; the statement may still run). `{}` — «unknown». The cancelled request answers `cancelled`. |
 | `databases` | `{session}` | `[{name, isSystem, tables?}]` | |
 | `objects` | `{session, database, offset?, limit?, filter?}` | `[{name, kind, rows?, size?, comment?, schema?}]` | `kind`: `table`, `view`, `materializedView`, `collection`, … Above 2000 tables the app asks by pages. |
 | `structure` | `{session, database?, table, fresh?}` | `{columns, indexes, foreignKeys, primaryKey, ddl?, info}` | `primaryKey` empty — the grid doesn't edit the table. |
