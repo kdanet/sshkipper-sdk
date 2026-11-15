@@ -7,12 +7,15 @@ Ctrl-D to leave. No shell, no port, no network: a real console would relay the b
 
 **Contributes:** `console` (`echo`, on connections). Permissions: none.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/console-echo
 ```
 
-A console is interactive: try it in the app. **In SSHKipper:** Settings → Extensions → Development folder… → a connection's menu →
-«Console: Учебная консоль». Guide: [importers and consoles](../../docs/en/importers-and-consoles.md).
+A console is interactive: try it in the app.
+
+**In SSHKipper:** Settings → Extensions → Development folder… → a connection's menu → «Console: Учебная консоль». Guide: [importers and consoles](../../docs/en/importers-and-consoles.md).
 
 **По-русски:** консоль во вкладке терминала приложения: программа изображает серийную консоль устройства (эхо,
 редактирование строки, цвета, размер окна). Руководство — [импорт и консоли](../../docs/ru/importers-and-consoles.md).

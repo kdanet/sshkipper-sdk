@@ -1,6 +1,8 @@
 # AI tools and automation blocks
 
-The same handlers that fill pages can serve the app's AI agent and its automations.
+The same handlers that fill pages can serve the app's AI agent and its automations. The protocol —
+[spec/protocol.md](../../spec/protocol.md): §8 (automation blocks), §8.1 (blocks of a process module), §9 (AI
+tools), §13 (model providers).
 
 ## AI tools
 
@@ -106,7 +108,7 @@ module installed finds the block.
 
 ### Blocks of a process module
 
-A process module's block calls its handler in the program on this Mac (protocol §8.1) — no script, no shell:
+A process module's block calls its handler in the program on this Mac (`handler/call`, protocol §8.1) — no script, no shell:
 
 ```json
 "automation": [
@@ -123,21 +125,31 @@ A process module's block calls its handler in the program on this Mac (protocol 
 - Return the result as the same JSON a server block prints on stdout: an object (`{status, summary, value, items:
   [{label, value, unit, status, detail}], …}` — its keys reach `{{ <input>.<key> }}` the same way) for `returns: json`, or a
   string for `text` / `number` / `list`. A thrown `ModuleError` fails the step with its message.
-- The approval shows “extension program” on this Mac, the handler, the parameters and the block's `risk`.
-- Stopping the run aborts `ctx.signal`. Such a block can't run “on the server by cron” (the program is on this Mac):
-  installing the automation on a server is refused.
+- The approval shows “extension program” on this Mac, the handler, the parameters and the block's `risk` from the
+  manifest.
+- Stopping the run aborts the call (`ctx.signal`). Such a block can't run “on the server by cron” (the program is on
+  this Mac): installing the automation on a server is refused, naming the block.
 
-See `examples/http-checks` (`check_urls`, `check_urls_mac`).
+See `examples/http-checks` (`check_urls` — from the server, `check_urls_mac` — from this Mac).
 
 ## Model providers
 
-An extension can be a model provider (`contributes.ai`, protocol §13): Settings → AI gets a profile of it, used
-wherever a profile is chosen — the AI panel, query drafting, AI filters, automations.
+An extension can be a model provider (`contributes.ai`, protocol §13). Settings → AI gets a profile of it (Settings →
+AI → “+” → «Из расширений»): the contribution's title and icon, its `fields` as the profile's settings, the models the
+program lists, the `reasoning` levels. The profile is chosen wherever a profile is: the AI panel, «Составить запрос»,
+AI filters, automations.
 
 ```json
 "contributes": { "ai": [{ "id": "echo", "title": "Echo", "reasoning": ["low", "medium", "high"],
   "fields": [{ "key": "base_url", "type": "text", "title": "Address" }, { "key": "api_key", "type": "secret", "title": "API key" }] }] }
 ```
+
+The program answers three methods of its own:
+
+- `ai/models` — the list of models `[{id, title}]`;
+- `ai/chat` — the answer: pieces come as `ai/delta` notifications (`text`, `tool_use`, `tool_input`, `progress`,
+  `usage`) with the stream's id, then the result `{stop, usage, model, message?}`;
+- `ai/cancel` — the user pressed Stop.
 
 ```ts
 defineModule({
@@ -154,9 +166,11 @@ defineModule({
 ```
 
 - `req` is what every provider of the app gets — `system`, `messages` (blocks: text, tool_use, tool_result),
-  `tools`, `max_tokens`, `effort` — already masked by the app; `settings` and `secrets` are the profile's (secret
-  fields live in the keychain and need the `secrets` permission).
-- A tool call goes through the AI mode's rules and the user's confirmations; the program never runs a tool itself.
+  `tools`, `max_tokens`, `effort` — already after the app's masking of secrets and the AI mode's policy. `settings`
+  and `secrets` are the profile's: secret fields live in this Mac's keychain, like the API keys of built-in providers,
+  and need the `secrets` permission.
+- A tool call the model “asks for” goes through the AI mode's rules and the user's confirmations — the program never
+  runs a tool itself.
 - In the AI panel the user's last message starts with a text block of the app's own,
   `<sshkipper_context>…</sshkipper_context>`: the date and time, the chat's server and the user's tab, the brief of the
   agent folders, the open sessions (`s1=web-1[доступ есть, safeWrite, production]`). Pass it to the model as it is —
@@ -166,4 +180,6 @@ defineModule({
 - The values of the profile's secret fields (4 characters or more) are replaced by the app in every `ai/delta`, in the
   result, in errors and in the extension's log. It is a safety net: a value encoded or split across pieces isn't
   recognized — don't print the key at all.
-- `examples/ai-echo-provider` — a deterministic stand-in with streaming and tool calls, no network.
+- `examples/ai-echo-provider` — a deterministic stand-in with no network and no real models, with a streamed answer
+  and tool calls: it prints its answer word by word and, on “check the server”, calls `list_sessions`, then
+  `run_command uptime`.

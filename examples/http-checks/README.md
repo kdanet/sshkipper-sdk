@@ -7,6 +7,8 @@ blocks of a program (one through the server, one from this Mac).
 
 **Contributes:** `service`, `tools`, `automation` (a module). Permissions: `exec`, `store`, `notify`, `network`.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/http-checks
 sshkipper-ext run examples/http-checks render --settings '{"urls": ["http://127.0.0.1:9/"]}'   # host.exec runs here

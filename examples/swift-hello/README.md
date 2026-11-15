@@ -7,11 +7,13 @@ notice), a chart of this Mac's load the program pushes every 2 s while the scree
 
 **Contributes:** `service`. Permissions: `exec`.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
-./build.sh                    # → bin/swift-hello (SwiftPM builds in $TMPDIR: the app hashes every file here)
-sshkipper-ext validate .
-sshkipper-ext run . summary
-sshkipper-ext preview . main --events '[{"type": "open"}, {"type": "press", "value": {"item": "refresh"}}]' --wait 2500
+examples/swift-hello/build.sh  # → bin/swift-hello (SwiftPM builds in $TMPDIR: the app hashes every file here)
+sshkipper-ext validate examples/swift-hello
+sshkipper-ext run examples/swift-hello summary
+sshkipper-ext preview examples/swift-hello main --events '[{"type": "open"}, {"type": "press", "value": {"item": "refresh"}}]' --wait 2500
 ```
 
 **In SSHKipper:** Settings → Extensions → Development folder… (after `./build.sh`; no `.build` in the folder) → a connection's Services →

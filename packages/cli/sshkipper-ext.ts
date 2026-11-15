@@ -270,8 +270,10 @@ export async function main(argv: string[]) {
       const r = await call(dir, name, opts);
       for (const l of r.log) console.error(`· ${l}`);
       // The handler's stderr on success too — what it logged (sk_log, console.error) while the call went well.
-      if (r.stderr.trim() && r.stderr.trim() !== r.error) console.error(r.stderr.trim());
-      if (!r.ok) fail(r.error ?? "failed");
+      const logged = !!r.stderr.trim() && r.stderr.trim() !== r.error;
+      if (logged) console.error(r.stderr.trim());
+      // After the handler's own stderr, its last line alone reads like a stray message: say whose it is.
+      if (!r.ok) fail(logged ? `«${name}» failed: ${r.error ?? "see its stderr above"}` : r.error ?? "failed");
       print(r.value);
       break;
     }

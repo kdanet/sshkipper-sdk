@@ -7,6 +7,8 @@
 
 **Contributes:** `service` (a module, a TypeScript program). Permissions: none.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/screens
 sshkipper-ext preview examples/screens --events '[{"type": "open"}, {"type": "more", "block": "jobs", "value": {"offset": 200, "limit": 100}}]' --wait 1500

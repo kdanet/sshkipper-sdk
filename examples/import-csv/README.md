@@ -7,6 +7,8 @@ and the app asks before it imports any. `samples/servers.csv` to try.
 
 **Contributes:** `import` (`csv`). Permissions: none.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/import-csv
 sshkipper-ext run examples/import-csv import/parse --file examples/import-csv/samples/servers.csv --importer csv

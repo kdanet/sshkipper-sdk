@@ -8,6 +8,8 @@ answers.
 
 **Contributes:** `source` (kind `hetzner-cloud`). Permissions: `network`, `secrets`.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/example-hetzner-source
 # A stand-in API on 127.0.0.1 serving fixtures/servers.json, then:

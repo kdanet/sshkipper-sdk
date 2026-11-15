@@ -7,6 +7,8 @@ per session so «Стоп» can end a statement. `lib/database.ts` is the SDK's 
 
 **Contributes:** `database` (engine `example-sqlite`, model `sql`, a file). Permissions: none.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/db-sqlite-node
 node --disable-warning=ExperimentalWarning examples/db-sqlite-node/driver.ts   # then {"id":1,"method":"hello","params":{}}

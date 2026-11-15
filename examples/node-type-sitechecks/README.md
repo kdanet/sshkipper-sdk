@@ -8,6 +8,8 @@ terminal on the linked server through `host.open` (the user confirms the command
 
 **Contributes:** `nodeType` (`checks`), `screen` (`checks`, a tab). Permissions: `secrets`, `store`.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/node-type-sitechecks
 sshkipper-ext preview examples/node-type-sitechecks checks --node '{"id": "n1", "name": "Sites", "type": "ext:dev.sshkipper.example.sitechecks/checks", "settings": {"demo": true, "interval": 5}, "links": {}, "secrets": []}' --events '[{"type": "open"}]' --wait 3000

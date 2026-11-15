@@ -8,9 +8,11 @@ block. Templates (`views/*.json`) over the scripts' JSON, no program on the Mac.
 **Contributes:** `service`, `tools`, `automation` (a module: `sshkipper-module.json`, packed as `.sshkmod`).
 Permissions: `exec`, `sudo`.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/processes
-sshkipper-ext run examples/processes overview                 # here, with sh
+sshkipper-ext run examples/processes overview                 # here, with sh (Linux: it reads /proc)
 sshkipper-ext run examples/processes overview --ssh deploy@web-1
 sshkipper-ext preview examples/processes main --run
 ```

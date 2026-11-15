@@ -8,6 +8,8 @@ draws the file panel, the transfer queue and the card from `fields`.
 
 **Contributes:** `storage` (kind `folder`). Permissions: none.
 
+**Try it** (from the SDK's root, `sshkipper-ext` on PATH):
+
 ```sh
 sshkipper-ext validate examples/example-folder-storage
 sshkipper-ext run examples/example-folder-storage storage/list --params '{"storage": {"node": "t", "kind": "folder", "settings": {"root": "/tmp"}, "readOnly": true, "throughServer": false}, "path": "/"}'
