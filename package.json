@@ -1,7 +1,26 @@
 {
   "name": "sshkipper-sdk",
   "version": "1.1.0",
-  "description": "SDK for SSHKipper extensions: protocol, JSON Schemas, TypeScript and Swift runtimes, UI-Kit, CLI, MCP server for agents",
+  "description": "SDK for SSHKipper extensions: the protocol, JSON Schemas, TypeScript and Swift runtimes, UI-Kit, a CLI and an MCP server for AI agents",
+  "keywords": [
+    "sshkipper",
+    "ssh",
+    "macos",
+    "extensions",
+    "sdk",
+    "json-rpc",
+    "mcp",
+    "ui-kit",
+    "cli"
+  ],
+  "homepage": "https://github.com/kdanet/sshkipper-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/kdanet/sshkipper-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kdanet/sshkipper-sdk.git"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -39,6 +58,7 @@
     "schemas/",
     "docs/",
     "examples/",
+    "CHANGELOG.md",
     "!examples/**/.sshkipper-dev-store.json",
     "!examples/**/.build/",
     "!examples/**/bin/"

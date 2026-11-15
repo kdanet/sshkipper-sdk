@@ -17,7 +17,7 @@ import type { Json, Manifest } from "../sdk/src/types.ts";
 import { formatIssue, manifestFile, schema, symbols, validateFolder, validateManifest, validateView } from "../sdk/src/validate.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const VERSION = "1.1.0";
+const VERSION: string = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 /** Guides by topic: a file of docs/<lang>/, or of the repository (the protocol). */

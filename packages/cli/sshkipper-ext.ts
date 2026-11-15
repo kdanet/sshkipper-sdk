@@ -13,6 +13,8 @@ import { formatIssue, MANIFEST_FILES, manifestFile, packFiles, validateFolder } 
 import { zip } from "../sdk/src/zip.ts";
 
 const NAME = "sshkipper-ext";
+/** The package's version (manifests say `"sdk": 1`, the protocol's generation, apart from it). */
+const VERSION: string = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 
 /** Every command: its usage, what it does, the flags it takes (a value flag ends with «=»), whether it names things
  * after the folder (a handler, a page) — the rest take the folder alone. */
@@ -77,7 +79,7 @@ const HELP = `${NAME} — build extensions for SSHKipper (SDK 1)
 
 ${Object.entries(COMMANDS).filter(([k]) => k !== "call").map(([, c]) => `  ${c.usage.split("\n").join("\n  ")}`).join("\n")}
 
-${NAME} <command> --help — what a command does. Docs: docs/en/README.md · Protocol: spec/protocol.md`;
+${NAME} <command> --help — what a command does; ${NAME} --version. Docs: docs/en/README.md · Protocol: spec/protocol.md`;
 
 const commandHelp = (name: string, c: Command) => `${NAME} ${c.usage}\n\n${c.about}`;
 
@@ -163,6 +165,7 @@ export async function main(argv: string[]) {
     console.log(c ? commandHelp(tail[0], c) : HELP);
     return;
   }
+  if (first === "--version" || first === "-V") { console.log(`${NAME} ${VERSION} (manifests: "sdk": 1)`); return; }
   const command = first;
   const c = COMMANDS[command] ?? fail(`no command «${command}» — ${NAME} help`);
   const f = parse(command, c, tail);
