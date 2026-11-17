@@ -65,7 +65,7 @@ What an extension can and can't do, and what the user approves: [Security](docs/
 | | |
 |---|---|
 | **TypeScript** (Node 24) | [packages/sdk](packages/sdk/src): types, UI-Kit builders (`view`, `rows`, `metric`, `datatable`, `tree`, `editor`, `terminal`, `liveChart`, `ops`…), the program runtime `defineModule` (handlers, `host.exec`, `host.store`, contributions), `serveDatabase` for drivers. A program carries its copy in `lib/sshkipper-sdk/` (`sshkipper-ext vendor` refreshes it), so the user's Mac needs no `npm install`. The package also exports `sshkipper-sdk` and `sshkipper-sdk/database`. |
-| **Swift** (6, macOS 13+) | [packages/swift](packages/swift): `SSHKipperSDK` — the manifest and protocol types, the JSON-RPC loop, every contribution, UI-Kit, the database protocol; no dependencies. `.package(url: "https://github.com/kdanet/sshkipper-sdk.git", branch: "main")` — [guide](docs/en/swift.md), [example](examples/swift-hello). |
+| **Swift** (6, macOS 13+) | [packages/swift](packages/swift): `SSHKipperSDK` — the manifest and protocol types, the JSON-RPC loop, every contribution, UI-Kit, the database protocol; no dependencies. `.package(url: "https://github.com/kdanet/sshkipper-sdk.git", from: "1.1.0")` — [guide](docs/en/swift.md), [example](examples/swift-hello). |
 | **Shell** | [spec/prelude.sh](spec/prelude.sh), put before every server script: `sk_json_string`, `sk_json_kv`, `sk_fail`, `sk_has`, `sk_secret` — JSON without `jq`, on busybox and mawk too; `sk_file` reads the extension's other files under `scripts/`. |
 
 ## For AI agents

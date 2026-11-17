@@ -85,7 +85,7 @@ by a path inside the SDK's repository, so a copy points `Package.swift` at the S
 clone or to the installed package (it carries the Swift sources too):
 
 ```swift
-dependencies: [.package(url: "https://github.com/kdanet/sshkipper-sdk.git", branch: "main")],
+dependencies: [.package(url: "https://github.com/kdanet/sshkipper-sdk.git", from: "1.1.0")],
 // or: [.package(path: "/usr/local/lib/node_modules/sshkipper-sdk")]  — `npm root -g` says where
 targets: [
     .executableTarget(name: "swift-hello", dependencies: [.product(name: "SSHKipperSDK", package: "sshkipper-sdk")],

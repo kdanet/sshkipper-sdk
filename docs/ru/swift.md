@@ -87,7 +87,7 @@ sshkipper-ext pack .          # → dev.sshkipper.example.swift-hello-1.0.0.sshk
 установленному пакету (в нём есть и исходники Swift):
 
 ```swift
-dependencies: [.package(url: "https://github.com/kdanet/sshkipper-sdk.git", branch: "main")],
+dependencies: [.package(url: "https://github.com/kdanet/sshkipper-sdk.git", from: "1.1.0")],
 // или: [.package(path: "/usr/local/lib/node_modules/sshkipper-sdk")]  — где он, скажет `npm root -g`
 targets: [
     .executableTarget(name: "swift-hello", dependencies: [.product(name: "SSHKipperSDK", package: "sshkipper-sdk")],
